@@ -18,6 +18,8 @@ Everything writes through `bus.ingest()` (built next block). Until A's store lan
 - [ ] `sourcing/scanners/hn.py` — HN Algolia API. Query AI-infra/dev-tools terms (`inference`, `vector db`, `compiler`, `agent framework`, `Show HN` + infra keywords). Pull post + author + comment threads.
 - [ ] `sourcing/scanners/github.py` — GraphQL. For a login: repos, commit cadence, release history, languages, contributors, fork lineage. **Get pagination + rate-limit backoff right now** — you'll be running this against hundreds of nodes for the graph and a naive client dies at H10.
 - [ ] `sourcing/scanners/arxiv.py` — cs.LG/cs.DC/cs.PL listings, authors + affiliations. Store affiliation as a *fact*, never as a *score input* (Invariant #3).
+- [ ] `sourcing/scanners/web.py` — Tavily (`core/search.py`) as the **enrichment** channel, not a primary scanner. Given a resolved name/handle, sweep for footprint the three APIs miss: personal sites, non-English blogs, regional dev communities, conference talks. **This is disproportionately valuable for Type 6** — the invisible-international founder is precisely the one whose work isn't on HN.
+  - Tavily results rarely carry a trustworthy publish date. If you can't extract a real one, set `observed_at` to the earliest defensible date and flag `integrity_flags: ["date_inferred"]`. **Do not silently stamp `now()`** — that quietly poisons the backtest, and it'll be invisible until H14.
 - [ ] Cache every raw response to `data/raw/`. You'll re-run extraction ten times; don't re-hit the APIs and don't burn rate limit.
 - [ ] Product Hunt: **skip it.** It's cut item #1. Only if you're somehow ahead at H16.
 

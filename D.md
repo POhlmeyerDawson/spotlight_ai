@@ -66,7 +66,7 @@ Full pipeline, Type 1 + Type 2, end to end, real modules, no mocks. Whatever's b
 
 ## H22–24
 - [ ] Dry-run ×3 against all six archetypes. Time it. If it's over 2:30, cut a beat — don't talk faster.
-- [ ] **Record the backup video.** Do this at H22, not H23:45. Live demos fail and the video is the difference between a bad five minutes and no demo.
+- [ ] **Record the backup video.** Do this at H22, not H23:45. ElevenLabs credit is available if you want a clean narration track instead of recording voice at hour 23 — worth ~15 minutes, not more. Live demos fail and the video is the difference between a bad five minutes and no demo.
 - [ ] Load the demo page in the browser and leave it there. Disable notifications. Check the projector resolution.
 
 ## Demo order (2.5 min)

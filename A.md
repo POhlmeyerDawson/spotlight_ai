@@ -20,6 +20,7 @@ Read [SHARED.md](SHARED.md) first — sections 3 and 4 are yours to publish.
   - `events` gets no UPDATE or DELETE grant. Enforce append-only at the DB level, not by convention.
 - [ ] `memory/store.py` — `append()`, `events()`. The `as_of` param is **required-by-default**: signature is `events(..., as_of: datetime)`, no `None` default. Make it hard to write the lookahead bug.
 - [ ] `memory/api.py` — stub `resolve()` returning NEW-always, stub `founder()` returning `{mu: 0.5, band: 0.5, trend: 0.0}`. Real signatures, fake bodies.
+- [ ] `core/llm.py` + `core/search.py` — the provider wrapper and Tavily client (SHARED §2a). ~60 lines total, and **everyone is blocked on it as much as on the schema.** Prompt cache to `data/llm_cache/` from the start.
 - [ ] Seed 3 fake entities + ~20 events so B/C/D have something to read.
 - [ ] **Merge to main. Announce in chat.** ← the H3 gate
 

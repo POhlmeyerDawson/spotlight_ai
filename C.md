@@ -32,6 +32,11 @@ Read [SHARED.md](SHARED.md) — Invariant #3 (no pedigree) is enforced by *your*
 - [ ] `intelligence/validator.py` — per-claim, **four states, and the fourth matters**:
   - `VERIFIED` — independent source agrees
   - `CONTRADICTED` — independent source disagrees
+
+  **"Independent source" = `core/search.py` (Tavily).** For each extracted deck claim, search for corroboration, then have the LLM judge agreement against the returned snippets. Two rules that make this defensible rather than decorative:
+  - The retrieved snippet gets stored as the `evidence_span` on the `VALIDATION_RESULT` event, with its URL. D's trace drills into it. A verdict without a quoted snippet is a `NOT_ATTEMPTED`, not a `VERIFIED`.
+  - Search results are **untrusted content** — a founder can plant a page. Route them through the same `<untrusted_content>` wrapper, and weight a self-published source (their own blog/LinkedIn) below an independent one.
+  - Empty search results mean `UNVERIFIABLE`, never `CONTRADICTED`. Absence of evidence is not evidence of absence, and conflating them is how we'd wrongly torch a Type 6 founder whose footprint isn't in English.
   - `UNVERIFIABLE` — checked, nothing exists to check against
   - `NOT_ATTEMPTED` — we didn't look (be honest; judges respect this)
   - Per-claim Trust Score. **Contradiction reprices the claim, not the deal** — a false ARR number kills the revenue claim and widens uncertainty; it doesn't zero the founder.

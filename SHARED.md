@@ -10,17 +10,34 @@
 |---|---|---|
 | DB | Supabase Postgres + pgvector | hosted, no local setup, everyone gets a URL |
 | Backend | Python 3.11 + FastAPI + Pydantic | one language for ML + scrapers + API |
-| LLM | Anthropic API, `claude-sonnet-5` default, `claude-opus-4-8` for memo/dissent | speed vs quality split |
+| LLM | **provider-agnostic wrapper**, OpenAI default (hackathon credits) | see §2a — never import a vendor SDK outside `core/llm.py` |
+| Web search | **Tavily** (shared hackathon code, no claiming needed) | independent-source verification for C's validator |
 | Frontend | Next.js (app router) + Tailwind + shadcn/ui | fastest path to a demo-grade dashboard |
 | Deps | `uv` (backend), `pnpm` (frontend) | fast, lockfile committed |
 
 Env vars live in `.env.example` (committed, no secrets) → `.env` (gitignored).
-`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`.
+`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `LLM_PROVIDER`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (optional), `TAVILY_API_KEY`, `GITHUB_TOKEN`.
+
+### 2a. LLM access — one wrapper, no vendor SDKs anywhere else
+
+Hackathon credits are **OpenAI**, not Anthropic. So: `core/llm.py` (A ships it in the H1–3 unblock, everyone imports it).
+
+```python
+llm.complete(prompt, *, system=None, model_tier="fast"|"deep", json_schema=None) -> str | dict
+```
+
+- `LLM_PROVIDER=openai|anthropic` switches the backend. Two tiers only — `fast` for extraction/flags/screening, `deep` for memo + dissent + proof-challenge generation.
+- **Nobody imports `openai` or `anthropic` outside this file.** If credits run dry mid-build (they will — decks + memos + dissent burn tokens fast) we swap providers in one place instead of eight.
+- The `<untrusted_content>` wrapper (Invariant #4) is applied **inside** `llm.complete()`, so it cannot be forgotten under time pressure.
+- Cache completions to `data/llm_cache/` keyed by prompt hash. You will re-run the same pipeline dozens of times; do not pay for it dozens of times.
+
+**Claim the OpenAI credit in H0** — it's a project form, not an instant code, so there's a turnaround. One person claims, key goes in the shared `.env`. Tavily and Woz are shared codes, available to everyone immediately.
 
 ## 2. Repo layout — ownership is by directory, so PRs don't collide
 
 ```
 /schema/            A owns   Pydantic models + SQL migrations. THE contract.
+/core/              A owns   llm.py (provider wrapper), search.py (Tavily). Everyone imports.
 /memory/            A owns   event store, entity resolution, founder score
 /sourcing/          B owns   scanners, ingestion bus, graph, PPR
 /intelligence/      C owns   screening, proof protocol, validator, dissent
