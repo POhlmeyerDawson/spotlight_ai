@@ -292,7 +292,7 @@ def hidden_ranking(as_of: datetime, k: int = 50) -> list[HiddenCandidate]:
     return ranked[:k]
 
 
-def access_lift(picks: list[UUID], *, as_of: datetime | None = None) -> float:
+def access_lift(picks: list[UUID], *, as_of: datetime | None = None) -> float | None:
     """% of picks with near-zero traditional visibility. The closing line of the pitch.
 
     "Near-zero" = at or below the NEAR_ZERO_VISIBILITY_PCTILE-th percentile of the
@@ -306,6 +306,21 @@ def access_lift(picks: list[UUID], *, as_of: datetime | None = None) -> float:
     population = np.array([g.nodes[v]["visibility"] for v in g.nodes])
     if population.size == 0:
         return 0.0
+    # A visibility signal that never varies cannot separate anyone. Every node in the
+    # seeded corpus currently reports 0.0 — no follower, star or karma fields survive
+    # into the graph — so the percentile threshold lands on 0.0, every pick clears it,
+    # and the metric returns a confident 1.0 while measuring nothing at all. Reporting
+    # that as "100% of our picks are the least visible" is the kind of claim that does
+    # not survive one question. None means "cannot measure"; callers must say so.
+    if float(np.ptp(population)) == 0.0:
+        log.warning(
+            "access_lift: visibility is uniform (%.3f) across %d nodes — no discrimination "
+            "possible, returning None rather than a vacuous 1.0",
+            float(population[0]) if population.size else 0.0,
+            population.size,
+        )
+        return None
+
     threshold = float(np.percentile(population, NEAR_ZERO_VISIBILITY_PCTILE))
     # A pick with no visibility signal at all scores 0.0 — genuinely invisible, counts.
     hits = sum(1 for p in picks if float(g.nodes[p]["visibility"] if p in g else 0.0) <= threshold)
