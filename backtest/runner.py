@@ -173,8 +173,9 @@ def _trajectory(member: dict, points: int = 12) -> list[dict]:
             window = [e for e in events if e.observed_at <= at]
             assert_no_lookahead(window, at)
             fs = score_mod.founder(entity_id, at)
-            series.append({"as_of": at.isoformat(), "mu": fs.mu, "band": fs.band,
-                           "trend": fs.trend})
+            series.append(
+                {"as_of": at.isoformat(), "mu": fs.mu, "band": fs.band, "trend": fs.trend}
+            )
         return series
     except LookaheadError:
         raise

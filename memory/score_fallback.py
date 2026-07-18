@@ -1,69 +1,57 @@
-"""Beta-Binomial with forgetting factor lambda. Owner: A.
-
-Wired behind SCORE_MODEL=beta_binomial. Verify the flag works at H10, not H20.
-Same observations as the Kalman (reused from score.py) — only the estimator differs.
-"""
+"""Beta-Binomial fallback behind ``SCORE_MODEL=beta_binomial``."""
 
 from __future__ import annotations
 
+import math
+import os
 from datetime import datetime
 from uuid import UUID
 
-import numpy as np
-
-from memory.score import R0, Observation, observations
 from schema.events import FounderScore
 
-LAMBDA = 0.97  # per-day forgetting: evidence half-life ~23 days
-ALPHA0 = 1.0  # Beta(1,1) prior — uniform, mean 0.5, matching the Kalman's MU0
-BETA0 = 1.0
-W_MAX = 20.0  # a single very-low-noise proof event must not swamp the posterior
 
-
-def _weight(o: Observation) -> float:
-    """Precision weight, same noise model as the Kalman: low r == more pseudo-counts."""
-    return float(min(R0 / max(o.r, 1e-9), W_MAX))
-
-
-def _posterior(obs: list[Observation]) -> tuple[float, float]:
-    a, b = ALPHA0, BETA0
-    prev: datetime | None = None
-    for o in obs:
-        if prev is not None:
-            decay = LAMBDA ** ((o.observed_at - prev).total_seconds() / 86400.0)
-            a, b = ALPHA0 + (a - ALPHA0) * decay, BETA0 + (b - BETA0) * decay
-        w = _weight(o)
-        a += w * o.y
-        b += w * (1.0 - o.y)
-        prev = o.observed_at
-    return a, b
-
-
-def _mean(obs: list[Observation]) -> float:
-    a, b = _posterior(obs)
-    return a / (a + b)
+def _lambda() -> float:
+    return float(os.getenv("SCORE_LAMBDA", "0.985"))
 
 
 def founder(entity_id: UUID, as_of: datetime) -> FounderScore:
-    obs = observations(entity_id, as_of)
-    kept = obs.kept
-    a, b = _posterior(kept)
-    n = a + b
-    mu = a / n
+    from memory.score import build_observations
 
-    # Trend as a diff of window posterior means. Acceptable here; the Kalman's nu
-    # is the principled version and this path only exists as a demo-time escape hatch.
-    trend = 0.0
-    if len(kept) >= 2:
-        mid = len(kept) // 2
-        trend = _mean(kept[mid:]) - _mean(kept[:mid])
+    observations = build_observations(entity_id, as_of)
+    retention = _lambda()
+    alpha = beta = 1.0
+    contributing: list[UUID] = []
+    last_t: datetime | None = None
+    before_last = after_last = 0.5
 
+    for observation in observations:
+        if last_t is not None:
+            decay = retention ** ((observation.observed_at - last_t).total_seconds() / 86400.0)
+            alpha = 1.0 + (alpha - 1.0) * decay
+            beta = 1.0 + (beta - 1.0) * decay
+        weight = observation.self_consistency / max(observation.source_penalty, 1e-6)
+        before_last = alpha / (alpha + beta)
+        alpha += weight * observation.value
+        beta += weight * (1.0 - observation.value)
+        after_last = alpha / (alpha + beta)
+        contributing.extend(observation.event_ids)
+        last_t = observation.observed_at
+
+    if last_t is not None:
+        elapsed = (as_of - last_t).total_seconds() / 86400.0
+        if elapsed > 0:
+            decay = retention**elapsed
+            alpha = 1.0 + (alpha - 1.0) * decay
+            beta = 1.0 + (beta - 1.0) * decay
+
+    mu = alpha / (alpha + beta)
+    variance = alpha * beta / ((alpha + beta) ** 2 * (alpha + beta + 1.0))
     return FounderScore(
         entity_id=entity_id,
         as_of=as_of,
         mu=float(mu),
-        band=float(np.sqrt(mu * (1.0 - mu) / (n + 1.0))),
-        trend=float(trend),
-        contributing_event_ids=[o.event_id for o in kept],
+        band=float(math.sqrt(max(variance, 0.0))),
+        trend=float(after_last - before_last),
+        contributing_event_ids=contributing,
         model="beta_binomial",
     )

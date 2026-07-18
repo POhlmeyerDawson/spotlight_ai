@@ -56,7 +56,7 @@ def _shift() -> timedelta:
         (
             datetime.fromisoformat(e["observed_at"])
             for f in fixture_files()
-            for profile in json.loads(f.read_text()).get("profiles", [])
+            for profile in json.loads(f.read_text(encoding="utf-8")).get("profiles", [])
             for e in profile.get("events", [])
         ),
         default=None,
@@ -119,7 +119,7 @@ def load() -> dict[str, Any]:
     appended = skipped = 0
 
     for path in fixture_files():
-        fixture = json.loads(path.read_text())
+        fixture = json.loads(path.read_text(encoding="utf-8"))
         archetype = fixture["archetype"]
         counts = per_archetype.setdefault(
             archetype, {"label": fixture["label"], "companies": 0, "events": 0}

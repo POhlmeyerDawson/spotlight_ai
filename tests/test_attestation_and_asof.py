@@ -89,7 +89,8 @@ def test_client_supplied_timestamps_are_overwritten_by_server_observation() -> N
     attest.reset()
     attest.record_issue("ch-1", T0)
     merged, _ = attest.attest(
-        "ch-1", {"started_at": "2099-01-01T00:00:00+00:00", "submitted_at": "2099-01-01T00:01:00+00:00"}
+        "ch-1",
+        {"started_at": "2099-01-01T00:00:00+00:00", "submitted_at": "2099-01-01T00:01:00+00:00"},
     )
     assert merged["started_at"] == T0.isoformat()
     assert not merged["submitted_at"].startswith("2099")

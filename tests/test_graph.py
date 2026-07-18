@@ -28,8 +28,11 @@ def _tmp_db(tmp_path, monkeypatch):
 def _repo(entity_id: UUID, repo: str, at: datetime, **payload) -> None:
     store.append(
         Event(
-            entity_id=entity_id, kind=EventKind.REPO_ACTIVITY, source=Source.GITHUB,
-            observed_at=at, payload={"repo": repo, **payload},
+            entity_id=entity_id,
+            kind=EventKind.REPO_ACTIVITY,
+            source=Source.GITHUB,
+            observed_at=at,
+            payload={"repo": repo, **payload},
         )
     )
 
@@ -59,13 +62,34 @@ def test_edge_kinds_and_weights_accumulate() -> None:
     _repo(a, "org/one", T1)
     _repo(b, "org/one", T1)
     for e in (a, b):  # same paper -> co-authorship on top of the co-commit edge
-        store.append(Event(entity_id=e, kind=EventKind.PAPER, source=Source.ARXIV,
-                           observed_at=T1, payload={"arxiv_id": "2401.00001"}))
+        store.append(
+            Event(
+                entity_id=e,
+                kind=EventKind.PAPER,
+                source=Source.ARXIV,
+                observed_at=T1,
+                payload={"arxiv_id": "2401.00001"},
+            )
+        )
     _repo(c, "fork/one", T2, forked_from="org/one")  # fork lineage
-    store.append(Event(entity_id=a, kind=EventKind.HN_COMMENT, source=Source.HN,
-                       observed_at=T1, payload={"story_id": 99}))
-    store.append(Event(entity_id=c, kind=EventKind.HN_COMMENT, source=Source.HN,
-                       observed_at=T1, payload={"story_id": 99}))
+    store.append(
+        Event(
+            entity_id=a,
+            kind=EventKind.HN_COMMENT,
+            source=Source.HN,
+            observed_at=T1,
+            payload={"story_id": 99},
+        )
+    )
+    store.append(
+        Event(
+            entity_id=c,
+            kind=EventKind.HN_COMMENT,
+            source=Source.HN,
+            observed_at=T1,
+            payload={"story_id": 99},
+        )
+    )
 
     g = graph.build_graph(T3)
     assert set(g[a][b]["kinds"]) == {"co_commit", "coauthor"}
@@ -80,8 +104,15 @@ def test_oversized_thread_is_not_a_clique(monkeypatch) -> None:
     monkeypatch.setattr(graph, "MAX_GROUP_SIZE", 3)
     people = [_entity(f"p{i}") for i in range(5)]
     for p in people:
-        store.append(Event(entity_id=p, kind=EventKind.HN_COMMENT, source=Source.HN,
-                           observed_at=T1, payload={"story_id": 1}))
+        store.append(
+            Event(
+                entity_id=p,
+                kind=EventKind.HN_COMMENT,
+                source=Source.HN,
+                observed_at=T1,
+                payload={"story_id": 1},
+            )
+        )
     assert graph.build_graph(T2).number_of_edges() == 0
 
 
@@ -101,8 +132,15 @@ def _seeded_world() -> tuple[UUID, UUID, UUID]:
         _repo(peer, "seed/core", T1)
     # identical structure, opposite visibility
     _repo(famous, "famous/proj", T1, owner=True, stars=40_000, followers=25_000)
-    store.append(Event(entity_id=famous, kind=EventKind.HN_POST, source=Source.HN,
-                       observed_at=T1, payload={"story_id": 7, "karma": 30_000}))
+    store.append(
+        Event(
+            entity_id=famous,
+            kind=EventKind.HN_POST,
+            source=Source.HN,
+            observed_at=T1,
+            payload={"story_id": 7, "karma": 30_000},
+        )
+    )
     _repo(hidden, "hidden/proj", T1, owner=True, stars=3)
     return seed, hidden, famous
 
@@ -166,20 +204,31 @@ def test_access_lift_is_a_sane_fraction() -> None:
 
 def _commit(day: int, files: list[str], lines: int, message: str = "work") -> dict:
     return {
-        "files": files, "additions": lines, "deletions": 0, "message": message,
+        "files": files,
+        "additions": lines,
+        "deletions": 0,
+        "message": message,
         "authored_at": (T1 + timedelta(days=day)).isoformat(),
     }
 
 
 def _push(entity_id: UUID, commits: list[dict]) -> None:
-    store.append(Event(entity_id=entity_id, kind=EventKind.COMMIT_BURST, source=Source.GITHUB,
-                       observed_at=T2, payload={"repo": "x/y", "commits": commits}))
+    store.append(
+        Event(
+            entity_id=entity_id,
+            kind=EventKind.COMMIT_BURST,
+            source=Source.GITHUB,
+            observed_at=T2,
+            payload={"repo": "x/y", "commits": commits},
+        )
+    )
 
 
 def test_substantive_high_volume_committer_is_not_flagged() -> None:
     e = _entity("real builder")
-    commits = [_commit(0, [f"src/mod_{i}.py", f"tests/test_mod_{i}.py"], 40 + i * 7)
-               for i in range(30)]
+    commits = [
+        _commit(0, [f"src/mod_{i}.py", f"tests/test_mod_{i}.py"], 40 + i * 7) for i in range(30)
+    ]
     commits += [_commit(d, [f"src/late_{d}.py"], 30) for d in range(1, 5)]
     _push(e, commits)
 
@@ -192,8 +241,11 @@ def test_substantive_high_volume_committer_is_not_flagged() -> None:
 def test_high_volume_no_substance_is_flagged() -> None:
     e = _entity("padder")
     # same file, one-line whitespace churn, no tests
-    _push(e, [_commit(0, ["README.md"], 1, "reformat whitespace") for _ in range(40)]
-          + [_commit(d, ["README.md"], 1, "typo") for d in range(1, 5)])
+    _push(
+        e,
+        [_commit(0, ["README.md"], 1, "reformat whitespace") for _ in range(40)]
+        + [_commit(d, ["README.md"], 1, "typo") for d in range(1, 5)],
+    )
 
     sig = burst.burst_signature(e, as_of=T3)
     assert sig["burst"] is True

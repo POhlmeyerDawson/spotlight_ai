@@ -25,7 +25,7 @@ def _python_files() -> list[Path]:
         p
         for d in SCANNED_DIRS
         for p in (ROOT / d).rglob("*.py")
-        if str(p.relative_to(ROOT)) not in EXEMPT
+        if p.relative_to(ROOT).as_posix() not in EXEMPT  # as_posix so '/' matches on Windows
     ]
 
 
@@ -35,9 +35,9 @@ def test_no_pedigree_term_in_source(term: str) -> None:
     # Word-boundary anchored: "mit" must not match "commit"/"limit"/"submit".
     pattern = re.compile(rf"\b{re.escape(term)}\b", re.IGNORECASE)
     offenders = [
-        f"{p.relative_to(ROOT)}:{i}"
+        f"{p.relative_to(ROOT).as_posix()}:{i}"
         for p in _python_files()
-        for i, line in enumerate(p.read_text().splitlines(), 1)
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
         if pattern.search(line)
     ]
     assert not offenders, (

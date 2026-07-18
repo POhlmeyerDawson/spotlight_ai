@@ -56,14 +56,26 @@ FIXTURES = {
             }
         ],
     },
-    f"memo_{CID}": {"company_id": CID, "thesis": {"summary": "s", "claims": []},
-                    "recommendation": {"summary": "invest"}, "gaps": []},
-    f"dissent_{CID}": {"company_id": CID, "bear_case": "b", "weakest_evidence": [],
-                       "load_bearing_claim": "the buffer is theirs"},
+    f"memo_{CID}": {
+        "company_id": CID,
+        "thesis": {"summary": "s", "claims": []},
+        "recommendation": {"summary": "invest"},
+        "gaps": [],
+    },
+    f"dissent_{CID}": {
+        "company_id": CID,
+        "bear_case": "b",
+        "weakest_evidence": [],
+        "load_bearing_claim": "the buffer is theirs",
+    },
     "hidden": {"candidates": [], "access_lift": 0.62},
-    "challenge": {"challenge_id": "44444444-4444-4444-4444-444444444444", "prompt": "p",
-                  "central_claim": "c", "ambiguous_requirement": "a",
-                  "planted_bad_constraint": "b"},
+    "challenge": {
+        "challenge_id": "44444444-4444-4444-4444-444444444444",
+        "prompt": "p",
+        "central_claim": "c",
+        "ambiguous_requirement": "a",
+        "planted_bad_constraint": "b",
+    },
     "proof_result": {"graded_event_ids": []},
     "backtest": {"threshold": 0.6, "results": [], "fame_check_passed": True},
 }
@@ -128,7 +140,10 @@ def test_get_routes_answer(client: TestClient, path: str) -> None:
 
 @pytest.mark.parametrize(
     "path",
-    [f"/companies/{CID}/proof", f"/companies/{CID}/proof/44444444-4444-4444-4444-444444444444/grade"],
+    [
+        f"/companies/{CID}/proof",
+        f"/companies/{CID}/proof/44444444-4444-4444-4444-444444444444/grade",
+    ],
 )
 def test_post_routes_answer(client: TestClient, path: str) -> None:
     assert client.post(path, json={"demo": True}).status_code == 200, path
@@ -159,9 +174,9 @@ def test_unlocks_only_after_dissent_is_served(client: TestClient) -> None:
 def test_lock_is_per_company(client: TestClient) -> None:
     other = "33333333-3333-3333-3333-333333333333"
     client.get(f"/companies/{CID}/dissent")
-    assert client.get(f"/companies/{other}/memo?dissent_viewed=true").json()[
-        "recommendation"
-    ] is None
+    assert (
+        client.get(f"/companies/{other}/memo?dissent_viewed=true").json()["recommendation"] is None
+    )
 
 
 # --- trace, memo content, query --------------------------------------------
@@ -182,8 +197,9 @@ def test_memo_flags_gaps_rather_than_filling_them(client: TestClient) -> None:
     for section in ("thesis", "founder", "market", "risks", "recommendation"):
         assert section in body, section
     assert isinstance(body["gaps"], list) and body["gaps"], "a memo with no gap list is fabricating"
-    assert any("not_attempted" in g["status"] or "unverifiable" in g["status"]
-               for g in body["gaps"])
+    assert any(
+        "not_attempted" in g["status"] or "unverifiable" in g["status"] for g in body["gaps"]
+    )
 
 
 def test_score_history_returns_a_series(client: TestClient) -> None:
@@ -198,9 +214,7 @@ def test_query_filters_in_python(client: TestClient) -> None:
 
 
 def test_query_unverified_filter(client: TestClient) -> None:
-    body = client.get(
-        "/query", params={"q": "companies with unverified revenue"}
-    ).json()
+    body = client.get("/query", params={"q": "companies with unverified revenue"}).json()
     assert [c["name"] for c in body["results"]] == ["Ferrite"]
 
 

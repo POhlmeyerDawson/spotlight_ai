@@ -111,7 +111,9 @@ def _norm(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _groups(as_of: datetime) -> tuple[
+def _groups(
+    as_of: datetime,
+) -> tuple[
     dict[tuple[str, str], dict[UUID, datetime]],
     dict[UUID, dict[str, datetime]],
 ]:
@@ -240,7 +242,10 @@ def _resolve_seeds(g: nx.Graph) -> tuple[dict[UUID, float], str]:
     hits: set[UUID] = set()
     if wanted:
         for row in store.all_entities():
-            names = {_norm(str(row.get("display_name") or "")), _norm(str(row.get("name_normalized") or ""))}
+            names = {
+                _norm(str(row.get("display_name") or "")),
+                _norm(str(row.get("name_normalized") or "")),
+            }
             if names & wanted:
                 entity_id = UUID(str(row["entity_id"]))
                 if entity_id in g:
@@ -271,8 +276,13 @@ def hidden_ranking(as_of: datetime, k: int = 50) -> list[HiddenCandidate]:
         return []
 
     personalization, note = _resolve_seeds(g)
-    log.info("graph: hidden_ranking as_of=%s over %d nodes / %d edges — %s",
-             as_of, len(g), g.number_of_edges(), note)
+    log.info(
+        "graph: hidden_ranking as_of=%s over %d nodes / %d edges — %s",
+        as_of,
+        len(g),
+        g.number_of_edges(),
+        note,
+    )
     ppr = nx.pagerank(g, personalization=personalization, weight="weight")
 
     nodes = list(g.nodes)

@@ -123,9 +123,7 @@ def attest(
         attested.append("commits")
 
     merged = {**(trace or {}), **observed}
-    self_reported = [
-        f for f in SELF_REPORTABLE if f in (trace or {}) and f not in attested
-    ]
+    self_reported = [f for f in SELF_REPORTABLE if f in (trace or {}) and f not in attested]
 
     attestation = {
         "challenge_anchored": issued is not None,
@@ -163,12 +161,16 @@ def _note(anchored: bool, has_repo: bool, self_reported: list[str], demo: bool) 
         return "Seeded demonstration completion. The machinery is real; this run was pre-recorded."
     parts = []
     parts.append(
-        "Timing observed server-side." if anchored else "No server-side issue record — timing is unverified."
+        "Timing observed server-side."
+        if anchored
+        else "No server-side issue record — timing is unverified."
     )
     if has_repo:
         parts.append("Commits fetched independently from the public repository.")
     if self_reported:
-        parts.append("Self-reported and not independently observed: " + ", ".join(self_reported) + ".")
+        parts.append(
+            "Self-reported and not independently observed: " + ", ".join(self_reported) + "."
+        )
     return " ".join(parts)
 
 

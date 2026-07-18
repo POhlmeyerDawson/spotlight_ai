@@ -102,6 +102,41 @@ class Resolution(BaseModel):
     score: float
     alternatives: list[UUID] = Field(default_factory=list)  # populated when AMBIGUOUS
     rationale: str
+    signals: list[str] = Field(default_factory=list)  # reason codes: which signals fired
+
+
+class Entity(BaseModel):
+    """A resolved person. The Founder Score belongs here, not to a company — it
+    persists across applications, companies, and startup ideas."""
+
+    entity_id: UUID = Field(default_factory=uuid4)
+    display_name: str
+    name_normalized: str  # unidecode + casefold — Type 6 fuzzy matching depends on it
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class Company(BaseModel):
+    company_id: UUID = Field(default_factory=uuid4)
+    name: str
+    founder_entity_ids: list[UUID] = Field(default_factory=list)
+    archetype: int | None = None  # 1..6, seed data only
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class Observation(BaseModel):
+    """The typed input to the Founder Score filter. A owns this boundary; C produces
+    the underlying GREEN_FLAG / PROOF_* events, A maps them to observations here.
+
+    Never reach into C's code for these — read the events C wrote and map at the
+    boundary (see memory/score.build_observations)."""
+
+    entity_id: UUID
+    observed_at: datetime  # as_of filtering happens on this
+    value: float = Field(ge=0.0, le=1.0)  # y_t — weighted YES-rate / capability proxy
+    self_consistency: float = Field(default=1.0, gt=0.0, le=1.0)  # agreement of the read
+    source_penalty: float = Field(default=1.0, ge=0.0)  # >1 noisier, <1 low-noise (proof events)
+    event_ids: list[UUID] = Field(default_factory=list)  # receipts — flow to the score
+    rule_ids: list[str] = Field(default_factory=list)  # which green-flag rules fired
 
 
 class FounderScore(BaseModel):

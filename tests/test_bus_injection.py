@@ -149,8 +149,11 @@ def test_ingest_strips_injection_and_flags_the_event() -> None:
 
 
 def test_real_source_timestamp_is_used_verbatim_and_not_flagged() -> None:
-    raw = RawSignal(source=Source.HN, content="Show HN: a tracing JIT", meta={
-        "observed_at": "2023-08-09T12:30:00Z", "kind": str(EventKind.HN_POST)})
+    raw = RawSignal(
+        source=Source.HN,
+        content="Show HN: a tracing JIT",
+        meta={"observed_at": "2023-08-09T12:30:00Z", "kind": str(EventKind.HN_POST)},
+    )
     event = bus.ingest(raw)[-1]
     assert event.observed_at == datetime(2023, 8, 9, 12, 30, tzinfo=timezone.utc)
     assert bus.DATE_INFERRED not in event.integrity_flags
@@ -230,18 +233,14 @@ def test_deck_claims_carry_slide_ids_and_survive_a_poisoned_slide(monkeypatch) -
 def test_deck_flags_a_quote_the_slide_does_not_contain(monkeypatch) -> None:
     """A hallucinated citation loses its quote and its confidence, rather than passing as evidence."""
     monkeypatch.setattr(deck.llm, "complete", lambda *a, **kw: _STUB_CLAIMS)
-    invented = next(
-        c for c in deck.extract(DECK) if c.payload.get("claim") == "Invented later."
-    )
+    invented = next(c for c in deck.extract(DECK) if c.payload.get("claim") == "Invented later.")
     assert invented.payload["quote"] is None
     assert invented.confidence < deck.CLAIM_CONF
 
 
 def test_deck_surfaces_an_unreadable_slide_instead_of_dropping_it(monkeypatch) -> None:
     monkeypatch.setattr(deck.llm, "complete", lambda *a, **kw: _STUB_CLAIMS)
-    unreadable = next(
-        e for e in deck.extract(DECK) if e.payload.get("rule") == deck.NO_TEXT_FLAG
-    )
+    unreadable = next(e for e in deck.extract(DECK) if e.payload.get("rule") == deck.NO_TEXT_FLAG)
     assert unreadable.evidence_span == "slide 4"
     assert deck.LOW_CONF_FLAG in unreadable.integrity_flags
     assert unreadable.confidence <= deck.LOW_CONF

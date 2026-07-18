@@ -15,8 +15,11 @@ from memory import store
 from schema.events import EventKind, utcnow
 
 EVIDENCE_KINDS = (
-    EventKind.REPO_ACTIVITY, EventKind.RELEASE, EventKind.PAPER,
-    EventKind.HN_POST, EventKind.HN_COMMENT,
+    EventKind.REPO_ACTIVITY,
+    EventKind.RELEASE,
+    EventKind.PAPER,
+    EventKind.HN_POST,
+    EventKind.HN_COMMENT,
 )
 MAX_EVIDENCE = 8
 
@@ -34,7 +37,9 @@ def _trace(entity_id: UUID, as_of: datetime) -> list[str]:
             continue
         payload = ev.payload if isinstance(ev.payload, dict) else {}
         what = payload.get("repo") or payload.get("title") or payload.get("name") or str(ev.kind)
-        lines.append(f"- {ev.observed_at:%Y-%m-%d} [{ev.kind}] {what} ({ev.source_url or 'no url'})")
+        lines.append(
+            f"- {ev.observed_at:%Y-%m-%d} [{ev.kind}] {what} ({ev.source_url or 'no url'})"
+        )
         if len(lines) >= MAX_EVIDENCE:
             break
     return lines

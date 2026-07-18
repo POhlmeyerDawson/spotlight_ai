@@ -27,9 +27,11 @@ def _tmp_db(tmp_path, monkeypatch):
 
 def _fixture(archetype: int) -> dict:
     path = next(
-        p for p in seed.fixture_files() if json.loads(p.read_text())["archetype"] == archetype
+        p
+        for p in seed.fixture_files()
+        if json.loads(p.read_text(encoding="utf-8"))["archetype"] == archetype
     )
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _profiles(archetype: int) -> list[dict]:
@@ -235,9 +237,9 @@ def test_serial_founder_history_persists_across_companies() -> None:
         # company's own events rather than a fixed year, which the shift moves.
         current = [e for e in events if e.company_id != prior]
         assert current, "serial founder must have events on the new company too"
-        assert max(e.observed_at for e in prior_events) < max(
-            e.observed_at for e in current
-        ), "prior-company history must predate the current company's latest activity"
+        assert max(e.observed_at for e in prior_events) < max(e.observed_at for e in current), (
+            "prior-company history must predate the current company's latest activity"
+        )
 
 
 # --- API fixtures the dashboard reads ---------------------------------------
@@ -258,7 +260,7 @@ def test_api_fixtures_exist_for_every_stage_archetype() -> None:
 
 
 def test_ranked_list_never_carries_a_blended_score() -> None:
-    entries = json.loads((SEED_DIR / "companies.json").read_text())["companies"]
+    entries = json.loads((SEED_DIR / "companies.json").read_text(encoding="utf-8"))["companies"]
     assert len(entries) >= 12
     for entry in entries:
         assert "score" not in entry
@@ -269,7 +271,7 @@ def test_ranked_list_never_carries_a_blended_score() -> None:
 
 def test_memos_flag_gaps_and_cite_events() -> None:
     for path in SEED_DIR.glob("memo_*.json"):
-        memo = json.loads(path.read_text())
+        memo = json.loads(path.read_text(encoding="utf-8"))
         assert {"thesis", "founder", "market", "risks", "recommendation"} <= set(memo["sections"])
         assert memo["sections"]["gaps_flagged"], f"{path.name} flags no gaps"
         assert memo["citations"], f"{path.name} cites nothing"
@@ -278,7 +280,7 @@ def test_memos_flag_gaps_and_cite_events() -> None:
 
 def test_backtest_controls_stay_below_threshold() -> None:
     """H12 hard gate: if a control clears, the score measures fame, not trajectory."""
-    bt = json.loads((SEED_DIR / "backtest.json").read_text())
+    bt = json.loads((SEED_DIR / "backtest.json").read_text(encoding="utf-8"))
     threshold = bt["threshold"]["value"]
 
     for control in bt["controls"]:
@@ -303,7 +305,7 @@ def test_backtest_controls_stay_below_threshold() -> None:
 def test_no_precomputed_scores_leak_into_the_event_fixtures() -> None:
     """The system reads the log. A score in a fixture is a score the pipeline never earned."""
     for path in seed.fixture_files():
-        for profile in json.loads(path.read_text())["profiles"]:
+        for profile in json.loads(path.read_text(encoding="utf-8"))["profiles"]:
             for event in profile["events"]:
                 keys = set(event["payload"])
                 assert not keys & {"founder_score", "score", "mu", "band", "trend", "rank"}

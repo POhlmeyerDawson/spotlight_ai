@@ -132,9 +132,11 @@ def _normalize_detail(detail: dict, company_id: str, cutoff) -> dict:
 
 def _axis_to_client(axis: dict) -> dict:
     """Fixture axes are authored 0..1; the client's Axis is 0..100 in score units."""
-    scale = (lambda v: None if v is None else round(float(v) * 100, 1)) if (
-        isinstance(axis.get("score"), (int, float)) and axis["score"] <= 1.0
-    ) else (lambda v: v)
+    scale = (
+        (lambda v: None if v is None else round(float(v) * 100, 1))
+        if (isinstance(axis.get("score"), (int, float)) and axis["score"] <= 1.0)
+        else (lambda v: v)
+    )
     return {
         **axis,
         "score": scale(axis.get("score")),
@@ -228,7 +230,11 @@ def get_trace(company_id: str, event_id: str) -> dict:
         if eid is None:
             raise HTTPException(400, "event_id is not a uuid")
         match = next(
-            (e for e in store.events(as_of=resolve_as_of(None), company_id=cid) if e.event_id == eid),
+            (
+                e
+                for e in store.events(as_of=resolve_as_of(None), company_id=cid)
+                if e.event_id == eid
+            ),
             None,
         )
         if match is None:
@@ -359,9 +365,7 @@ def get_score_history(company_id: str, as_of: datetime | None = None, points: in
 
 
 @router.get("/{company_id}/memo")
-def get_memo(
-    company_id: str, as_of: datetime | None = None, dissent_viewed: bool = False
-) -> dict:
+def get_memo(company_id: str, as_of: datetime | None = None, dissent_viewed: bool = False) -> dict:
     """Recommendation stays null until the dissent has actually been served.
 
     Enforced here against server state. `dissent_viewed=true` on its own does nothing —

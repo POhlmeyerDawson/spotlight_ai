@@ -79,9 +79,18 @@ def _entropy(weights: list[float]) -> float:
 
 def _empty(entity_id: UUID, as_of: datetime) -> dict:
     return {
-        "entity_id": entity_id, "as_of": as_of, "commits": 0, "peak_day_commits": 0,
-        "burst_ratio": 0.0, "burst": False, "diff_entropy": 0.0, "test_ratio": 0.0,
-        "file_diversity": 0.0, "logic_ratio": 0.0, "substance": 0.0, "suspicious": False,
+        "entity_id": entity_id,
+        "as_of": as_of,
+        "commits": 0,
+        "peak_day_commits": 0,
+        "burst_ratio": 0.0,
+        "burst": False,
+        "diff_entropy": 0.0,
+        "test_ratio": 0.0,
+        "file_diversity": 0.0,
+        "logic_ratio": 0.0,
+        "substance": 0.0,
+        "suspicious": False,
         "rationale": "no commit evidence",
     }
 
@@ -136,9 +145,17 @@ def burst_signature(entity_id: UUID, *, as_of: datetime | None = None) -> dict:
     log.debug("burst: %s %s", entity_id, rationale)
 
     return {
-        "entity_id": entity_id, "as_of": as_of, "commits": len(commits),
-        "peak_day_commits": peak, "burst_ratio": burst_ratio, "burst": burst,
-        "diff_entropy": diff_entropy, "test_ratio": test_ratio,
-        "file_diversity": file_diversity, "logic_ratio": logic_ratio,
-        "substance": substance, "suspicious": suspicious, "rationale": rationale,
+        "entity_id": entity_id,
+        "as_of": as_of,
+        "commits": len(commits),
+        "peak_day_commits": peak,
+        "burst_ratio": burst_ratio,
+        "burst": burst,
+        "diff_entropy": diff_entropy,
+        "test_ratio": test_ratio,
+        "file_diversity": file_diversity,
+        "logic_ratio": logic_ratio,
+        "substance": substance,
+        "suspicious": suspicious,
+        "rationale": rationale,
     }

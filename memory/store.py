@@ -1,52 +1,209 @@
-"""Append-only event store. Owner: A.
+"""Append-only event store + entity registry. Owner: A.
 
-Note the signature: as_of is REQUIRED and has no default. That is deliberate —
-it makes the lookahead bug hard to write rather than merely discouraged.
+The public Memory contract is backend-neutral. In-memory is the deterministic
+offline default; ``MEMORY_BACKEND=postgres`` selects the persistent backend.
+Compatibility helpers at the bottom keep C's API/sourcing code working without
+introducing a second store abstraction.
 """
 
 from __future__ import annotations
 
-import json
+import os
+import threading
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
-from uuid import UUID, uuid4
+from typing import TYPE_CHECKING
+from uuid import UUID
 
-from memory import db
-from schema.events import Event, utcnow
+from schema.events import Company, Entity, Event, utcnow
+
+if TYPE_CHECKING:
+    from memory.pg_store import PostgresEventStore
+
+
+@dataclass(frozen=True)
+class Alias:
+    entity_id: UUID
+    kind: str
+    value: str
+    source: str
+
+
+@dataclass(frozen=True)
+class Merge:
+    entity_a: UUID
+    entity_b: UUID
+    status: str
+    score: float
+    rationale: str
+    decided_at: datetime = field(default_factory=utcnow)
+
+
+class EventStore:
+    """Append-only event log plus entity/company/alias/merge registries."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._events: list[Event] = []
+        self._entities: dict[UUID, Entity] = {}
+        self._companies: dict[UUID, Company] = {}
+        self._aliases: dict[tuple[str, str], Alias] = {}
+        self._merges: list[Merge] = []
+
+    def append(self, event: Event) -> UUID:
+        """Append once by event ID; re-offering an existing event is a no-op."""
+        with self._lock:
+            if any(existing.event_id == event.event_id for existing in self._events):
+                return event.event_id
+            self._events.append(event)
+        return event.event_id
+
+    def events(
+        self,
+        *,
+        as_of: datetime,
+        entity_id: UUID | None = None,
+        company_id: UUID | None = None,
+        kind: str | None = None,
+    ) -> list[Event]:
+        """Return only events with observed_at <= as_of, in deterministic order."""
+        if as_of.tzinfo is None:
+            raise ValueError("as_of must be timezone-aware — a naive as_of silently mis-filters")
+        with self._lock:
+            out = [
+                e
+                for e in self._events
+                if e.observed_at <= as_of
+                and (entity_id is None or e.entity_id == entity_id)
+                and (company_id is None or e.company_id == company_id)
+                and (kind is None or e.kind == kind)
+            ]
+        out.sort(key=lambda e: (e.observed_at, e.ingested_at, str(e.event_id)))
+        return out
+
+    def create_entity(self, display_name: str, name_normalized: str) -> Entity:
+        entity = Entity(display_name=display_name, name_normalized=name_normalized)
+        with self._lock:
+            self._entities[entity.entity_id] = entity
+        return entity
+
+    def get_entity(self, entity_id: UUID) -> Entity | None:
+        return self._entities.get(entity_id)
+
+    def entities(self) -> list[Entity]:
+        with self._lock:
+            return sorted(self._entities.values(), key=lambda e: str(e.entity_id))
+
+    def add_alias(self, entity_id: UUID, kind: str, value: str, source: str) -> UUID:
+        """First writer wins for each (kind, value), matching the SQL constraint."""
+        key = (kind, value)
+        with self._lock:
+            existing = self._aliases.get(key)
+            if existing is not None:
+                return existing.entity_id
+            self._aliases[key] = Alias(entity_id, kind, value, source)
+        return entity_id
+
+    def find_by_alias(self, kind: str, value: str) -> UUID | None:
+        alias = self._aliases.get((kind, value))
+        return alias.entity_id if alias else None
+
+    def aliases_for(self, entity_id: UUID) -> list[Alias]:
+        with self._lock:
+            aliases = [a for a in self._aliases.values() if a.entity_id == entity_id]
+        return sorted(aliases, key=lambda a: (a.kind, a.value, str(a.entity_id)))
+
+    def aliases_by_kind(self, kind: str) -> list[Alias]:
+        with self._lock:
+            aliases = [a for a in self._aliases.values() if a.kind == kind]
+        return sorted(aliases, key=lambda a: (a.kind, a.value, str(a.entity_id)))
+
+    def create_company(
+        self,
+        name: str,
+        *,
+        founder_entity_ids: list[UUID] | None = None,
+        archetype: int | None = None,
+    ) -> Company:
+        company = Company(
+            name=name,
+            founder_entity_ids=list(founder_entity_ids or []),
+            archetype=archetype,
+        )
+        with self._lock:
+            self._companies[company.company_id] = company
+        return company
+
+    def get_company(self, company_id: UUID) -> Company | None:
+        return self._companies.get(company_id)
+
+    def companies(self) -> list[Company]:
+        with self._lock:
+            return sorted(self._companies.values(), key=lambda c: str(c.company_id))
+
+    def record_merge(
+        self, entity_a: UUID, entity_b: UUID, status: str, score: float, rationale: str
+    ) -> Merge:
+        merge = Merge(entity_a, entity_b, status, score, rationale)
+        with self._lock:
+            self._merges.append(merge)
+        return merge
+
+    def merges(self, *, status: str | None = None) -> list[Merge]:
+        with self._lock:
+            merges = [m for m in self._merges if status is None or m.status == status]
+        return sorted(
+            merges,
+            key=lambda m: (
+                m.decided_at,
+                str(m.entity_a),
+                str(m.entity_b),
+                m.status,
+                m.score,
+                m.rationale,
+            ),
+        )
+
+    def reset(self) -> None:
+        with self._lock:
+            self._events.clear()
+            self._entities.clear()
+            self._companies.clear()
+            self._aliases.clear()
+            self._merges.clear()
+
+
+_default = EventStore()
+_pg: PostgresEventStore | None = None
+
+
+def _backend() -> str:
+    return os.getenv("MEMORY_BACKEND", "memory").strip().lower()
+
+
+def get_store() -> EventStore | PostgresEventStore:
+    backend = _backend()
+    if backend == "memory":
+        return _default
+    if backend == "postgres":
+        return _get_pg_store()
+    raise ValueError(f"unknown MEMORY_BACKEND={backend!r} (expected 'memory' or 'postgres')")
+
+
+def _get_pg_store() -> PostgresEventStore:
+    global _pg
+    if _pg is None:
+        from core.config import settings
+        from memory.pg_store import PostgresEventStore
+
+        if not settings.database_url:
+            raise RuntimeError("MEMORY_BACKEND=postgres requires DATABASE_URL to be configured")
+        _pg = PostgresEventStore(settings.database_url)
+    return _pg
 
 
 def append(event: Event) -> UUID:
-    """Append an event. Idempotent on event_id.
-
-    Derived events (green flags, proof grades, seeds) carry deterministic uuid5 ids,
-    so re-running a stage re-offers rows that are already there. Raising on that
-    turned a repeated click into a 503 rather than a no-op. `insert or ignore` is
-    translated to `on conflict do nothing` for Postgres by memory/db.py, so both
-    backends behave identically — and this is still append-only: an existing row is
-    never modified, only left alone.
-    """
-    conn = db.connect()
-    conn.execute(
-        "insert or ignore into events (event_id, entity_id, company_id, kind, source, source_url, "
-        "observed_at, ingested_at, payload, evidence_span, confidence, integrity_flags) "
-        "values (?,?,?,?,?,?,?,?,?,?,?,?)",
-        (
-            str(event.event_id),
-            str(event.entity_id) if event.entity_id else None,
-            str(event.company_id) if event.company_id else None,
-            str(event.kind),
-            str(event.source),
-            event.source_url,
-            db.to_iso(event.observed_at),
-            db.to_iso(event.ingested_at),
-            json.dumps(event.payload),
-            event.evidence_span,
-            event.confidence,
-            json.dumps(event.integrity_flags),
-        ),
-    )
-    conn.commit()
-    return event.event_id
+    return get_store().append(event)
 
 
 def events(
@@ -56,94 +213,41 @@ def events(
     company_id: UUID | None = None,
     kind: str | None = None,
 ) -> list[Event]:
-    """Returns only events with observed_at <= as_of. No exceptions, no flags."""
-    sql = ["select * from events where observed_at <= ?"]
-    args: list[Any] = [db.to_iso(as_of)]
-    if entity_id is not None:
-        sql.append("and entity_id = ?")
-        args.append(str(entity_id))
-    if company_id is not None:
-        sql.append("and company_id = ?")
-        args.append(str(company_id))
-    if kind is not None:
-        sql.append("and kind = ?")
-        args.append(str(kind))
-    sql.append("order by observed_at")
-    rows = db.connect().execute(" ".join(sql), args).fetchall()
-    return [_row_to_event(r) for r in rows]
+    return get_store().events(as_of=as_of, entity_id=entity_id, company_id=company_id, kind=kind)
 
 
-def _row_to_event(row: Any) -> Event:
-    return Event(
-        event_id=UUID(row["event_id"]),
-        entity_id=UUID(row["entity_id"]) if row["entity_id"] else None,
-        company_id=UUID(row["company_id"]) if row["company_id"] else None,
-        kind=row["kind"],
-        source=row["source"],
-        source_url=row["source_url"],
-        observed_at=db.from_iso(row["observed_at"]),
-        ingested_at=db.from_iso(row["ingested_at"]),
-        payload=json.loads(row["payload"]),
-        evidence_span=row["evidence_span"],
-        confidence=row["confidence"],
-        integrity_flags=json.loads(row["integrity_flags"]),
-    )
+def reset() -> None:
+    """Reset only the in-memory backend; never truncate a real Postgres database."""
+    _default.reset()
 
 
-# ---------------------------------------------------------------------------
-# Entity / company rows. Not events — these are the identities events point at.
-# ---------------------------------------------------------------------------
-
-
+# C compatibility helpers. These return dictionaries because the API/sourcing layer
+# predates A's typed Entity/Company models. The underlying store remains singular.
 def upsert_entity(name: str, normalized: str) -> UUID:
-    """Keyed on the normalized name — that is what the resolver matches on."""
-    conn = db.connect()
-    row = conn.execute(
-        "select entity_id from entities where name_normalized = ?", (normalized,)
-    ).fetchone()
-    if row:
-        return UUID(row["entity_id"])
-    entity_id = uuid4()
-    conn.execute(
-        "insert into entities (entity_id, display_name, name_normalized, created_at) "
-        "values (?,?,?,?)",
-        (str(entity_id), name, normalized, db.to_iso(utcnow())),
-    )
-    conn.commit()
-    return entity_id
+    current = next((e for e in get_store().entities() if e.name_normalized == normalized), None)
+    return current.entity_id if current else get_store().create_entity(name, normalized).entity_id
 
 
 def upsert_company(name: str, archetype: int | None = None) -> UUID:
-    conn = db.connect()
-    row = conn.execute("select company_id from companies where name = ?", (name,)).fetchone()
-    if row:
-        return UUID(row["company_id"])
-    company_id = uuid4()
-    conn.execute(
-        "insert into companies (company_id, name, archetype, created_at) values (?,?,?,?)",
-        (str(company_id), name, archetype, db.to_iso(utcnow())),
-    )
-    conn.commit()
-    return company_id
+    current = next((c for c in get_store().companies() if c.name == name), None)
+    if current:
+        return current.company_id
+    return get_store().create_company(name, archetype=archetype).company_id
 
 
 def get_entity(entity_id: UUID) -> dict | None:
-    row = db.connect().execute(
-        "select * from entities where entity_id = ?", (str(entity_id),)
-    ).fetchone()
-    return dict(row) if row else None
+    entity = get_store().get_entity(entity_id)
+    return entity.model_dump(mode="json") if entity else None
 
 
 def get_company(company_id: UUID) -> dict | None:
-    row = db.connect().execute(
-        "select * from companies where company_id = ?", (str(company_id),)
-    ).fetchone()
-    return dict(row) if row else None
+    company = get_store().get_company(company_id)
+    return company.model_dump(mode="json") if company else None
 
 
 def all_entities() -> list[dict]:
-    return [dict(r) for r in db.connect().execute("select * from entities order by created_at")]
+    return [entity.model_dump(mode="json") for entity in get_store().entities()]
 
 
 def all_companies() -> list[dict]:
-    return [dict(r) for r in db.connect().execute("select * from companies order by created_at")]
+    return [company.model_dump(mode="json") for company in get_store().companies()]

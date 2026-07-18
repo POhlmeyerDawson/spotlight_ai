@@ -32,16 +32,24 @@ def _event(observed_at: datetime, **kw) -> Event:
 
 def _rising(n: int = 8) -> list[dict]:
     return [
-        {"as_of": (CUT - timedelta(days=30 * (n - i))).isoformat(),
-         "mu": 0.30 + 0.06 * i, "band": 0.30 - 0.02 * i, "trend": 0.05}
+        {
+            "as_of": (CUT - timedelta(days=30 * (n - i))).isoformat(),
+            "mu": 0.30 + 0.06 * i,
+            "band": 0.30 - 0.02 * i,
+            "trend": 0.05,
+        }
         for i in range(n)
     ]
 
 
 def _flat(level: float, n: int = 8) -> list[dict]:
     return [
-        {"as_of": (CUT - timedelta(days=30 * (n - i))).isoformat(),
-         "mu": level, "band": 0.25, "trend": 0.0}
+        {
+            "as_of": (CUT - timedelta(days=30 * (n - i))).isoformat(),
+            "mu": level,
+            "band": 0.25,
+            "trend": 0.0,
+        }
         for i in range(n)
     ]
 
@@ -49,16 +57,37 @@ def _flat(level: float, n: int = 8) -> list[dict]:
 COHORT = {
     "threshold": 0.6,
     "cohort": [
-        {"founder": "winner-a", "label": "winner", "truncation_date": CUT.isoformat(),
-         "trajectory": _rising()},
-        {"founder": "winner-b", "label": "winner", "truncation_date": CUT.isoformat(),
-         "trajectory": _rising()},
-        {"founder": "control-a", "label": "control", "truncation_date": CUT.isoformat(),
-         "trajectory": _flat(0.34)},
-        {"founder": "control-b", "label": "control", "truncation_date": CUT.isoformat(),
-         "trajectory": _flat(0.41)},
-        {"founder": "failure-a", "label": "failure", "truncation_date": CUT.isoformat(),
-         "trajectory": _flat(0.38), "note": "high visibility, no shipping trajectory"},
+        {
+            "founder": "winner-a",
+            "label": "winner",
+            "truncation_date": CUT.isoformat(),
+            "trajectory": _rising(),
+        },
+        {
+            "founder": "winner-b",
+            "label": "winner",
+            "truncation_date": CUT.isoformat(),
+            "trajectory": _rising(),
+        },
+        {
+            "founder": "control-a",
+            "label": "control",
+            "truncation_date": CUT.isoformat(),
+            "trajectory": _flat(0.34),
+        },
+        {
+            "founder": "control-b",
+            "label": "control",
+            "truncation_date": CUT.isoformat(),
+            "trajectory": _flat(0.41),
+        },
+        {
+            "founder": "failure-a",
+            "label": "failure",
+            "truncation_date": CUT.isoformat(),
+            "trajectory": _flat(0.38),
+            "note": "high visibility, no shipping trajectory",
+        },
     ],
 }
 
@@ -180,7 +209,9 @@ def test_collect_records_the_truncation_date_explicitly() -> None:
 
 def test_collect_drops_post_cutoff_signals() -> None:
     member = {
-        "founder": "sig", "label": "winner", "truncation_date": CUT.isoformat(),
+        "founder": "sig",
+        "label": "winner",
+        "truncation_date": CUT.isoformat(),
         "signals": [
             {"observed_at": PAST.isoformat(), "url": "keep"},
             {"observed_at": FUTURE.isoformat(), "url": "drop"},

@@ -52,8 +52,12 @@ def get_hidden(as_of: datetime | None = None, k: int = 50) -> dict:
             lift = graph.access_lift(picks)
         except NotImplementedError:
             lift = None
-        return {"as_of": cutoff.isoformat(), "candidates": candidates, "access_lift": lift,
-                "degraded": False}
+        return {
+            "as_of": cutoff.isoformat(),
+            "candidates": candidates,
+            "access_lift": lift,
+            "degraded": False,
+        }
 
     return degrade(live, lambda: {**seed("hidden"), "degraded": True})
 
@@ -94,9 +98,7 @@ def _trend_value(c: dict) -> float | None:
     if isinstance(t, (int, float)) and not isinstance(t, bool):
         return float(t)
     if isinstance(t, str):
-        return {"rising": 1.0, "up": 1.0, "flat": 0.0, "falling": -1.0, "down": -1.0}.get(
-            t.lower()
-        )
+        return {"rising": 1.0, "up": 1.0, "flat": 0.0, "falling": -1.0, "down": -1.0}.get(t.lower())
     return None
 
 
@@ -105,9 +107,7 @@ def _unverified(c: dict) -> bool:
     if isinstance(n, (int, float)):
         return n > 0
     claims = pick(c, "claims", "claim_verdicts", default=[])
-    statuses = {
-        str(pick(x, "status", default="")).lower() for x in claims if isinstance(x, dict)
-    }
+    statuses = {str(pick(x, "status", default="")).lower() for x in claims if isinstance(x, dict)}
     return bool(statuses & {"unverifiable", "not_attempted", "contradicted"})
 
 
@@ -148,9 +148,10 @@ def _matches(c: dict, f: dict) -> bool:
         return False
 
     gate = f.get("gate")
-    if gate and str(pick(c, "gate", "gate_outcome", "outcome", default="")).lower() != str(
+    if (
         gate
-    ).lower():
+        and str(pick(c, "gate", "gate_outcome", "outcome", default="")).lower() != str(gate).lower()
+    ):
         return False
     return True
 
@@ -264,9 +265,7 @@ def _backtest_view(cal: dict) -> dict:
     )
 
     return {
-        "as_of": max(
-            (p["t"] for t in trajectories for p in t["points"] if p.get("t")), default=""
-        ),
+        "as_of": max((p["t"] for t in trajectories for p in t["points"] if p.get("t")), default=""),
         "truncation_note": cal.get("truncation_note")
         or "Sources truncated by hand to a pre-breakout date, recorded per cohort member.",
         "threshold": threshold,

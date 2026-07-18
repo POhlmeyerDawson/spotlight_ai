@@ -22,10 +22,7 @@ from schema.events import Event, EventKind, Source, utcnow
 STRIPPED_FLAG = "injection_stripped"
 
 # Zero-width, bidi-override and other characters that render as nothing but carry payload.
-INVISIBLE_CHARS = (
-    "​‌‍‎‏‪‫‬‭‮"
-    "⁠⁡⁢⁣⁤⁦⁧⁨⁩﻿­᠎؜"
-)
+INVISIBLE_CHARS = "​‌‍‎‏‪‫‬‭‮⁠⁡⁢⁣⁤⁦⁧⁨⁩﻿­᠎؜"
 
 
 @dataclass(frozen=True)
