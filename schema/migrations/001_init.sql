@@ -3,7 +3,16 @@
 -- at the bottom), not by convention — convention does not survive hour 19.
 
 create extension if not exists "uuid-ossp";
-create extension if not exists vector;
+
+-- pgvector is present on Supabase but not on a stock Postgres. No Memory table
+-- uses a vector column, so guard it: create it where available (Supabase), skip
+-- it cleanly everywhere else so the migration still applies from a clean DB.
+do $$
+begin
+    if exists (select 1 from pg_available_extensions where name = 'vector') then
+        create extension if not exists vector;
+    end if;
+end $$;
 
 create table if not exists entities (
     entity_id   uuid primary key default uuid_generate_v4(),
@@ -71,3 +80,36 @@ $$ language plpgsql;
 drop trigger if exists events_no_update on events;
 create trigger events_no_update before update or delete on events
     for each row execute function reject_mutation();
+
+-- Security. Supabase auto-exposes public tables through its Data API; founder
+-- Memory must never be readable by an unauthenticated browser.
+--
+-- Enabling RLS is portable across every Postgres. With RLS on and NO policy
+-- defined, unprivileged roles read nothing; the table OWNER still bypasses RLS
+-- (we do NOT use FORCE ROW LEVEL SECURITY), so a direct DATABASE_URL connection
+-- as the owning role — Supabase's direct-connection `postgres` user, or the
+-- role that ran this migration on a plain Postgres — keeps full read/write.
+-- memory/pg_store.py connects that way, so the backend is unaffected; only the
+-- Data API's anon/authenticated roles are shut out.
+alter table events         enable row level security;
+alter table entities       enable row level security;
+alter table entity_aliases enable row level security;
+alter table companies      enable row level security;
+alter table merges         enable row level security;
+
+-- Belt and braces: revoke any default Data API grants. Guarded so a vanilla or
+-- local Postgres (which has no `anon`/`authenticated` roles) still migrates
+-- cleanly — on such a database this block is a no-op, on Supabase it revokes.
+do $$
+declare
+    role_name text;
+begin
+    foreach role_name in array array['anon', 'authenticated'] loop
+        if exists (select 1 from pg_roles where rolname = role_name) then
+            execute format(
+                'revoke all on events, entities, entity_aliases, companies, merges from %I',
+                role_name
+            );
+        end if;
+    end loop;
+end $$;

@@ -18,12 +18,17 @@ the same thing with a trigger, for the hosted path.)
 
 from __future__ import annotations
 
+import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from schema.events import Company, Entity, Event, utcnow
+
+if TYPE_CHECKING:
+    from memory.pg_store import PostgresEventStore
 
 
 @dataclass(frozen=True)
@@ -112,7 +117,7 @@ class EventStore:
 
     def entities(self) -> list[Entity]:
         with self._lock:
-            return list(self._entities.values())
+            return sorted(self._entities.values(), key=lambda e: str(e.entity_id))
 
     # -- aliases ------------------------------------------------------------
 
@@ -135,11 +140,13 @@ class EventStore:
 
     def aliases_for(self, entity_id: UUID) -> list[Alias]:
         with self._lock:
-            return [a for a in self._aliases.values() if a.entity_id == entity_id]
+            aliases = [a for a in self._aliases.values() if a.entity_id == entity_id]
+        return sorted(aliases, key=lambda a: (a.kind, a.value, str(a.entity_id)))
 
     def aliases_by_kind(self, kind: str) -> list[Alias]:
         with self._lock:
-            return [a for a in self._aliases.values() if a.kind == kind]
+            aliases = [a for a in self._aliases.values() if a.kind == kind]
+        return sorted(aliases, key=lambda a: (a.kind, a.value, str(a.entity_id)))
 
     # -- companies ----------------------------------------------------------
 
@@ -164,7 +171,7 @@ class EventStore:
 
     def companies(self) -> list[Company]:
         with self._lock:
-            return list(self._companies.values())
+            return sorted(self._companies.values(), key=lambda c: str(c.company_id))
 
     # -- merges -------------------------------------------------------------
 
@@ -180,7 +187,18 @@ class EventStore:
 
     def merges(self, *, status: str | None = None) -> list[Merge]:
         with self._lock:
-            return [m for m in self._merges if status is None or m.status == status]
+            merges = [m for m in self._merges if status is None or m.status == status]
+        return sorted(
+            merges,
+            key=lambda m: (
+                m.decided_at,
+                str(m.entity_a),
+                str(m.entity_b),
+                m.status,
+                m.score,
+                m.rationale,
+            ),
+        )
 
     # -- test / demo support ------------------------------------------------
 
@@ -196,19 +214,43 @@ class EventStore:
 
 
 # ---------------------------------------------------------------------------
-# Module-level default store. SHARED §4 imports `store.append` / `store.events`
-# directly; the richer entity API is reached via get_store().
+# Backend selection. SHARED §4 imports `store.append` / `store.events` directly;
+# the richer entity API is reached via get_store(). The backend is chosen by
+# MEMORY_BACKEND: `memory` (default, deterministic, offline — tests and demo) or
+# `postgres` (persistent Supabase/Postgres). Downstream code never learns which.
 # ---------------------------------------------------------------------------
 
-_default = EventStore()
+_default = EventStore()  # the in-memory backend, always available
+_pg: PostgresEventStore | None = None  # lazily built when postgres is selected
 
 
-def get_store() -> EventStore:
-    return _default
+def _backend() -> str:
+    return os.getenv("MEMORY_BACKEND", "memory").strip().lower()
+
+
+def get_store() -> EventStore | PostgresEventStore:
+    backend = _backend()
+    if backend == "memory":
+        return _default
+    if backend == "postgres":
+        return _get_pg_store()
+    raise ValueError(f"unknown MEMORY_BACKEND={backend!r} (expected 'memory' or 'postgres')")
+
+
+def _get_pg_store() -> PostgresEventStore:
+    global _pg
+    if _pg is None:
+        from core.config import settings
+        from memory.pg_store import PostgresEventStore
+
+        if not settings.database_url:
+            raise RuntimeError("MEMORY_BACKEND=postgres requires DATABASE_URL to be configured")
+        _pg = PostgresEventStore(settings.database_url)
+    return _pg
 
 
 def append(event: Event) -> UUID:
-    return _default.append(event)
+    return get_store().append(event)
 
 
 def events(
@@ -219,8 +261,11 @@ def events(
     kind: str | None = None,
 ) -> list[Event]:
     """Returns only events with observed_at <= as_of. No exceptions, no flags."""
-    return _default.events(as_of=as_of, entity_id=entity_id, company_id=company_id, kind=kind)
+    return get_store().events(as_of=as_of, entity_id=entity_id, company_id=company_id, kind=kind)
 
 
 def reset() -> None:
+    """Resets the in-memory backend only. It deliberately does NOT truncate a
+    Postgres database — an autouse test fixture must never be able to wipe a real
+    one. Postgres reset is explicit (PostgresEventStore.reset)."""
     _default.reset()
