@@ -71,13 +71,23 @@ export type SourceKind =
   | "validator"
   | "manual";
 
-/** One axis of the three-axis screen. `band` is ± in score units and is always displayed. */
+/**
+ * One axis of the three-axis screen. `band` is ± in score units and is always displayed.
+ *
+ * `score`, `trend` and `band` are NULLABLE on purpose. A cold-start company has axes
+ * with nothing to score, and the backend reports that as null plus a `reason`. Rendering
+ * null as 0 would turn "we have no evidence" into "we looked and they scored zero" —
+ * those are different claims and the gate exists precisely to tell them apart. Every
+ * component that draws an axis must handle null as ABSENCE, never as a number.
+ */
 export interface Axis {
-  score: number; // 0..100
-  trend: number; // signed momentum (structural, not a diff of scores)
+  score: number | null; // 0..100
+  trend: number | null; // signed momentum (structural, not a diff of scores)
   confidence: number; // 0..1
-  band: number; // ± uncertainty, in score units
+  band: number | null; // ± uncertainty, in score units
   evidence_event_ids: string[];
+  /** Present when score is null — the backend's stated reason for the absence. */
+  reason?: string;
 }
 
 /**
@@ -96,8 +106,12 @@ export interface EvidenceEvent {
   evidence_span: string | null; // THE QUOTED SPAN
   confidence: number;
   integrity_flags: string[];
-  /** Signed contribution of this event to the axis score, in score units. */
-  contribution: number;
+  /**
+   * Signed contribution of this event to the axis score, in score units.
+   * Null when the source lists the event as evidence but does not attribute a
+   * per-event contribution to it. Shown as "—", never as 0.0.
+   */
+  contribution: number | null;
 }
 
 export interface ScorePoint {
@@ -159,6 +173,8 @@ export interface ProofProtocol {
   behaviors: ProofBehavior[];
   verdict: "signal" | "no_signal" | "pending";
   verdict_rationale: string;
+  /** What the grader will look for. Present before grading has run. */
+  grading_axes?: string[];
 }
 
 export interface CompanySummary {
@@ -183,6 +199,15 @@ export interface CompanyDetail extends CompanySummary {
   proof_protocol: ProofProtocol | null;
   score_history: ScoreHistory;
   entity_resolution_note: string | null;
+  /**
+   * How much of this record the source actually carried. Five companies have
+   * hand-authored fixtures; the other eight are assembled from the event log and are
+   * genuinely thinner. `sparse` renders as sparse — sections that have no data say so
+   * instead of disappearing, which is what stops thin from reading as broken.
+   */
+  coverage: "full" | "sparse";
+  /** Plain-English statement of what is missing and why. Shown, never hidden. */
+  coverage_note: string | null;
 }
 
 export interface MemoSection {
@@ -252,8 +277,18 @@ export interface Backtest {
   };
 }
 
+/**
+ * The compound-query contract. `parsed` is a plain-English readback of what the query
+ * was understood to mean ("sector in infra · rising trend · unverified claims") — it is
+ * how "the model only translates, the filter runs in Python" becomes visible on screen.
+ * Always render it, including on a zero-result query, where it is the whole explanation.
+ */
 export interface QueryResult {
   q: string;
   parsed: string;
   company_ids: string[];
+  /** Server-reported hit count. May differ from company_ids.length if the server paginates. */
+  count: number;
+  /** The structured filter the server actually executed. Rendered as the receipt. */
+  filter?: Record<string, unknown> | null;
 }

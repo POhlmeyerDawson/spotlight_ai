@@ -11,8 +11,10 @@
  * A grading result without the plant visible is just an opinion.
  */
 
+import { useState } from "react";
+import { gradeProof, issueProof, TIMEOUT } from "@/lib/api";
 import type { ProofBehavior, ProofProtocol } from "@/lib/types";
-import { EvidenceSpan } from "./ui";
+import { Busy, ErrorNote, EvidenceSpan } from "./ui";
 
 const RESULT: Record<
   ProofBehavior["result"],
@@ -51,8 +53,70 @@ function Planted({
   );
 }
 
-export default function ProofProtocolPanel({ pp }: { pp: ProofProtocol }) {
+/**
+ * Generating a challenge and grading a submission are real LLM round trips that take
+ * seconds, which makes them the two controls on the whole dashboard most likely to be
+ * mistaken for a hang. They get the most explicit progress on the page: a bar bounded by
+ * the same timeout the request uses, and a narration of what is actually happening
+ * rather than a generic spinner.
+ *
+ * The stages are honest descriptions of the server's work, not a fake stepper — the bar
+ * eases asymptotically toward the timeout and the caption names the phase it is in.
+ */
+const ISSUE_STAGES = [
+  "reading the deck's central claim…",
+  "generating a challenge around it…",
+  "planting one ambiguous requirement and one bad constraint…",
+  "still working — this is a live model call, not a cached fixture…",
+];
+
+const GRADE_STAGES = [
+  "reading the submitted artifact and trace…",
+  "checking behaviour against each grading axis…",
+  "deciding whether the planted constraint was pushed back on…",
+  "still working — grading is a live model call…",
+];
+
+export default function ProofProtocolPanel({
+  companyId,
+  initial,
+}: {
+  companyId: string;
+  initial: ProofProtocol;
+}) {
+  const [pp, setPp] = useState<ProofProtocol>(initial);
+  const [busy, setBusy] = useState<null | "issue" | "grade">(null);
+  const [error, setError] = useState<string | null>(null);
   const passed = pp.behaviors.filter((b) => b.result === "pass").length;
+
+  const runIssue = async () => {
+    setBusy("issue");
+    setError(null);
+    try {
+      const r = await issueProof(companyId);
+      if (r.ok) setPp(r.data);
+      else setError(`Could not issue a new challenge: ${r.error}`);
+    } finally {
+      // Always. A several-second LLM call that fails must still hand the button back.
+      setBusy(null);
+    }
+  };
+
+  const runGrade = async () => {
+    if (!pp.artifact_url) return;
+    setBusy("grade");
+    setError(null);
+    try {
+      const r = await gradeProof(companyId, pp.challenge_id, {
+        artifact_url: pp.artifact_url,
+        trace: "",
+      });
+      if (r.ok) setPp(r.data);
+      else setError(`Could not grade the submission: ${r.error}`);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div className="overflow-hidden border-2 bg-[color:var(--ground)]" style={{ borderColor:"var(--figure)" }}>
@@ -72,16 +136,79 @@ export default function ProofProtocolPanel({ pp }: { pp: ProofProtocol }) {
         </div>
         <div className="text-right">
           <div className="meta text-[color:var(--muted)]">
-            Behaviors passed
+            {pp.behaviors.length ? "Behaviors passed" : "Grading"}
           </div>
-          <div className="mono text-[44px] leading-none font-medium text-[color:var(--figure)]">
-            {passed}
-            <span className="text-[24px] text-[color:var(--muted)]">/{pp.behaviors.length}</span>
-          </div>
+          {pp.behaviors.length ? (
+            <div className="mono text-[44px] leading-none font-medium text-[color:var(--figure)]">
+              {passed}
+              <span className="text-[24px] text-[color:var(--muted)]">
+                /{pp.behaviors.length}
+              </span>
+            </div>
+          ) : (
+            // Issued-but-not-graded is a real state, not a half-loaded one. Showing
+            // "0/0" would read as a total failure; "not yet run" is what is true.
+            <div className="mono text-[20px] leading-tight text-[color:var(--muted)]">
+              not yet run
+            </div>
+          )}
         </div>
       </header>
 
       <div className="space-y-5 px-5 py-5">
+        {/* ------------------------------------------ the two slow controls */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--rule)] pb-4">
+          <button
+            type="button"
+            onClick={() => void runIssue()}
+            disabled={busy !== null}
+            title={
+              busy
+                ? "A model call is already running — one at a time"
+                : "Generate a fresh challenge from the deck's central claim (live model call, several seconds)"
+            }
+            className="meta border border-[color:var(--accent)] px-4 py-2 text-[color:var(--accent)] disabled:opacity-50"
+          >
+            {busy === "issue" ? "GENERATING…" : "↻ REGENERATE CHALLENGE"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void runGrade()}
+            disabled={busy !== null || !pp.artifact_url}
+            title={
+              !pp.artifact_url
+                ? "No artifact has been submitted yet, so there is nothing to grade"
+                : busy
+                  ? "A model call is already running — one at a time"
+                  : "Grade the submitted artifact on behaviour (live model call, several seconds)"
+            }
+            className="meta border border-[color:var(--rule)] px-4 py-2 text-[color:var(--muted)] disabled:opacity-50"
+          >
+            {busy === "grade" ? "GRADING…" : "GRADE SUBMISSION"}
+          </button>
+          {!pp.artifact_url && busy === null && (
+            <span className="meta text-[color:var(--muted)]">
+              Grading is disabled: no artifact submitted
+            </span>
+          )}
+        </div>
+
+        {busy === "issue" && (
+          <Busy
+            budgetMs={TIMEOUT.llm}
+            stages={ISSUE_STAGES}
+            label={`Generating a challenge — gives up after ${TIMEOUT.llm / 1000}s`}
+          />
+        )}
+        {busy === "grade" && (
+          <Busy
+            budgetMs={TIMEOUT.llm}
+            stages={GRADE_STAGES}
+            label={`Grading the submission — gives up after ${TIMEOUT.llm / 1000}s`}
+          />
+        )}
+        {error && <ErrorNote message={error} />}
+
         <div>
           <h3 className="meta text-[color:var(--muted)]">
             The claim under test
@@ -131,6 +258,31 @@ export default function ProofProtocolPanel({ pp }: { pp: ProofProtocol }) {
           <h3 className="meta text-[color:var(--muted)]">
             Behavioral grading
           </h3>
+          {pp.behaviors.length === 0 && (
+            <div className="mt-2 border border-dashed border-[color:var(--rule)] px-4 py-4">
+              <p className="text-[14px] leading-[1.55] text-[color:var(--muted)]">
+                The challenge has been issued and no response has been graded yet. What
+                the grader will look for is fixed in advance and listed here, so the
+                criteria cannot be chosen after seeing the answer:
+              </p>
+              {pp.grading_axes?.length ? (
+                <ul className="mt-3 space-y-1.5">
+                  {pp.grading_axes.map((a) => (
+                    <li
+                      key={a}
+                      className="mono border border-[color:var(--rule)] px-3 py-2 text-[13px] text-[color:var(--figure)]"
+                    >
+                      {a.replace(/_/g, " ")}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="caption mt-2 max-w-none text-[color:var(--muted)]">
+                  No grading axes were reported with this challenge.
+                </p>
+              )}
+            </div>
+          )}
           <ul className="mt-2 space-y-2">
             {pp.behaviors.map((b) => {
               const r = RESULT[b.result];
@@ -186,7 +338,10 @@ export default function ProofProtocolPanel({ pp }: { pp: ProofProtocol }) {
           <div className="meta text-[color:var(--muted)]">
             Verdict · {pp.verdict.replace("_", " ")}
           </div>
-          <p className="mt-1.5 text-[15px] leading-[1.55] text-[color:var(--figure)]">{pp.verdict_rationale}</p>
+          <p className="mt-1.5 text-[15px] leading-[1.55] text-[color:var(--figure)]">
+            {pp.verdict_rationale ||
+              "No rationale recorded yet — the verdict is written when the grading runs."}
+          </p>
         </div>
       </div>
     </div>

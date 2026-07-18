@@ -199,7 +199,12 @@ export const COMPANIES: CompanySummary[] = [
 // Company detail
 // ---------------------------------------------------------------------------
 
-const DETAILS: Record<string, Omit<CompanyDetail, keyof CompanySummary>> = {
+// `coverage` is not authored per fixture: every hand-authored record is complete by
+// construction, so `companyDetail` stamps it below rather than repeating it six times.
+const DETAILS: Record<
+  string,
+  Omit<CompanyDetail, keyof CompanySummary | "coverage" | "coverage_note">
+> = {
   "helix-runtime": {
     entity_resolution_note: null,
     score_history: history([81, 44], [64, 55], [73, 48]),
@@ -964,11 +969,17 @@ const DETAILS: Record<string, Omit<CompanyDetail, keyof CompanySummary>> = {
   },
 };
 
+/**
+ * Exact-id lookup only. Returning null for an unknown id is load-bearing: callers use
+ * null to decide between "render this company thin" and "render a different company",
+ * and only the first of those is acceptable.
+ */
 export function companyDetail(id: string): CompanyDetail | null {
   const summary = COMPANIES.find((c) => c.id === id);
   const detail = DETAILS[id];
   if (!summary || !detail) return null;
-  return { ...summary, ...detail };
+  // Hand-authored fixtures carry every section, which is what `full` means.
+  return { ...summary, ...detail, coverage: "full", coverage_note: null };
 }
 
 // ---------------------------------------------------------------------------

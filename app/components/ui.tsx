@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Shared primitives, in the plate language.
  *
@@ -10,7 +12,7 @@
  * is not true. Nothing else gets it.
  */
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ClaimStatus, GateOutcome } from "@/lib/types";
 
 /** A bordered document block. The app's equivalent of a plate's furniture. */
@@ -147,26 +149,221 @@ export function GateBadge({ gate }: { gate: GateOutcome }) {
   );
 }
 
-export function Loading({ label }: { label: string }) {
+// ---------------------------------------------------------------------------
+// Progress
+//
+// A progress bar is FURNITURE (DESIGN.md §4.3): mono, ruled, restrained. It gets the
+// plate accent and never --signal — that colour is rationed to contradicted claims and
+// caught injections, and spending it on a loading bar would cost it its meaning.
+//
+// Motion is expo.out with no overshoot (§8.2). The bar eases toward its target rather
+// than springing to it, which is what makes waiting feel like weight instead of jitter.
+// ---------------------------------------------------------------------------
+
+/**
+ * Drives a 0..1 value that eases toward completion over `budgetMs` without ever
+ * reaching it, then snaps to 1 when the work actually finishes.
+ *
+ * This is the honest version of a determinate bar for work whose duration we cannot
+ * know: the curve is asymptotic, so it always LOOKS like it is making progress and it
+ * never lies by claiming to be done. `budgetMs` is the same number the request aborts
+ * at, so a bar that has visibly flattened is a request that is genuinely about to time
+ * out rather than one that stalled silently.
+ */
+export function useProgress(active: boolean, budgetMs: number): number {
+  const [value, setValue] = useState(0);
+  const startedAt = useRef(0);
+
+  useEffect(() => {
+    if (!active) {
+      // Land on 1 so the bar completes rather than vanishing mid-travel, then reset.
+      const done = setTimeout(() => setValue((v) => (v > 0 ? 1 : 0)), 0);
+      const reset = setTimeout(() => setValue(0), 420);
+      return () => {
+        clearTimeout(done);
+        clearTimeout(reset);
+      };
+    }
+
+    startedAt.current = performance.now();
+    const tick = () => {
+      const elapsed = performance.now() - startedAt.current;
+      // 1 - e^(-3t) reaches ~0.95 at the budget and never touches 1.
+      setValue(Math.max(0.04, Math.min(0.97, 1 - Math.exp((-3 * elapsed) / budgetMs))));
+    };
+    // Deferred rather than called inline: setState in an effect body cascades renders.
+    const first = setTimeout(tick, 0);
+    const id = setInterval(tick, 90);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, [active, budgetMs]);
+
+  return value;
+}
+
+/**
+ * The bar itself. `value` is 0..1. Rendered as a hairline track with a filled rule —
+ * the same rule-work the rest of the document uses, not a rounded consumer widget.
+ */
+export function ProgressBar({
+  value,
+  label,
+  className = "",
+}: {
+  value: number;
+  label?: string;
+  className?: string;
+}) {
+  const pct = Math.max(0, Math.min(1, value)) * 100;
+  return (
+    <div className={className}>
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pct)}
+        aria-label={label ?? "Loading"}
+        className="relative h-[3px] w-full overflow-hidden bg-[color:var(--ink-09)]"
+      >
+        <span
+          className="absolute top-0 left-0 h-[3px] bg-[color:var(--accent)]"
+          style={{
+            width: `${pct}%`,
+            transition: "width 900ms var(--expo-out)",
+          }}
+        />
+      </div>
+      {label && (
+        <div className="meta mt-1.5 text-[color:var(--muted)]">{label}</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Page-level loading. A bar plus the name of the thing being fetched, so a slow page
+ * says WHAT is slow. `stages` narrates multi-step work — the current stage is the one
+ * the progress value has reached.
+ */
+export function Loading({
+  label,
+  // Matches TIMEOUT.read in lib/api.ts. Kept as a literal rather than an import so a
+  // presentational primitive does not depend on the transport layer; if that budget
+  // changes, this is the one number to change with it.
+  budgetMs = 8000,
+  stages,
+}: {
+  label: string;
+  budgetMs?: number;
+  stages?: string[];
+}) {
+  const value = useProgress(true, budgetMs);
+  const stage = stages?.length
+    ? stages[Math.min(stages.length - 1, Math.floor(value * stages.length))]
+    : null;
+
   return (
     <div
       role="status"
       aria-live="polite"
-      className="meta border border-[color:var(--rule)] px-5 py-8 text-[color:var(--muted)]"
+      className="border border-[color:var(--rule)] px-5 py-6"
     >
-      LOADING {label.toUpperCase()}…
+      <div className="meta text-[color:var(--muted)]">LOADING {label.toUpperCase()}…</div>
+      <ProgressBar value={value} className="mt-3" />
+      {stage && (
+        <p className="caption mt-2 max-w-none text-[color:var(--muted)]">{stage}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Inline busy state for a control that is mid-flight. Pairs with a disabled button and
+ * carries the REASON it is disabled — a greyed control with no explanation is the exact
+ * thing that made this feature look broken.
+ */
+export function Busy({
+  label,
+  budgetMs,
+  stages,
+  className = "",
+}: {
+  label: string;
+  budgetMs: number;
+  /** Narrates multi-step work. The stage shown is the one the bar has reached. */
+  stages?: string[];
+  className?: string;
+}) {
+  const value = useProgress(true, budgetMs);
+  const stage = stages?.length
+    ? stages[Math.min(stages.length - 1, Math.floor(value * stages.length))]
+    : null;
+  return (
+    <div role="status" aria-live="polite" className={className}>
+      <ProgressBar value={value} />
+      <div className="meta mt-1.5 text-[color:var(--muted)]">{label}</div>
+      {stage && (
+        <p className="caption mt-1 max-w-none text-[color:var(--muted)]">{stage}</p>
+      )}
     </div>
   );
 }
 
 /** Errors are shown, never swallowed — but the page still renders on fixtures. */
-export function ErrorNote({ message }: { message: string }) {
+export function ErrorNote({
+  message,
+  onRetry,
+  retryLabel = "RETRY",
+}: {
+  message: string;
+  /** When present, the error carries an escape hatch instead of being a dead end. */
+  onRetry?: () => void;
+  retryLabel?: string;
+}) {
   return (
     <div
       role="alert"
-      className="caption max-w-none border border-dashed border-[color:var(--figure)] px-3 py-2 text-[color:var(--figure)]"
+      className="flex flex-wrap items-center justify-between gap-3 border border-dashed border-[color:var(--figure)] px-3 py-2"
     >
-      {message}
+      <span className="caption max-w-none text-[color:var(--figure)]">{message}</span>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="meta shrink-0 border border-[color:var(--accent)] px-3 py-1 text-[color:var(--accent)]"
+        >
+          {retryLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A deliberate empty state. Distinct from an error and distinct from loading: it states
+ * what was asked, that the answer was legitimately nothing, and offers the way out.
+ * Zero results are an ANSWER, and this is what makes them read as one.
+ */
+export function EmptyState({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children?: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="border border-dashed border-[color:var(--rule)] px-5 py-8 text-center">
+      <p className="mono text-[15px] text-[color:var(--figure)]">{title}</p>
+      {children && (
+        <div className="caption mx-auto mt-2 max-w-[52ch] text-[color:var(--muted)]">
+          {children}
+        </div>
+      )}
+      {action && <div className="mt-4 flex justify-center gap-2">{action}</div>}
     </div>
   );
 }

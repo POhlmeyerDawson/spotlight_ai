@@ -10,10 +10,10 @@
  */
 
 import { useEffect, useState } from "react";
-import { getDissent, getMemo, type Result } from "@/lib/api";
+import { getDissent, getMemo, TIMEOUT, type Result } from "@/lib/api";
 import type { Dissent, Memo } from "@/lib/types";
 import { AXIS_LABEL } from "@/lib/types";
-import { ErrorNote, Loading } from "./ui";
+import { Busy, EmptyState, ErrorNote, Loading } from "./ui";
 
 /** Renders [e-xx-01] citations as monospace chips so every claim visibly carries its id. */
 function Cited({ text }: { text: string }) {
@@ -38,6 +38,7 @@ function Cited({ text }: { text: string }) {
 
 export default function MemoDissent({ companyId }: { companyId: string }) {
   const [memo, setMemo] = useState<Result<Memo> | null>(null);
+  const [memoMissing, setMemoMissing] = useState(false);
   const [dissent, setDissent] = useState<Result<Dissent> | null>(null);
   const [dissentOpen, setDissentOpen] = useState(false);
   const [loadingDissent, setLoadingDissent] = useState(false);
@@ -49,12 +50,12 @@ export default function MemoDissent({ companyId }: { companyId: string }) {
   useEffect(() => {
     let live = true;
     (async () => {
-      try {
-        const m = await getMemo(companyId, false);
-        if (live) setMemo(m);
-      } catch (e) {
-        if (live) setError(e instanceof Error ? e.message : String(e));
-      }
+      const m = await getMemo(companyId, false);
+      if (!live) return;
+      // null means neither the backend nor a fixture has a memo for THIS company.
+      // Another company's memo is never shown in its place.
+      if (m) setMemo(m);
+      else setMemoMissing(true);
     })();
     return () => {
       live = false;
@@ -66,18 +67,45 @@ export default function MemoDissent({ companyId }: { companyId: string }) {
     setError(null);
     try {
       const d = await getDissent(companyId);
+      if (!d) {
+        setError(
+          "No dissent exists for this company, so the recommendation cannot be unlocked. The lock is the server's, and this page does not work around it.",
+        );
+        return;
+      }
       setDissent(d);
       setDissentOpen(true);
       // Re-request the memo with dissent_viewed=true. The server decides, not us.
-      setMemo(await getMemo(companyId, true));
+      const m = await getMemo(companyId, true);
+      if (m) setMemo(m);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      // Always — a failed dissent must hand the button back, not grey it out forever.
       setLoadingDissent(false);
     }
   };
 
-  if (!memo) return <Loading label="memo" />;
+  if (memoMissing) {
+    return (
+      <EmptyState title="No memo has been written for this company.">
+        The memo generator has not run against this record. Nothing is shown in its place
+        — a memo assembled from another company&apos;s evidence would be worse than none.
+      </EmptyState>
+    );
+  }
+  if (!memo) {
+    return (
+      <Loading
+        label="memo"
+        stages={[
+          "requesting the memo…",
+          "resolving inline event citations…",
+          "checking whether the recommendation is unlocked…",
+        ]}
+      />
+    );
+  }
 
   const m = memo.data;
   const locked = m.recommendation === null;
@@ -166,6 +194,11 @@ export default function MemoDissent({ companyId }: { companyId: string }) {
                     type="button"
                     onClick={openDissent}
                     disabled={loadingDissent}
+                    title={
+                      loadingDissent
+                        ? "Fetching the dissent, then re-requesting the memo with the lock released"
+                        : "Opens the dissent and asks the server to release the recommendation"
+                    }
                     className="mt-4 border px-5 py-2.5 text-[15px] font-medium tracking-wide text-[color:var(--figure)] transition disabled:opacity-60"
                     style={{
                       borderColor: "var(--accent)",
@@ -174,6 +207,13 @@ export default function MemoDissent({ companyId }: { companyId: string }) {
                   >
                     {loadingDissent ? "Opening…" : "Open the dissent to unlock →"}
                   </button>
+                  {loadingDissent && (
+                    <Busy
+                      className="mt-3"
+                      budgetMs={TIMEOUT.read * 2}
+                      label="Reading the dissent, then re-requesting the memo unlocked"
+                    />
+                  )}
                 </div>
               ) : (
                 <p
@@ -222,6 +262,13 @@ export default function MemoDissent({ companyId }: { companyId: string }) {
               >
                 {loadingDissent ? "Opening…" : "Open the dissent"}
               </button>
+              {loadingDissent && (
+                <Busy
+                  className="mt-3 w-full max-w-sm"
+                  budgetMs={TIMEOUT.read * 2}
+                  label="Reading the dissent, then re-requesting the memo unlocked"
+                />
+              )}
             </div>
           ) : dissent ? (
             <div className="space-y-5 px-5 py-4">

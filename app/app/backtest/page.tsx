@@ -18,46 +18,54 @@ import { ErrorNote, Loading, Panel, SourceChip, Stat } from "@/components/ui";
 
 export default function BacktestPage() {
   const [bt, setBt] = useState<Result<Backtest> | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let live = true;
     (async () => {
-      try {
-        const r = await getBacktest();
-        if (live) setBt(r);
-      } catch (e) {
-        if (live) setError(e instanceof Error ? e.message : String(e));
-      }
+      const r = await getBacktest();
+      if (live) setBt(r);
     })();
     return () => {
       live = false;
     };
-  }, []);
+  }, [reloadKey]);
 
-  if (error && !bt) {
-    return (
-      <Shell title="backtest">
-        <ErrorNote message={error} />
-      </Shell>
-    );
-  }
+  // Retry clears the current result itself, in the handler, so the effect body stays
+  // free of synchronous setState.
+  const retry = () => {
+    setBt(null);
+    setReloadKey((k) => k + 1);
+  };
+
   if (!bt) {
     return (
       <Shell title="backtest">
-        <Loading label="backtest" />
+        <Loading
+          label="backtest"
+          stages={[
+            "replaying truncated sources through the live code path…",
+            "checking every event against the as_of cutoff…",
+            "scoring winners and matched controls…",
+          ]}
+        />
       </Shell>
     );
   }
 
   const b = bt.data;
-  const highestControl = Math.max(
-    ...b.trajectories
-      .filter((t) => t.label === "control")
-      .map((t) => t.points[t.points.length - 1].mu),
-  );
+  // A backtest with no control trajectories cannot make the fame claim at all, so the
+  // comparison is guarded rather than reduced over an empty list (which yields -Infinity
+  // and prints as "-∞" on the page).
+  const controlFinals = b.trajectories
+    .filter((t) => t.label === "control")
+    .map((t) => t.points[t.points.length - 1]?.mu)
+    .filter((m): m is number => typeof m === "number");
+  const highestControl = controlFinals.length ? Math.max(...controlFinals) : null;
+  const finalMu = (t: (typeof b.trajectories)[number]) =>
+    t.points[t.points.length - 1]?.mu ?? null;
   const clearedWinners = b.trajectories.filter(
-    (t) => t.label === "winner" && t.points[t.points.length - 1].mu >= b.threshold,
+    (t) => t.label === "winner" && (finalMu(t) ?? -Infinity) >= b.threshold,
   ).length;
 
   return (
@@ -84,7 +92,10 @@ export default function BacktestPage() {
     >
       <div className="space-y-6">
       {bt.source === "fixture" && bt.note && (
-        <ErrorNote message={`Backend unreachable — rendering local fixtures. (${bt.note})`} />
+        <ErrorNote
+          message={`Backend unreachable — rendering local fixtures. (${bt.note})`}
+          onRetry={retry}
+        />
       )}
 
       {/* ------------------------------------------------- the H12 fame gate */}
@@ -116,9 +127,17 @@ export default function BacktestPage() {
           <div className="shrink-0">
             <Stat
               label="Highest control"
-              value={highestControl.toFixed(1)}
-              sub={`threshold is ${b.threshold} — controls stay under it`}
-              color={highestControl >= b.threshold ? "var(--figure)" : "var(--accent)"}
+              value={highestControl === null ? "—" : highestControl.toFixed(1)}
+              sub={
+                highestControl === null
+                  ? "no control trajectories in this run — the fame check cannot be made"
+                  : `threshold is ${b.threshold} — controls stay under it`
+              }
+              color={
+                highestControl !== null && highestControl >= b.threshold
+                  ? "var(--figure)"
+                  : "var(--accent)"
+              }
             />
           </div>
         </div>
@@ -217,7 +236,7 @@ export default function BacktestPage() {
         subtitle="Reported next to the hit rate rather than under it."
       >
         {b.trajectories.filter(
-          (t) => t.label === "winner" && t.points[t.points.length - 1].mu < b.threshold,
+          (t) => t.label === "winner" && (finalMu(t) ?? Infinity) < b.threshold,
         ).length === 0 ? (
           <p className="text-[15px] text-[color:var(--muted)]">
             Every replayed winner cleared the threshold at <code>as_of</code>.
@@ -225,9 +244,7 @@ export default function BacktestPage() {
         ) : (
           <ul className="space-y-2">
             {b.trajectories
-              .filter(
-                (t) => t.label === "winner" && t.points[t.points.length - 1].mu < b.threshold,
-              )
+              .filter((t) => t.label === "winner" && (finalMu(t) ?? Infinity) < b.threshold)
               .map((t) => (
                 <li
                   key={t.id}
@@ -235,7 +252,7 @@ export default function BacktestPage() {
                 >
                   <span className="text-[17px] font-medium text-[color:var(--figure)]">{t.name}</span>
                   <span className="mono text-[17px] font-medium" style={{ color: "var(--figure)" }}>
-                    {t.points[t.points.length - 1].mu.toFixed(1)}
+                    {(finalMu(t) ?? 0).toFixed(1)}
                   </span>
                   <span className="text-[14px] text-[color:var(--muted)]">
                     below the {b.threshold} threshold · actual outcome: {t.outcome}

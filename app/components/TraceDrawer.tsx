@@ -30,7 +30,11 @@ function FlagChip({ flag }: { flag: string }) {
 
 function EventRow({ ev, color }: { ev: EvidenceEvent; color: string }) {
   const [open, setOpen] = useState(false);
-  const positive = ev.contribution >= 0;
+  // A null contribution means the source listed this event as evidence without
+  // attributing score units to it. Printing "+0.0" would assert it moved the score by
+  // nothing, which is a claim the data does not make. It gets an em dash.
+  const contribution = ev.contribution;
+  const positive = contribution !== null && contribution >= 0;
 
   return (
     <li className="border-b border-[color:var(--rule)] last:border-b-0">
@@ -42,10 +46,23 @@ function EventRow({ ev, color }: { ev: EvidenceEvent; color: string }) {
       >
         <span
           className="mono mt-0.5 w-16 shrink-0 text-right text-[19px] font-medium"
-          style={{ color: positive ? "var(--accent)" : "var(--figure)" }}
+          style={{
+            color:
+              contribution === null
+                ? "var(--muted)"
+                : positive
+                  ? "var(--accent)"
+                  : "var(--figure)",
+          }}
+          title={
+            contribution === null
+              ? "This source lists the event as evidence but does not attribute a per-event contribution to it."
+              : undefined
+          }
         >
-          {positive ? "+" : ""}
-          {ev.contribution.toFixed(1)}
+          {contribution === null
+            ? "—"
+            : `${positive ? "+" : ""}${contribution.toFixed(1)}`}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
@@ -122,10 +139,16 @@ export default function TraceDrawer({
   useEffect(() => {
     if (!axisKey) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // Escape also returns the company page to the pipeline. Stopping propagation
+      // here means the first Escape closes the drawer and the second one navigates,
+      // instead of one keypress doing both.
+      e.stopPropagation();
+      onClose();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Capture phase, so this runs before the page-level Escape handler on window.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [axisKey, onClose]);
 
   if (!axisKey) return null;
@@ -135,7 +158,11 @@ export default function TraceDrawer({
   const events = axis.evidence_event_ids
     .map((id) => company.events.find((e) => e.event_id === id))
     .filter((e): e is EvidenceEvent => Boolean(e))
-    .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+    // Largest absolute contribution first; unattributed events sort to the end rather
+    // than being ranked as though they contributed nothing.
+    .sort((a, b) => Math.abs(b.contribution ?? -1) - Math.abs(a.contribution ?? -1));
+
+  const missingSpans = axis.evidence_event_ids.length - events.length;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -163,13 +190,30 @@ export default function TraceDrawer({
               <h2 className="mt-1 text-[26px] leading-tight font-medium" style={{ color }}>
                 {AXIS_LABEL[axisKey]}{" "}
                 <span className="mono text-[color:var(--figure)]">
-                  {axis.score.toFixed(0)}
-                  <span className="text-[18px] text-[color:var(--muted)]"> ±{axis.band.toFixed(1)}</span>
+                  {axis.score === null ? (
+                    <span className="text-[color:var(--muted)]">not scored</span>
+                  ) : (
+                    <>
+                      {axis.score.toFixed(0)}
+                      <span className="text-[18px] text-[color:var(--muted)]">
+                        {" "}
+                        ±{(axis.band ?? 0).toFixed(1)}
+                      </span>
+                    </>
+                  )}
                 </span>
               </h2>
               <p className="mt-1 text-[13px] text-[color:var(--muted)]">
                 {events.length} contributing {events.length === 1 ? "event" : "events"} · open
                 any row for the quoted span and the original source
+                {missingSpans > 0 && (
+                  <>
+                    {" "}
+                    · {missingSpans} referenced{" "}
+                    {missingSpans === 1 ? "event is" : "events are"} not in the local
+                    event log and cannot be shown
+                  </>
+                )}
               </p>
             </div>
             <button
@@ -186,8 +230,9 @@ export default function TraceDrawer({
           {events.length ? (
             events.map((ev) => <EventRow key={ev.event_id} ev={ev} color={color} />)
           ) : (
-            <li className="px-5 py-8 text-[14px] text-[color:var(--muted)]">
-              No contributing events recorded for this axis.
+            <li className="px-5 py-8 text-[14px] leading-[1.55] text-[color:var(--muted)]">
+              {axis.reason ??
+                "No contributing events recorded for this axis. There is nothing to trace because nothing was observed — the score above is absent for that reason, not withheld."}
             </li>
           )}
         </ol>

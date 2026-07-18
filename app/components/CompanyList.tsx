@@ -6,12 +6,20 @@
  * Ranked by an EXPLICIT, stated policy — never by a mean of the axes. The policy
  * is printed above the table and the sort key is selectable, because the honest
  * version of "ranked" is "ranked by this, and here is what this is."
+ *
+ * Navigation contract, one obvious click each way:
+ *   - the whole row opens the company (not just the name);
+ *   - j/k or ↑/↓ move the cursor, Enter opens it, so the list is drivable without a mouse;
+ *   - the ranked order and the cursor are handed to the company page, which offers
+ *     prev/next against the same order and returns you here with it intact.
  */
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AxisKey, CompanySummary } from "@/lib/types";
 import { AXIS_INDEX, AXIS_KEYS, AXIS_LABEL } from "@/lib/types";
+import { writeListState } from "@/lib/listState";
 import { GateBadge, Trend } from "./ui";
 
 type SortKey = AxisKey | "momentum" | "certainty";
@@ -40,10 +48,30 @@ const SORT_POLICY: Record<SortKey, string> = {
     "gate, then narrowest founder band first — who we know most about, not who scores best.",
 };
 
+const isSortKey = (v: string): v is SortKey => v in SORT_LABEL;
+
+/**
+ * A null score sorts LAST regardless of direction. An axis with nothing to score is an
+ * absence, and an absence must never win a ranking by being treated as a zero or as an
+ * infinity — it simply cannot be ranked on that axis.
+ */
+const rank = (v: number | null) => (v === null ? -Infinity : v);
+
 function AxisCell({ k, c }: { k: AxisKey; c: CompanySummary }) {
   const a = c.axes[k];
-  const lo = Math.max(0, a.score - a.band);
-  const hi = Math.min(100, a.score + a.band);
+
+  if (a.score === null) {
+    return (
+      <td className="border-l border-[color:var(--rule)] px-3 py-3 align-middle">
+        <span className="mono text-[13px] text-[color:var(--muted)]">no evidence</span>
+        <div className="hatch mt-1.5 h-[4px] w-full min-w-[104px] bg-[color:var(--ink-09)]" />
+      </td>
+    );
+  }
+
+  const band = a.band ?? 0;
+  const lo = Math.max(0, a.score - band);
+  const hi = Math.min(100, a.score + band);
   return (
     <td className="border-l border-[color:var(--rule)] px-3 py-3 align-middle">
       <div className="flex items-baseline gap-2">
@@ -51,9 +79,9 @@ function AxisCell({ k, c }: { k: AxisKey; c: CompanySummary }) {
           {a.score.toFixed(0)}
         </span>
         <span className="mono text-[11px] text-[color:var(--muted)]">
-          ±{a.band.toFixed(1)}
+          ±{band.toFixed(1)}
         </span>
-        <Trend value={a.trend} className="!text-[11px]" />
+        {a.trend !== null && <Trend value={a.trend} className="!text-[11px]" />}
       </div>
       <div className="relative mt-1.5 h-[4px] w-full min-w-[104px] bg-[color:var(--ink-09)]">
         <span
@@ -72,20 +100,106 @@ function AxisCell({ k, c }: { k: AxisKey; c: CompanySummary }) {
 export default function CompanyList({
   companies,
   highlight,
+  initialSort = "founder",
+  initialSelected = null,
+  onSortChange,
+  onOrderChange,
 }: {
   companies: CompanySummary[];
   /** Ids matched by the active NL query. Non-matches are dimmed, not removed. */
   highlight?: Set<string> | null;
+  initialSort?: string;
+  /** Row to restore the cursor to — the company you last opened from here. */
+  initialSelected?: string | null;
+  onSortChange?: (s: string) => void;
+  /** Reports the ranked order upward so the company page can walk it. */
+  onOrderChange?: (ids: string[]) => void;
 }) {
-  const [sort, setSort] = useState<SortKey>("founder");
+  const router = useRouter();
+  const [sort, setSort] = useState<SortKey>(
+    isSortKey(initialSort) ? initialSort : "founder",
+  );
 
-  const sorted = [...companies].sort((a, b) => {
-    const g = GATE_RANK[a.gate] - GATE_RANK[b.gate];
-    if (g !== 0) return g;
-    if (sort === "momentum") return b.axes.founder.trend - a.axes.founder.trend;
-    if (sort === "certainty") return a.axes.founder.band - b.axes.founder.band;
-    return b.axes[sort].score - a.axes[sort].score;
+  const sorted = useMemo(
+    () =>
+      [...companies].sort((a, b) => {
+        const g = GATE_RANK[a.gate] - GATE_RANK[b.gate];
+        if (g !== 0) return g;
+        if (sort === "momentum")
+          return rank(b.axes.founder.trend) - rank(a.axes.founder.trend);
+        if (sort === "certainty") {
+          // Narrowest band first, so a missing band sorts last rather than first.
+          const ab = a.axes.founder.band ?? Infinity;
+          const bb = b.axes.founder.band ?? Infinity;
+          return ab - bb;
+        }
+        return rank(b.axes[sort].score) - rank(a.axes[sort].score);
+      }),
+    [companies, sort],
+  );
+
+  const order = useMemo(() => sorted.map((c) => c.id), [sorted]);
+
+  // The cursor. Starts on the row you last opened so returning from a company page
+  // puts you back exactly where you were, including for keyboard users.
+  const [cursor, setCursor] = useState(() => {
+    const i = initialSelected ? order.indexOf(initialSelected) : -1;
+    return i >= 0 ? i : 0;
   });
+
+  const rowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
+  const [keyboardActive, setKeyboardActive] = useState(false);
+
+  useEffect(() => {
+    onOrderChange?.(order);
+  }, [order, onOrderChange]);
+
+  const open = useCallback(
+    (id: string) => {
+      writeListState({ selected: id, order, sort, scrollY: window.scrollY });
+      router.push(`/company/${encodeURIComponent(id)}`);
+    },
+    [order, router, sort],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Never steal keys from a field the user is typing in — the compound query box
+      // is right above this table and 'j' is a perfectly ordinary character.
+      const el = e.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT" ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!order.length) return;
+
+      const step = (d: number) => {
+        e.preventDefault();
+        setKeyboardActive(true);
+        setCursor((c) => Math.max(0, Math.min(order.length - 1, c + d)));
+      };
+
+      if (e.key === "j" || e.key === "ArrowDown") step(1);
+      else if (e.key === "k" || e.key === "ArrowUp") step(-1);
+      else if (e.key === "Enter" && keyboardActive) {
+        e.preventDefault();
+        open(order[cursor]);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [cursor, keyboardActive, open, order]);
+
+  useEffect(() => {
+    if (!keyboardActive) return;
+    rowRefs.current[cursor]?.scrollIntoView({ block: "nearest" });
+  }, [cursor, keyboardActive]);
 
   return (
     <div>
@@ -99,7 +213,12 @@ export default function CompanyList({
           Rank by
           <select
             value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!isSortKey(v)) return;
+              setSort(v);
+              onSortChange?.(v);
+            }}
             className="mono border border-[color:var(--rule)] bg-transparent px-3 py-1.5 text-[13px] text-[color:var(--figure)] normal-case"
           >
             {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
@@ -110,6 +229,10 @@ export default function CompanyList({
           </select>
         </label>
       </div>
+
+      <p className="meta mb-2 text-[color:var(--muted)]">
+        J / K or ↑ ↓ to move · ENTER to open · ESC on a company returns here
+      </p>
 
       <div className="overflow-x-auto border border-[color:var(--rule)]">
         <table className="w-full min-w-[1060px] border-collapse">
@@ -134,17 +257,39 @@ export default function CompanyList({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((c) => {
+            {sorted.map((c, i) => {
               const dim = highlight ? !highlight.has(c.id) : false;
+              const onCursor = keyboardActive && i === cursor;
               return (
                 <tr
                   key={c.id}
-                  className={`border-b border-[color:var(--rule)] last:border-b-0 hover:bg-[color:var(--ink-09)] ${
+                  ref={(el) => {
+                    rowRefs.current[i] = el;
+                  }}
+                  onClick={() => open(c.id)}
+                  className={`cursor-pointer border-b border-[color:var(--rule)] last:border-b-0 hover:bg-[color:var(--ink-09)] ${
                     dim ? "opacity-30" : ""
                   }`}
+                  style={
+                    onCursor
+                      ? {
+                          background: "var(--ink-09)",
+                          // A cursor needs to be visible without relying on hue alone.
+                          boxShadow: "inset 3px 0 0 0 var(--accent)",
+                        }
+                      : undefined
+                  }
                 >
                   <td className="px-4 py-3">
-                    <Link href={`/company/${c.id}`} className="group block">
+                    <Link
+                      href={`/company/${encodeURIComponent(c.id)}`}
+                      onClick={(e) => {
+                        // The row handler already navigates and records list state;
+                        // letting the link fire too would double-push the history entry.
+                        e.preventDefault();
+                      }}
+                      className="group block"
+                    >
                       <span className="font-[family-name:var(--font-instrument-serif)] text-[24px] leading-tight group-hover:underline">
                         {c.name}
                       </span>
