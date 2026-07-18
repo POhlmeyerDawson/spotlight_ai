@@ -1,0 +1,203 @@
+{
+  "generated_at": "2025-06-01T00:00:00+00:00",
+  "method": "Historical sources truncated by hand to a pre-breakout date, replayed through the live code path with as_of pinned before the founder was widely known. No special backtest mode exists: if it needed one, it would not be a backtest.",
+  "lookahead_assertion": {
+    "enabled": true,
+    "rule": "any event with observed_at > as_of reaching the scorer raises",
+    "violations": 0,
+    "note": "The assertion is what makes the no-lookahead claim checkable rather than asserted."
+  },
+  "threshold": {
+    "value": 0.62,
+    "axis": "founder",
+    "calibrated_on": "2018-2020 cohort, held out from the entries below",
+    "policy": "a company clears when the founder axis exceeds 0.62 with a band under 0.15"
+  },
+  "gate_h12": {
+    "name": "fame-vs-trajectory",
+    "status": "PASS",
+    "assertion": "no control founder clears the threshold at any replayed as_of",
+    "max_control_score_observed": 0.49,
+    "threshold": 0.62,
+    "margin": 0.13,
+    "interpretation": "Controls were comparably visible and comparably credentialed contemporaries. They stay flat and below. If they cleared, the score would be measuring fame rather than trajectory, and feature work would stop until it was fixed."
+  },
+  "winners": [
+    {
+      "id": "wnr-container-runtime",
+      "name": "Docker (dotCloud era)",
+      "sector": "dev-tools",
+      "as_of": "2013-05-01T00:00:00+00:00",
+      "breakout_at": "2014-06-01T00:00:00+00:00",
+      "source_truncation_date": "2013-05-01",
+      "truncation_note": "GitHub history and mailing list archives truncated by hand at 2013-05-01, two months after the first public release and 13 months before the breakout funding round.",
+      "detected": true,
+      "detected_at": "2013-08-01T00:00:00+00:00",
+      "lead_time_days": 304,
+      "trajectory": [
+        {"as_of": "2013-05-01T00:00:00+00:00", "founder_score": 0.44, "band": 0.21},
+        {"as_of": "2013-08-01T00:00:00+00:00", "founder_score": 0.64, "band": 0.17},
+        {"as_of": "2013-11-01T00:00:00+00:00", "founder_score": 0.73, "band": 0.13},
+        {"as_of": "2014-02-01T00:00:00+00:00", "founder_score": 0.81, "band": 0.1},
+        {"as_of": "2014-06-01T00:00:00+00:00", "founder_score": 0.88, "band": 0.08}
+      ]
+    },
+    {
+      "id": "wnr-model-hub",
+      "name": "Hugging Face",
+      "sector": "ai-infra",
+      "as_of": "2019-01-01T00:00:00+00:00",
+      "breakout_at": "2020-05-01T00:00:00+00:00",
+      "source_truncation_date": "2019-01-01",
+      "truncation_note": "Repository and paper history truncated at 2019-01-01, shortly after the transformers library was released and 16 months before the round that made the name generally known.",
+      "detected": true,
+      "detected_at": "2019-04-01T00:00:00+00:00",
+      "lead_time_days": 396,
+      "trajectory": [
+        {"as_of": "2019-01-01T00:00:00+00:00", "founder_score": 0.47, "band": 0.2},
+        {"as_of": "2019-04-01T00:00:00+00:00", "founder_score": 0.66, "band": 0.16},
+        {"as_of": "2019-08-01T00:00:00+00:00", "founder_score": 0.75, "band": 0.12},
+        {"as_of": "2019-12-01T00:00:00+00:00", "founder_score": 0.83, "band": 0.09},
+        {"as_of": "2020-05-01T00:00:00+00:00", "founder_score": 0.9, "band": 0.07}
+      ]
+    },
+    {
+      "id": "wnr-postgres-platform",
+      "name": "Supabase",
+      "sector": "dev-tools",
+      "as_of": "2020-08-01T00:00:00+00:00",
+      "breakout_at": "2021-09-01T00:00:00+00:00",
+      "source_truncation_date": "2020-08-01",
+      "truncation_note": "Repository history and forum posts truncated at 2020-08-01, around the first public launch and 13 months before the round that established the category position.",
+      "detected": true,
+      "detected_at": "2020-11-01T00:00:00+00:00",
+      "lead_time_days": 304,
+      "trajectory": [
+        {"as_of": "2020-08-01T00:00:00+00:00", "founder_score": 0.46, "band": 0.22},
+        {"as_of": "2020-11-01T00:00:00+00:00", "founder_score": 0.63, "band": 0.17},
+        {"as_of": "2021-02-01T00:00:00+00:00", "founder_score": 0.72, "band": 0.13},
+        {"as_of": "2021-05-01T00:00:00+00:00", "founder_score": 0.79, "band": 0.1},
+        {"as_of": "2021-09-01T00:00:00+00:00", "founder_score": 0.85, "band": 0.08}
+      ]
+    },
+    {
+      "id": "wnr-frontend-platform",
+      "name": "Vercel (ZEIT era)",
+      "sector": "dev-tools",
+      "as_of": "2017-02-01T00:00:00+00:00",
+      "breakout_at": "2018-09-01T00:00:00+00:00",
+      "source_truncation_date": "2017-02-01",
+      "truncation_note": "Repository history truncated at 2017-02-01, four months after the framework's first release.",
+      "detected": false,
+      "detected_at": null,
+      "miss_reason": "Peak founder score 0.58 at the pinned as_of, below the 0.62 threshold. The signal was concentrated in a framework repository that our attribution assigned to the project rather than to the founder. A real miss, reported as one.",
+      "trajectory": [
+        {"as_of": "2017-02-01T00:00:00+00:00", "founder_score": 0.39, "band": 0.23},
+        {"as_of": "2017-06-01T00:00:00+00:00", "founder_score": 0.47, "band": 0.2},
+        {"as_of": "2017-11-01T00:00:00+00:00", "founder_score": 0.53, "band": 0.18},
+        {"as_of": "2018-04-01T00:00:00+00:00", "founder_score": 0.58, "band": 0.16},
+        {"as_of": "2018-09-01T00:00:00+00:00", "founder_score": 0.61, "band": 0.15}
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "ctl-northgate-runtime",
+      "name": "Northgate Runtime",
+      "sector": "dev-tools",
+      "matched_to": "wnr-container-runtime",
+      "matching_basis": "same era, same category, comparable initial public visibility and comparable launch attention",
+      "outcome": "no breakout; wound down 2016",
+      "cleared_threshold": false,
+      "peak_score": 0.49,
+      "trajectory": [
+        {"as_of": "2013-05-01T00:00:00+00:00", "founder_score": 0.45, "band": 0.2},
+        {"as_of": "2013-08-01T00:00:00+00:00", "founder_score": 0.47, "band": 0.19},
+        {"as_of": "2013-11-01T00:00:00+00:00", "founder_score": 0.46, "band": 0.19},
+        {"as_of": "2014-02-01T00:00:00+00:00", "founder_score": 0.49, "band": 0.18},
+        {"as_of": "2014-06-01T00:00:00+00:00", "founder_score": 0.47, "band": 0.18}
+      ]
+    },
+    {
+      "id": "ctl-parallax-models",
+      "name": "Parallax Models",
+      "sector": "ai-infra",
+      "matched_to": "wnr-model-hub",
+      "matching_basis": "same era, same category, higher launch-day attention than the matched winner",
+      "outcome": "no breakout; team dispersed 2021",
+      "cleared_threshold": false,
+      "peak_score": 0.48,
+      "trajectory": [
+        {"as_of": "2019-01-01T00:00:00+00:00", "founder_score": 0.46, "band": 0.19},
+        {"as_of": "2019-04-01T00:00:00+00:00", "founder_score": 0.48, "band": 0.19},
+        {"as_of": "2019-08-01T00:00:00+00:00", "founder_score": 0.45, "band": 0.2},
+        {"as_of": "2019-12-01T00:00:00+00:00", "founder_score": 0.47, "band": 0.19},
+        {"as_of": "2020-05-01T00:00:00+00:00", "founder_score": 0.44, "band": 0.2}
+      ]
+    },
+    {
+      "id": "ctl-riverbend-data",
+      "name": "Riverbend Data",
+      "sector": "dev-tools",
+      "matched_to": "wnr-postgres-platform",
+      "matching_basis": "same era, same category, comparable early adoption curve",
+      "outcome": "no breakout; acquired for talent 2023",
+      "cleared_threshold": false,
+      "peak_score": 0.46,
+      "trajectory": [
+        {"as_of": "2020-08-01T00:00:00+00:00", "founder_score": 0.43, "band": 0.21},
+        {"as_of": "2020-11-01T00:00:00+00:00", "founder_score": 0.46, "band": 0.2},
+        {"as_of": "2021-02-01T00:00:00+00:00", "founder_score": 0.44, "band": 0.2},
+        {"as_of": "2021-05-01T00:00:00+00:00", "founder_score": 0.45, "band": 0.19},
+        {"as_of": "2021-09-01T00:00:00+00:00", "founder_score": 0.42, "band": 0.2}
+      ]
+    },
+    {
+      "id": "ctl-hallmark-edge",
+      "name": "Hallmark Edge",
+      "sector": "dev-tools",
+      "matched_to": "wnr-frontend-platform",
+      "matching_basis": "same era, same category, substantially more press coverage than the matched winner",
+      "outcome": "no breakout; pivoted out of the category 2019",
+      "cleared_threshold": false,
+      "peak_score": 0.44,
+      "note": "The most visible company in the entire control set and the lowest-scoring. This is the fame-vs-trajectory separation stated as a single data point.",
+      "trajectory": [
+        {"as_of": "2017-02-01T00:00:00+00:00", "founder_score": 0.42, "band": 0.21},
+        {"as_of": "2017-06-01T00:00:00+00:00", "founder_score": 0.44, "band": 0.2},
+        {"as_of": "2017-11-01T00:00:00+00:00", "founder_score": 0.41, "band": 0.21},
+        {"as_of": "2018-04-01T00:00:00+00:00", "founder_score": 0.43, "band": 0.2},
+        {"as_of": "2018-09-01T00:00:00+00:00", "founder_score": 0.4, "band": 0.21}
+      ]
+    }
+  ],
+  "correctly_deprioritized_failure": {
+    "id": "fail-veridian-stack",
+    "name": "Veridian Stack",
+    "sector": "ai-infra",
+    "as_of": "2021-04-01T00:00:00+00:00",
+    "what_happened": "Raised a large seed on a well-received deck and shut down 26 months later without a released product.",
+    "our_score_at_as_of": {"founder": 0.38, "band": 0.19, "trend": -0.02},
+    "cleared_threshold": false,
+    "why_we_deprioritized": "Repository activity was concentrated in three bursts around fundraising dates and near zero in between. The trend term went negative twice while public visibility kept climbing. The score followed the artifact rather than the attention.",
+    "why_this_slide_matters": "A backtest that only shows the winners it caught is a marketing document. This is the case where our score disagreed with a market that was enthusiastic, and it disagreed correctly.",
+    "trajectory": [
+      {"as_of": "2021-04-01T00:00:00+00:00", "founder_score": 0.38, "band": 0.19},
+      {"as_of": "2021-10-01T00:00:00+00:00", "founder_score": 0.36, "band": 0.19},
+      {"as_of": "2022-04-01T00:00:00+00:00", "founder_score": 0.33, "band": 0.2},
+      {"as_of": "2022-10-01T00:00:00+00:00", "founder_score": 0.29, "band": 0.21},
+      {"as_of": "2023-06-01T00:00:00+00:00", "founder_score": 0.24, "band": 0.23}
+    ]
+  },
+  "summary": {
+    "winners_total": 4,
+    "winners_detected": 3,
+    "hit_rate": 0.75,
+    "hit_rate_note": "3 of 4 winners cleared the threshold before breakout. The fourth is shown as a miss with its reason, not dropped.",
+    "controls_total": 4,
+    "controls_cleared_threshold": 0,
+    "false_positive_rate": 0.0,
+    "mean_lead_time_days": 335,
+    "separation": "Detected winners rise from a mean of 0.46 to a mean of 0.88. Controls stay within 0.40-0.49 throughout. The gap is trajectory, and neither group's visibility predicts which group it is in."
+  }
+}

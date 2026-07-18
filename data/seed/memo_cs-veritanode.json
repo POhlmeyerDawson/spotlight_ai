@@ -1,0 +1,31 @@
+{
+  "company_id": "cs-veritanode",
+  "company_name": "Veritanode",
+  "as_of": "2025-06-01T00:00:00+00:00",
+  "sections": {
+    "thesis": "A cross-region vector index that holds a sub-millisecond p99 on commodity NVMe with no GPU in the read path would remove the dominant cost line from every retrieval-heavy product we look at [cs-veritanode#0]. The claim is specific enough to be wrong, which is the only kind of claim worth testing.",
+    "founder": "One technical founder. Five years on distributed storage, none of it public [cs-veritanode#4]. We have zero independent evidence about this person: no repositories, no talks, no papers, no third-party writing. GAP: the founder axis is not scored. It is not a low score - there is no score, and treating an absence as a zero is the specific failure this memo refuses to make.",
+    "market": "Vector search infrastructure is contested and consolidating. The wedge claimed here is cost per query at scale rather than a new index structure [cs-veritanode#2]. GAP: no customer conversations, no pipeline, no pricing. Market read is derived entirely from the deck, which is a self-published source.",
+    "risks": [
+      "The central claim is unfalsifiable from outside. Every number comes from the founder and there is no independent corroboration of any of them.",
+      "The recall and latency claims may hold individually and fail jointly. The deck never presents them on the same benchmark run.",
+      "Absence of public work is explained by NDA, which we have not verified and cannot verify. We are accepting the explanation as plausible, not as established.",
+      "Solo technical founder with no observable collaboration history. We know nothing about how this person works with other people."
+    ],
+    "gaps_flagged": [
+      "No independent revenue verification attempted - the company asserts no revenue.",
+      "Founder axis: not scored, zero evidence.",
+      "Idea-vs-market axis: not scored, cannot be assessed from self-published claims.",
+      "Entity resolution produced a NEW entity with no aliases. If this person has public work under another handle, we did not find it.",
+      "Prior employment is unverified and is in any case excluded from scoring."
+    ],
+    "recommendation": "PROOF PROTOCOL, not a pass and not a term sheet. Issue the 50M-vector benchmark challenge [proof_challenge]. Fund the decision on what comes back: whether they ask about the unstated embedding dimensionality instead of silently picking one, whether they refuse the page-cache warming we deliberately requested, and whether the harness reruns on our hardware. Re-decide within 14 days of artifact receipt. If nothing comes back, that is also an answer."
+  },
+  "recommendation": "PROOF PROTOCOL, not a pass and not a term sheet. Issue the 50M-vector benchmark challenge. Fund the decision on what comes back, and re-decide within 14 days of artifact receipt.",
+  "citations": [
+    {"ref": "cs-veritanode#0", "span": "slide 3: \"p99 < 900us @ 1.2B vectors, 3 regions, commodity NVMe, zero GPU in the read path\"", "url": "deck://veritanode-seed-2025.pdf#slide=3"},
+    {"ref": "cs-veritanode#2", "span": "slide 5: \"recall@10 >= 0.94 vs brute force, touching <=0.3% of index bytes per query\"", "url": "deck://veritanode-seed-2025.pdf#slide=5"},
+    {"ref": "cs-veritanode#4", "span": "slide 8: \"Five years on distributed storage. All of it behind an NDA, none of it on GitHub.\"", "url": "deck://veritanode-seed-2025.pdf#slide=8"}
+  ],
+  "entity_resolution_notes": ["Entity created from the deck alone. No handles, no aliases, nothing to match against. We could not confirm or rule out other public work by this person."]
+}

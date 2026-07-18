@@ -1,12 +1,20 @@
 -- VC Brain initial schema. Owner: A.
 -- Append-only event log. The append-only property is enforced by the DB (see triggers
 -- at the bottom), not by convention — convention does not survive hour 19.
+-- Applied by scripts/migrate.py; idempotent, so it is safe to re-run.
 
-create extension if not exists "uuid-ossp";
-create extension if not exists vector;
+-- pgvector is not used yet and a hosted role may not be allowed to create extensions.
+-- Not having it must never fail the migration.
+do $$
+begin
+    create extension if not exists vector;
+exception when others then
+    raise notice 'pgvector unavailable, continuing without it';
+end
+$$;
 
 create table if not exists entities (
-    entity_id   uuid primary key default uuid_generate_v4(),
+    entity_id   uuid primary key default gen_random_uuid(),
     display_name text not null,
     -- normalized/transliterated form used for fuzzy matching (Type 6 depends on this)
     name_normalized text not null,
@@ -14,7 +22,7 @@ create table if not exists entities (
 );
 
 create table if not exists entity_aliases (
-    alias_id    uuid primary key default uuid_generate_v4(),
+    alias_id    uuid primary key default gen_random_uuid(),
     entity_id   uuid not null references entities(entity_id),
     kind        text not null,          -- 'email' | 'url' | 'handle' | 'name'
     value       text not null,
@@ -23,15 +31,17 @@ create table if not exists entity_aliases (
 );
 
 create table if not exists companies (
-    company_id  uuid primary key default uuid_generate_v4(),
+    company_id  uuid primary key default gen_random_uuid(),
     name        text not null,
-    founder_entity_ids uuid[] not null default '{}',
+    -- jsonb, not uuid[]: the SQLite backend stores a JSON array here and both backends
+    -- must round-trip the identical representation.
+    founder_entity_ids jsonb not null default '[]',
     archetype   int,                    -- 1..6, seed data only
     created_at  timestamptz not null default now()
 );
 
 create table if not exists events (
-    event_id        uuid primary key default uuid_generate_v4(),
+    event_id        uuid primary key default gen_random_uuid(),
     entity_id       uuid references entities(entity_id),
     company_id      uuid references companies(company_id),
     kind            text not null,
@@ -42,7 +52,7 @@ create table if not exists events (
     payload         jsonb not null default '{}',
     evidence_span   text,
     confidence      real not null default 1.0 check (confidence between 0 and 1),
-    integrity_flags text[] not null default '{}'
+    integrity_flags jsonb not null default '[]'
 );
 
 -- Every read path is as_of-scoped. These two indexes are the read path.
@@ -52,7 +62,7 @@ create index if not exists idx_events_kind on events (kind);
 
 -- Entity merge decisions, including the AMBIGUOUS ones we refuse to guess on.
 create table if not exists merges (
-    merge_id    uuid primary key default uuid_generate_v4(),
+    merge_id    uuid primary key default gen_random_uuid(),
     entity_a    uuid not null references entities(entity_id),
     entity_b    uuid not null references entities(entity_id),
     status      text not null check (status in ('merged', 'ambiguous', 'rejected')),

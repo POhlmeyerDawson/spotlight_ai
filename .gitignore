@@ -16,3 +16,7 @@ data/raw/*
 !data/raw/.gitkeep
 
 .DS_Store
+
+# local event store (regenerate with scripts/seed.py)
+data/*.db
+data/*.db-journal

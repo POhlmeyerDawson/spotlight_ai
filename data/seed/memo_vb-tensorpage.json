@@ -1,0 +1,33 @@
+{
+  "company_id": "vb-tensorpage",
+  "company_name": "Tensorpage",
+  "as_of": "2025-06-01T00:00:00+00:00",
+  "sections": {
+    "thesis": "KV-cache fragmentation caps achievable batch size at long context, which is the binding constraint on serving cost for every long-context product. Tensorpage applies OS paging to the cache and reports a 2.3x batch-size increase at 128k context for 1.7% throughput overhead [vb-tensorpage#8], with the harness public and reproducible from one make target [vb-tensorpage#9].",
+    "founder": "Eighteen months on one artifact, with no pivot and no second project [vb-tensorpage#0 through vb-tensorpage#14]. Two behaviours carry most of the founder score. First, correction under public criticism: challenged on a hard-coded block size, the founder made it configurable within the hour and said the default was a benchmark artifact rather than a belief [vb-tensorpage#4]. Second, self-correction against their own headline number - they published that v0.1 had overstated the win by 18% because the baseline was unbatched, with the corrected table [vb-tensorpage#10]. Founders who publish their own overstatement are rare and the score weights it accordingly.",
+    "market": "Inference-serving infrastructure. Adoption is developer-led: 148 dependent repositories at the v0.5.0 tag [vb-tensorpage#14] and two named production users on the quota path [vb-tensorpage#12]. GAP: no revenue, no pricing, no commercial model stated anywhere.",
+    "risks": [
+      "The core technique is publishable and published. A serving framework can absorb it, and one probably will.",
+      "Open-source adoption with no pricing model. 148 dependents is distribution, not a business, and the team has not said what they would charge for.",
+      "Two people. The disaggregated-prefill direction is a substantially larger engineering surface than the allocator was.",
+      "Market axis confidence is 0.61 against a founder axis confidence of 0.88. We know much more about how they build than about who pays."
+    ],
+    "gaps_flagged": [
+      "No revenue verification attempted - no revenue is claimed.",
+      "Two production users are named by the team and were not independently confirmed.",
+      "No pricing or commercial model exists to evaluate.",
+      "Score trajectory was recomputed at six as_of dates; every point uses only events observed on or before that date."
+    ],
+    "recommendation": "PROCEED. Strongest founder evidence in the set, with a tightening confidence band across six replayed as_of dates. Take the meeting on the commercial question, since the technical question is effectively answered by the public record."
+  },
+  "recommendation": "PROCEED. Strongest founder evidence in the set, band tightening across six replayed as_of dates. Take the meeting on the commercial question.",
+  "citations": [
+    {"ref": "vb-tensorpage#0", "span": "commit 4b91e0c \"pagekv: block table with refcounted physical pages\"", "url": "https://github.com/tensorpage/pagekv/commits/main"},
+    {"ref": "vb-tensorpage#4", "span": "\"You're right that 16 is arbitrary. It's a config knob in main as of an hour ago; defaults are a benchmark artifact, not a belief.\"", "url": "https://news.ycombinator.com/item?id=38321559"},
+    {"ref": "vb-tensorpage#8", "span": "\"We report a 2.3x increase in achievable batch size at 128k context with 1.7% throughput overhead.\"", "url": "https://arxiv.org/abs/2405.09912"},
+    {"ref": "vb-tensorpage#10", "span": "\"Our v0.1 numbers overstated the win by ~18% because we benchmarked against an unbatched baseline. Corrected table below.\"", "url": "https://news.ycombinator.com/item?id=40712233"},
+    {"ref": "vb-tensorpage#12", "span": "v0.4.0 — \"per-tenant quotas, fail-closed. Two production users on this path.\"", "url": "https://github.com/tensorpage/pagekv/releases/tag/v0.4.0"},
+    {"ref": "vb-tensorpage#14", "span": "v0.5.0 — \"disaggregated prefill/decode with RDMA page migration. 148 dependent repos as of tagging.\"", "url": "https://github.com/tensorpage/pagekv/releases/tag/v0.5.0"}
+  ],
+  "entity_resolution_notes": ["GitHub mferreira-tp and HN mferreira merged on a shared release URL, confidence 0.94."]
+}

@@ -1,0 +1,26 @@
+{
+  "company_id": "adv-synthgrid",
+  "company_name": "Synthgrid AI",
+  "generated_at": "2025-06-01T00:00:00+00:00",
+  "bear_case": "The bear case is against the confidence of our own detection, not against the no-call. Two of our three signals are cheap. Keyword density catches bad copywriting, which correlates with a non-technical person having written the deck and not with fraud. Commit-substance ratio would flag any team that squashes on merge, formats in CI, or vendors a dependency. We are one hop from a detector that reliably punishes founders who do not know how our metrics work. Only the injection is decisive - and if a founder's growth consultant added that line to slide 7 without them knowing, we have permanently blacklisted someone for a contractor's decision, on evidence we never showed them.",
+  "weakest_evidence": [
+    "Keyword density 0.41 measures the writing, not the company. Plenty of real infrastructure gets sold with terrible copy.",
+    "The commit-substance measure is new and has been validated against exactly one control. One control is an anecdote.",
+    "'README describes eleven subsystems, four directories are empty' describes most pre-launch repositories at some point in their life.",
+    "We have not established that the founder authored or knew about the slide 7 text."
+  ],
+  "load_bearing_claim": "That the slide 7 injection was placed deliberately by someone acting for this company. Strip that, and what remains is a badly written deck over a thin repository - a pass, not a flag, and certainly not a permanent record.",
+  "axis_spreads": {"founder": 0.22, "market": 0.35, "idea_vs_market": 0.19},
+  "control_check": {
+    "control_id": "adv-control-ferrite",
+    "result": "not flagged",
+    "detail": "3,402 commits over 11 days - more than Synthgrid's 3,117 over 9 - with 61,400 net lines, 611 tests and 14 external contributors. Zero integrity flags.",
+    "conclusion": "The detector is not a volume meter. That is one control, which is better than zero and worse than a validation set."
+  },
+  "what_would_change_my_mind": [
+    "Provenance on the slide 7 text - PDF metadata showing which tool and which author inserted that text layer.",
+    "The founder's response when shown the extracted string. That response is more informative than everything else in this file combined.",
+    "Ten more controls. Until then the substance metric is a demo, not a detector."
+  ],
+  "process_objection": "We should show the founder the extracted injection string and record the answer before the flag becomes permanent."
+}

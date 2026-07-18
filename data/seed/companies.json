@@ -1,0 +1,269 @@
+{
+  "as_of": "2025-06-01T00:00:00+00:00",
+  "ranking_policy": "min_axis_with_momentum_tiebreak",
+  "note": "There is no blended score field on any entry, by construction. Rank comes from the weakest axis, momentum breaks ties. Every axis carries its own confidence and evidence count.",
+  "companies": [
+    {
+      "id": "vb-tensorpage",
+      "rank": 1,
+      "name": "Tensorpage",
+      "archetype": 1,
+      "archetype_label": "Visible Builder",
+      "one_liner": "Paged KV-cache allocator for long-context inference on commodity GPUs.",
+      "sector": "ai-infra",
+      "discovery": "outbound",
+      "axes": {
+        "founder": {"score": 0.81, "trend": 0.06, "confidence": 0.88, "band": 0.07, "evidence_count": 16},
+        "market": {"score": 0.72, "trend": 0.03, "confidence": 0.61, "band": 0.14, "evidence_count": 5},
+        "idea_vs_market": {"score": 0.76, "trend": 0.05, "confidence": 0.7, "band": 0.11, "evidence_count": 9}
+      },
+      "momentum": 0.06,
+      "gate": "proceed",
+      "flags": [],
+      "unverified_claims": 0
+    },
+    {
+      "id": "intl-zaryad",
+      "rank": 2,
+      "name": "Zaryad Compute",
+      "name_native": "Заряд Компьют",
+      "archetype": 6,
+      "archetype_label": "Invisible International",
+      "one_liner": "Sparse attention kernels that run on consumer GPUs with 8GB of VRAM.",
+      "sector": "ai-infra",
+      "discovery": "hidden_graph",
+      "axes": {
+        "founder": {"score": 0.78, "trend": 0.09, "confidence": 0.74, "band": 0.11, "evidence_count": 7},
+        "market": {"score": 0.69, "trend": 0.04, "confidence": 0.52, "band": 0.17, "evidence_count": 3},
+        "idea_vs_market": {"score": 0.74, "trend": 0.07, "confidence": 0.63, "band": 0.13, "evidence_count": 5}
+      },
+      "momentum": 0.09,
+      "gate": "proceed",
+      "flags": ["transliterated_name", "non_english_source", "low_visibility"],
+      "visibility_percentile": 0.07,
+      "unverified_claims": 0
+    },
+    {
+      "id": "adv-control-ferrite",
+      "rank": 3,
+      "name": "Ferrite Labs",
+      "archetype": 5,
+      "archetype_label": "Adversarial (control)",
+      "one_liner": "One FFI surface for 41 embedded targets.",
+      "sector": "dev-tools",
+      "discovery": "outbound",
+      "axes": {
+        "founder": {"score": 0.79, "trend": 0.08, "confidence": 0.83, "band": 0.08, "evidence_count": 5},
+        "market": {"score": 0.61, "trend": 0.01, "confidence": 0.55, "band": 0.16, "evidence_count": 2},
+        "idea_vs_market": {"score": 0.68, "trend": 0.04, "confidence": 0.66, "band": 0.12, "evidence_count": 4}
+      },
+      "momentum": 0.08,
+      "gate": "proceed",
+      "flags": [],
+      "note": "Larger commit burst than Synthgrid and zero integrity flags. The control that proves the detector is not a volume meter.",
+      "unverified_claims": 0
+    },
+    {
+      "id": "intl-xiliu",
+      "rank": 4,
+      "name": "Xiliu Inference",
+      "name_native": "溪流推理",
+      "archetype": 6,
+      "archetype_label": "Invisible International",
+      "one_liner": "Speculative decoding that adapts its draft model at runtime.",
+      "sector": "ai-infra",
+      "discovery": "hidden_graph",
+      "axes": {
+        "founder": {"score": 0.75, "trend": 0.08, "confidence": 0.71, "band": 0.12, "evidence_count": 6},
+        "market": {"score": 0.66, "trend": 0.03, "confidence": 0.49, "band": 0.18, "evidence_count": 2},
+        "idea_vs_market": {"score": 0.72, "trend": 0.06, "confidence": 0.6, "band": 0.14, "evidence_count": 4}
+      },
+      "momentum": 0.08,
+      "gate": "proceed",
+      "flags": ["transliterated_name", "non_english_source", "low_visibility"],
+      "visibility_percentile": 0.05,
+      "unverified_claims": 0
+    },
+    {
+      "id": "vb-quillstack",
+      "rank": 5,
+      "name": "Quillstack",
+      "archetype": 1,
+      "archetype_label": "Visible Builder",
+      "one_liner": "OpenTelemetry-native tracer for multi-step LLM applications.",
+      "sector": "dev-tools",
+      "discovery": "outbound",
+      "axes": {
+        "founder": {"score": 0.74, "trend": 0.05, "confidence": 0.85, "band": 0.08, "evidence_count": 11},
+        "market": {"score": 0.64, "trend": 0.02, "confidence": 0.58, "band": 0.15, "evidence_count": 4},
+        "idea_vs_market": {"score": 0.65, "trend": 0.01, "confidence": 0.67, "band": 0.12, "evidence_count": 6}
+      },
+      "momentum": 0.03,
+      "gate": "proceed",
+      "flags": [],
+      "unverified_claims": 0
+    },
+    {
+      "id": "cx-tallwind",
+      "rank": 6,
+      "name": "Tallwind Metrics",
+      "archetype": 4,
+      "archetype_label": "Contradiction (older counter-evidence)",
+      "one_liner": "Usage metering and billing primitives for infrastructure products.",
+      "sector": "data-infra",
+      "discovery": "inbound",
+      "axes": {
+        "founder": {"score": 0.7, "trend": 0.07, "confidence": 0.72, "band": 0.11, "evidence_count": 6},
+        "market": {"score": 0.68, "trend": 0.05, "confidence": 0.6, "band": 0.14, "evidence_count": 3},
+        "idea_vs_market": {"score": 0.63, "trend": 0.06, "confidence": 0.64, "band": 0.13, "evidence_count": 4}
+      },
+      "momentum": 0.07,
+      "gate": "proceed",
+      "flags": ["revenue_claim_timeline_checked"],
+      "note": "Public 'pre-revenue' statement predates the ARR claim by two months. That is growth, not a contradiction.",
+      "unverified_claims": 1
+    },
+    {
+      "id": "sf-meshledger",
+      "rank": 7,
+      "name": "Meshledger",
+      "archetype": 3,
+      "archetype_label": "Serial Founder",
+      "one_liner": "Ordered change data capture for object storage.",
+      "sector": "data-infra",
+      "discovery": "outbound",
+      "axes": {
+        "founder": {"score": 0.77, "trend": 0.04, "confidence": 0.86, "band": 0.07, "evidence_count": 11},
+        "market": {"score": 0.62, "trend": 0.02, "confidence": 0.63, "band": 0.13, "evidence_count": 4},
+        "idea_vs_market": {"score": 0.61, "trend": 0.03, "confidence": 0.68, "band": 0.12, "evidence_count": 5}
+      },
+      "momentum": 0.04,
+      "gate": "proceed",
+      "flags": ["founder_history_spans_2_companies"],
+      "note": "Six of eleven contributing events predate this company. Prior-company history carried across the entity boundary.",
+      "unverified_claims": 0
+    },
+    {
+      "id": "intl-tantu",
+      "rank": 8,
+      "name": "Tantu Systems",
+      "name_native": "तंतु सिस्टम्स",
+      "archetype": 6,
+      "archetype_label": "Invisible International",
+      "one_liner": "Deterministic scheduler for mixed CPU/accelerator batch inference.",
+      "sector": "ai-infra",
+      "discovery": "hidden_graph",
+      "axes": {
+        "founder": {"score": 0.71, "trend": 0.06, "confidence": 0.67, "band": 0.14, "evidence_count": 6},
+        "market": {"score": 0.6, "trend": 0.02, "confidence": 0.46, "band": 0.19, "evidence_count": 2},
+        "idea_vs_market": {"score": 0.67, "trend": 0.05, "confidence": 0.57, "band": 0.15, "evidence_count": 3}
+      },
+      "momentum": 0.06,
+      "gate": "proceed",
+      "flags": ["transliterated_name", "non_english_source", "low_visibility"],
+      "visibility_percentile": 0.09,
+      "unverified_claims": 0
+    },
+    {
+      "id": "sf-baseplate",
+      "rank": 9,
+      "name": "Baseplate Systems",
+      "archetype": 3,
+      "archetype_label": "Serial Founder",
+      "one_liner": "Sandboxed execution runtime for agent-generated code.",
+      "sector": "dev-tools",
+      "discovery": "outbound",
+      "axes": {
+        "founder": {"score": 0.73, "trend": 0.05, "confidence": 0.8, "band": 0.09, "evidence_count": 7},
+        "market": {"score": 0.66, "trend": 0.04, "confidence": 0.59, "band": 0.15, "evidence_count": 3},
+        "idea_vs_market": {"score": 0.59, "trend": 0.02, "confidence": 0.62, "band": 0.13, "evidence_count": 4}
+      },
+      "momentum": 0.04,
+      "gate": "proceed",
+      "flags": ["founder_history_spans_2_companies"],
+      "unverified_claims": 0
+    },
+    {
+      "id": "cs-veritanode",
+      "rank": 10,
+      "name": "Veritanode",
+      "archetype": 2,
+      "archetype_label": "Cold Start",
+      "one_liner": "Cross-region vector index with sub-millisecond p99 on commodity NVMe.",
+      "sector": "ai-infra",
+      "discovery": "inbound",
+      "axes": {
+        "founder": {"score": null, "trend": null, "confidence": 0.0, "band": null, "evidence_count": 0, "reason": "no observable evidence - not a zero, an absence"},
+        "market": {"score": 0.7, "trend": 0.0, "confidence": 0.44, "band": 0.21, "evidence_count": 2},
+        "idea_vs_market": {"score": null, "trend": null, "confidence": 0.0, "band": null, "evidence_count": 0, "reason": "cannot be assessed from deck claims alone"}
+      },
+      "momentum": null,
+      "gate": "proof_protocol",
+      "gate_rationale": "Four falsifiable infrastructure claims, zero independent evidence. Absence is explained (prior work was not public), so this routes to a challenge rather than a no-call.",
+      "absence_is_suspicious": false,
+      "flags": ["no_public_signal", "proof_protocol_pending"],
+      "unverified_claims": 4
+    },
+    {
+      "id": "cs-halcyon-runtime",
+      "rank": 11,
+      "name": "Halcyon Runtime",
+      "archetype": 2,
+      "archetype_label": "Cold Start",
+      "one_liner": "Deterministic record-and-replay for GPU kernels.",
+      "sector": "ai-infra",
+      "discovery": "inbound",
+      "axes": {
+        "founder": {"score": null, "trend": null, "confidence": 0.0, "band": null, "evidence_count": 0, "reason": "no observable evidence - not a zero, an absence"},
+        "market": {"score": 0.64, "trend": 0.0, "confidence": 0.39, "band": 0.23, "evidence_count": 1},
+        "idea_vs_market": {"score": null, "trend": null, "confidence": 0.0, "band": null, "evidence_count": 0, "reason": "cannot be assessed from deck claims alone"}
+      },
+      "momentum": null,
+      "gate": "proof_protocol",
+      "gate_rationale": "Three falsifiable claims, no artifact of any kind.",
+      "absence_is_suspicious": false,
+      "flags": ["no_public_signal", "proof_protocol_pending"],
+      "unverified_claims": 3
+    },
+    {
+      "id": "cx-arcwell",
+      "rank": 12,
+      "name": "Arcwell Data",
+      "archetype": 4,
+      "archetype_label": "Contradiction (newer counter-evidence)",
+      "one_liner": "Managed feature store for streaming ML.",
+      "sector": "data-infra",
+      "discovery": "inbound",
+      "axes": {
+        "founder": {"score": 0.58, "trend": -0.03, "confidence": 0.7, "band": 0.12, "evidence_count": 6},
+        "market": {"score": 0.61, "trend": 0.0, "confidence": 0.55, "band": 0.16, "evidence_count": 2},
+        "idea_vs_market": {"score": 0.42, "trend": -0.06, "confidence": 0.61, "band": 0.14, "evidence_count": 3}
+      },
+      "momentum": -0.03,
+      "gate": "no_call",
+      "gate_rationale": "The founder stated publicly, seven weeks AFTER the deck asserted $40K ARR, that the company is pre-revenue with billing switched off. The ordering rules out growth.",
+      "flags": ["claim_contradicted", "revenue_claim_timeline_checked"],
+      "unverified_claims": 2
+    },
+    {
+      "id": "adv-synthgrid",
+      "rank": 13,
+      "name": "Synthgrid AI",
+      "archetype": 5,
+      "archetype_label": "Adversarial",
+      "one_liner": "Deck claims an AI-native everything platform; the artifact does not support it.",
+      "sector": "ai-infra",
+      "discovery": "inbound",
+      "axes": {
+        "founder": {"score": 0.19, "trend": -0.08, "confidence": 0.81, "band": 0.09, "evidence_count": 3},
+        "market": {"score": 0.3, "trend": 0.0, "confidence": 0.4, "band": 0.2, "evidence_count": 1},
+        "idea_vs_market": {"score": 0.14, "trend": -0.05, "confidence": 0.77, "band": 0.1, "evidence_count": 3}
+      },
+      "momentum": -0.08,
+      "gate": "no_call",
+      "gate_rationale": "Prompt injection in slide 7 text, keyword density 0.41 with two distinct technical nouns, and a 3,117-commit burst producing 412 net lines and zero tests.",
+      "flags": ["prompt_injection_detected", "keyword_stuffing", "low_substance_burst"],
+      "unverified_claims": 4
+    }
+  ]
+}

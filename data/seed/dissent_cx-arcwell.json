@@ -1,0 +1,21 @@
+{
+  "company_id": "cx-arcwell",
+  "company_name": "Arcwell Data",
+  "generated_at": "2025-06-01T00:00:00+00:00",
+  "bear_case": "The bear case here is against our own verdict. We are killing a technically credible file on the strength of two timestamps and a semantic reading of a forum comment. 'Pre-revenue' is a word founders use loosely - it can mean 'no ARR I would defend in a data room', which is entirely compatible with $40K of early contracts they had stopped counting. We never asked. We ran a validator, produced a verdict with the word CONTRADICTED on it, and stopped. If we are wrong, we have not merely missed a company: we have built a machine that reaches confident conclusions about honesty from public text without ever speaking to the person, and we will do that again at scale.",
+  "weakest_evidence": [
+    "The counter-evidence is a forum comment, not a financial record. It is independent of the deck but it is still the founder talking.",
+    "'Pre-revenue' and '$40K ARR' are only strictly incompatible under one reading of 'pre-revenue'. We picked that reading without asking.",
+    "The 140% NRR claim is marked unverifiable on the basis of our own reasoning rather than any source we found. We should be clear that this is inference.",
+    "The founder axis fell from 0.71 to 0.58 on the basis of statements, not on any change in the artifact. The code did not get worse."
+  ],
+  "load_bearing_claim": "That the founder's own May statement refers to the same revenue the March deck asserted. Everything - the verdict, the ranking, the no-call - rests on that single reading, and one email would settle it.",
+  "axis_spreads": {"founder": 0.31, "market": 0.18, "idea_vs_market": 0.44},
+  "spread_note": "The idea-vs-market spread is the widest in the set precisely because the bull and bear readings of one sentence diverge completely.",
+  "what_would_change_my_mind": [
+    "Invoice-level evidence for the March position, or a direct account of what changed.",
+    "The founder confirming that 'pre-revenue' meant design partners only and that the deck number was aspirational - which is a different and much smaller problem.",
+    "A pattern check: if this is the only instance and the rest of the file is clean, that is a different founder than someone with a habit."
+  ],
+  "process_objection": "This verdict was reached without contacting the company. The memo says so, and that disclosure should stay in front of the partner rather than in a footnote."
+}

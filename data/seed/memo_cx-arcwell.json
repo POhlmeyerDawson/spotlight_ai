@@ -1,0 +1,31 @@
+{
+  "company_id": "cx-arcwell",
+  "company_name": "Arcwell Data",
+  "as_of": "2025-06-01T00:00:00+00:00",
+  "sections": {
+    "thesis": "Point-in-time-correct feature joins for streaming ML is a real and under-served problem, and the repository shows the founder understands the hard part of it [cx-arcwell#0]. The technical thesis is not what fails here.",
+    "founder": "One founder, resolved across GitHub and HN via a shared repository URL. Eighteen months of real commits on feature-store internals [cx-arcwell#0, cx-arcwell#1]. On 2025-05-02 the same founder wrote publicly that the company is pre-revenue with billing switched off [cx-arcwell#4]. The deck asserted $40K ARR across six paying customers on 2025-03-12 [cx-arcwell#2]. The public statement is 51 days NEWER than the claim.",
+    "market": "Feature stores are a crowded category with a well-understood buyer. GAP: we found no customer references, no independent usage signal, and no pricing evidence. The market section is thin and we are not going to thicken it with inference.",
+    "risks": [
+      "The load-bearing risk is not competitive - it is that a revenue number presented to investors was contradicted by the founder in public seven weeks later.",
+      "The ordering forecloses the benign reading. A company can go from pre-revenue to $40K ARR. It cannot go from $40K ARR to never having invoiced anyone.",
+      "The 140% NRR claim is arithmetically incompatible with a pre-revenue position and is reported as unverifiable, not as false - we did not find a source that disproves it, we reasoned about one.",
+      "Everything else in the file is fine, which is what makes this the interesting case rather than the obvious one."
+    ],
+    "gaps_flagged": [
+      "No independent revenue verification attempted beyond the founder's own public statements. We have no bank data, no invoices, no customer confirmation.",
+      "We have not asked the founder about the discrepancy. This memo reports an ordering of statements, not an established intent.",
+      "No customer references obtained.",
+      "Compare cx-tallwind: the same two statements in the opposite order, scored as growth. The distinction is made by timestamp and by nothing else."
+    ],
+    "recommendation": "NO CALL. Not because the product is weak - it is not - but because a self-reported metric was contradicted by the founder's own later public statement, and revenue is the one number we cannot independently reconstruct. Reopen if the founder provides invoice-level evidence for the March position or a straightforward account of the discrepancy."
+  },
+  "recommendation": "NO CALL. A self-reported revenue metric was contradicted by the founder's own later public statement. Reopen on invoice-level evidence or a direct explanation.",
+  "citations": [
+    {"ref": "cx-arcwell#0", "span": "commit 2f81ba0 \"as-of joins: never leak a feature value observed after the label\"", "url": "https://github.com/arcwell-data/arcwell/commits/main"},
+    {"ref": "cx-arcwell#1", "span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"", "url": "https://github.com/arcwell-data/arcwell/releases/tag/v0.2.0"},
+    {"ref": "cx-arcwell#2", "span": "slide 6: \"$40K ARR, 6 paying customers, 0% logo churn since January\"", "url": "deck://arcwell-seed-2025.pdf#slide=6", "asserted_at": "2025-03-12T00:00:00+00:00"},
+    {"ref": "cx-arcwell#4", "span": "\"We are still pre-revenue. Everyone on Arcwell today is on a free design-partner agreement and we have not turned billing on.\"", "url": "https://news.ycombinator.com/item?id=43790112", "observed_at": "2025-05-02T17:45:00+00:00"}
+  ],
+  "entity_resolution_notes": ["GitHub rcastellanos and HN rcastell merged on a shared repository URL, confidence 0.91."]
+}

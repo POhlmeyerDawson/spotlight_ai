@@ -1,0 +1,214 @@
+{
+  "archetype": 3,
+  "label": "Serial Founder",
+  "note": "Founder history must survive the company boundary. Prior-company events are 2-3 years older than the new company and carry the SAME entity_id with a DIFFERENT company_id. If the score forgets them, persistence is broken.",
+  "profiles": [
+    {
+      "company_id": "sf-meshledger",
+      "company_name": "Meshledger",
+      "one_liner": "Change-data-capture for object stores.",
+      "prior_companies": [
+        {"company_id": "sf-padlock-metrics", "name": "Padlock Metrics", "outcome": "acqui-hired, product sunset 2022-11"}
+      ],
+      "founders": [
+        {
+          "key": "sf-meshledger-founder",
+          "name": "Ingrid Solberg",
+          "name_normalized": "ingrid solberg",
+          "handles": {"github": "isolberg", "hn": "isolberg"}
+        }
+      ],
+      "events": [
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "company": "sf-padlock-metrics",
+          "source_url": "https://github.com/padlock-metrics/padlock/commits/main",
+          "observed_at": "2021-06-14T10:00:00+00:00",
+          "payload": {"repo": "padlock-metrics/padlock", "commits_30d": 55, "files_touched": 34, "net_lines": 3900, "topic": "cardinality-bounded metric ingestion"},
+          "evidence_span": "commit 12aa9e0 \"reject unbounded label sets at ingest instead of at query time\"",
+          "confidence": 0.93
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "company": "sf-padlock-metrics",
+          "source_url": "https://github.com/padlock-metrics/padlock/releases/tag/v1.0.0",
+          "observed_at": "2021-10-08T13:00:00+00:00",
+          "payload": {"repo": "padlock-metrics/padlock", "tag": "v1.0.0", "changelog_entries": 41, "downloads_90d": 21000},
+          "evidence_span": "v1.0.0 — \"cardinality guard is on by default. This will break your dashboards and that is the point.\"",
+          "confidence": 0.96
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "company": "sf-padlock-metrics",
+          "source_url": "https://news.ycombinator.com/item?id=28901441",
+          "observed_at": "2021-10-09T16:20:00+00:00",
+          "payload": {"title": "Show HN: Padlock - metrics that refuse high-cardinality labels", "points": 178, "comments": 96},
+          "evidence_span": "\"Every metrics outage I have been paged for was a label someone added on a Friday.\"",
+          "confidence": 0.92
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "company": "sf-padlock-metrics",
+          "source_url": "https://github.com/padlock-metrics/padlock/commits/main",
+          "observed_at": "2022-03-22T09:40:00+00:00",
+          "payload": {"repo": "padlock-metrics/padlock", "commits_30d": 38, "files_touched": 21, "net_lines": 1720, "topic": "downsampling on write", "external_contributors": 6},
+          "evidence_span": "commit 8f0c14b \"downsample at write time; the query path should never do arithmetic it can avoid\"",
+          "confidence": 0.93
+        },
+        {
+          "kind": "profile_fact",
+          "source": "web",
+          "company": "sf-padlock-metrics",
+          "source_url": "https://blog.padlockmetrics.dev/winding-down",
+          "observed_at": "2022-11-30T00:00:00+00:00",
+          "payload": {"fact": "Padlock Metrics wound down; team of four dispersed", "outcome": "sunset"},
+          "evidence_span": "\"We could not get the pricing to work below 200 hosts, and above 200 hosts nobody wanted to switch. That is the whole post-mortem.\"",
+          "confidence": 0.9
+        },
+        {
+          "kind": "hn_comment",
+          "source": "hn",
+          "company": "sf-padlock-metrics",
+          "source_url": "https://news.ycombinator.com/item?id=33776219",
+          "observed_at": "2022-12-01T19:15:00+00:00",
+          "payload": {"parent_title": "Padlock Metrics is winding down", "points": 141},
+          "evidence_span": "\"The technical bet was fine. I was wrong about who buys observability, and I was wrong about it for nineteen months.\"",
+          "confidence": 0.91
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/meshledger/meshledger/commits/main",
+          "observed_at": "2024-05-06T09:00:00+00:00",
+          "payload": {"repo": "meshledger/meshledger", "commits_30d": 61, "files_touched": 29, "net_lines": 4200, "topic": "CDC log from S3 event notifications"},
+          "evidence_span": "commit 5c1e8a3 \"derive an ordered change log from out-of-order bucket notifications\"",
+          "confidence": 0.94
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/meshledger/meshledger/releases/tag/v0.1.0",
+          "observed_at": "2024-07-30T11:30:00+00:00",
+          "payload": {"repo": "meshledger/meshledger", "tag": "v0.1.0", "changelog_entries": 16},
+          "evidence_span": "v0.1.0 — \"ordered CDC over object stores. Priced per bucket, decided before we wrote a line.\"",
+          "confidence": 0.96
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=41089774",
+          "observed_at": "2024-07-31T14:00:00+00:00",
+          "payload": {"title": "Show HN: Meshledger - ordered change data capture for object storage", "points": 154, "comments": 61},
+          "evidence_span": "\"Last company I built the technology first and found out who paid for it nineteen months later. This time pricing came before the schema.\"",
+          "confidence": 0.93
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/meshledger/meshledger/commits/main",
+          "observed_at": "2024-11-19T09:00:00+00:00",
+          "payload": {"repo": "meshledger/meshledger", "commits_30d": 47, "files_touched": 25, "net_lines": 2600, "topic": "exactly-once delivery into warehouses", "external_contributors": 5},
+          "evidence_span": "commit ab30f92 \"idempotency keys derived from object version id, not from arrival order\"",
+          "confidence": 0.94
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/meshledger/meshledger/releases/tag/v0.3.0",
+          "observed_at": "2025-02-25T12:00:00+00:00",
+          "payload": {"repo": "meshledger/meshledger", "tag": "v0.3.0", "changelog_entries": 28, "downloads_90d": 18700},
+          "evidence_span": "v0.3.0 — \"exactly-once into three warehouses, with the failure modes documented per warehouse\"",
+          "confidence": 0.96
+        }
+      ]
+    },
+    {
+      "company_id": "sf-baseplate",
+      "company_name": "Baseplate Systems",
+      "one_liner": "Sandboxed execution runtime for agent-generated code.",
+      "prior_companies": [
+        {"company_id": "sf-fernwood-queue", "name": "Fernwood Queue", "outcome": "shut down 2023-02, users migrated to an OSS fork"}
+      ],
+      "founders": [
+        {
+          "key": "sf-baseplate-founder",
+          "name": "Nkechi Obiora",
+          "name_normalized": "nkechi obiora",
+          "handles": {"github": "nobiora"}
+        }
+      ],
+      "events": [
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "company": "sf-fernwood-queue",
+          "source_url": "https://github.com/fernwood/fernwood-queue/commits/main",
+          "observed_at": "2021-09-02T10:20:00+00:00",
+          "payload": {"repo": "fernwood/fernwood-queue", "commits_30d": 44, "files_touched": 26, "net_lines": 3100, "topic": "durable queue on top of Postgres, no broker"},
+          "evidence_span": "commit 0ae7712 \"SKIP LOCKED consumer groups; the database is the broker\"",
+          "confidence": 0.92
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "company": "sf-fernwood-queue",
+          "source_url": "https://github.com/fernwood/fernwood-queue/releases/tag/v2.0.0",
+          "observed_at": "2022-04-14T15:00:00+00:00",
+          "payload": {"repo": "fernwood/fernwood-queue", "tag": "v2.0.0", "changelog_entries": 33, "downloads_90d": 44000},
+          "evidence_span": "v2.0.0 — \"at-least-once by default; exactly-once is a lie we removed from the README\"",
+          "confidence": 0.95
+        },
+        {
+          "kind": "profile_fact",
+          "source": "web",
+          "company": "sf-fernwood-queue",
+          "source_url": "https://fernwood.dev/postmortem",
+          "observed_at": "2023-02-11T00:00:00+00:00",
+          "payload": {"fact": "Fernwood Queue shut down; community fork took over maintenance", "outcome": "shutdown, OSS continuity"},
+          "evidence_span": "\"I handed the maintainer keys to two contributors before announcing, so nobody woke up to an unmaintained dependency.\"",
+          "confidence": 0.9
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/baseplate-systems/baseplate/commits/main",
+          "observed_at": "2024-08-13T09:00:00+00:00",
+          "payload": {"repo": "baseplate-systems/baseplate", "commits_30d": 52, "files_touched": 31, "net_lines": 3700, "topic": "gVisor-style syscall filtering for untrusted generated code"},
+          "evidence_span": "commit 71fd0c8 \"deny-by-default syscall table; every allow needs a comment naming the risk\"",
+          "confidence": 0.94
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/baseplate-systems/baseplate/releases/tag/v0.1.0",
+          "observed_at": "2024-10-29T13:20:00+00:00",
+          "payload": {"repo": "baseplate-systems/baseplate", "tag": "v0.1.0", "changelog_entries": 19},
+          "evidence_span": "v0.1.0 — \"cold start 41ms, deny-by-default. Both numbers are in CI so you can watch them regress.\"",
+          "confidence": 0.96
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/baseplate-systems/baseplate/commits/main",
+          "observed_at": "2025-01-27T09:00:00+00:00",
+          "payload": {"repo": "baseplate-systems/baseplate", "commits_30d": 49, "files_touched": 28, "net_lines": 2900, "topic": "filesystem snapshotting between runs", "external_contributors": 4},
+          "evidence_span": "commit e5a1b76 \"overlay snapshot restore in 8ms; benchmark committed alongside\"",
+          "confidence": 0.94
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/baseplate-systems/baseplate/releases/tag/v0.3.0",
+          "observed_at": "2025-04-15T11:00:00+00:00",
+          "payload": {"repo": "baseplate-systems/baseplate", "tag": "v0.3.0", "changelog_entries": 26, "downloads_90d": 12900},
+          "evidence_span": "v0.3.0 — \"snapshot restore, plus a written threat model naming what this does NOT contain\"",
+          "confidence": 0.96
+        }
+      ]
+    }
+  ]
+}

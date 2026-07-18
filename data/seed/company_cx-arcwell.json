@@ -1,0 +1,78 @@
+{
+  "id": "cx-arcwell",
+  "name": "Arcwell Data",
+  "archetype": 4,
+  "archetype_label": "Contradiction (newer counter-evidence)",
+  "as_of": "2025-06-01T00:00:00+00:00",
+  "one_liner": "Managed feature store for streaming ML.",
+  "sector": "data-infra",
+  "discovery": "inbound",
+  "founders": [
+    {"name": "Ruben Castellanos", "entity_key": "cx-arcwell-founder", "resolution_status": "merged", "resolution_note": "GitHub handle rcastellanos and HN handle rcastell matched on a shared repository URL in the HN profile."}
+  ],
+  "axes": {
+    "founder": {
+      "score": 0.58,
+      "trend": -0.03,
+      "confidence": 0.7,
+      "band": 0.12,
+      "evidence_count": 6,
+      "evidence": [
+        {"event_ref": "cx-arcwell#0", "kind": "repo_activity", "source": "github", "observed_at": "2024-06-18T09:00:00+00:00", "span": "commit 2f81ba0 \"as-of joins: never leak a feature value observed after the label\"", "url": "https://github.com/arcwell-data/arcwell/commits/main"},
+        {"event_ref": "cx-arcwell#1", "kind": "release", "source": "github", "observed_at": "2024-11-07T12:00:00+00:00", "span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"", "url": "https://github.com/arcwell-data/arcwell/releases/tag/v0.2.0"},
+        {"event_ref": "cx-arcwell#4", "kind": "hn_comment", "source": "hn", "observed_at": "2025-05-02T17:45:00+00:00", "span": "\"We are still pre-revenue. Everyone on Arcwell today is on a free design-partner agreement and we have not turned billing on.\"", "url": "https://news.ycombinator.com/item?id=43790112", "weight": "negative"}
+      ]
+    },
+    "market": {
+      "score": 0.61,
+      "trend": 0.0,
+      "confidence": 0.55,
+      "band": 0.16,
+      "evidence_count": 2,
+      "evidence": [
+        {"event_ref": "cx-arcwell#1", "kind": "release", "source": "github", "observed_at": "2024-11-07T12:00:00+00:00", "span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"", "url": "https://github.com/arcwell-data/arcwell/releases/tag/v0.2.0"}
+      ]
+    },
+    "idea_vs_market": {
+      "score": 0.42,
+      "trend": -0.06,
+      "confidence": 0.61,
+      "band": 0.14,
+      "evidence_count": 3,
+      "evidence": [
+        {"event_ref": "cx-arcwell#5", "kind": "hn_comment", "source": "hn", "observed_at": "2025-05-02T19:10:00+00:00", "span": "\"To be precise: six design partners, zero invoices sent. Pricing page goes up when the usage metering is trustworthy.\"", "url": "https://news.ycombinator.com/item?id=43790450", "weight": "negative"}
+      ]
+    }
+  },
+  "momentum": -0.03,
+  "gate": {
+    "outcome": "no_call",
+    "rationale": "The revenue claim is contradicted by the founder's own later public statement. The ordering rules out the benign explanation.",
+    "absence_is_suspicious": false
+  },
+  "claims": [
+    {
+      "claim_text": "$40K ARR across 6 paying customers",
+      "claim_source_span": "slide 6",
+      "status": "contradicted",
+      "trust": 0.05,
+      "self_published": true,
+      "claim_asserted_at": "2025-03-12T00:00:00+00:00",
+      "counter_evidence_at": "2025-05-02T17:45:00+00:00",
+      "corroborating_url": "https://news.ycombinator.com/item?id=43790112",
+      "corroborating_span": "\"We are still pre-revenue. Everyone on Arcwell today is on a free design-partner agreement and we have not turned billing on.\"",
+      "timeline_verdict": "counter-evidence is 51 days NEWER than the claim. A company cannot grow into being pre-revenue.",
+      "note": "Compare cx-tallwind, where the identical pair of statements appears in the opposite order and is scored as growth."
+    },
+    {
+      "claim_text": "net revenue retention of 140% over the last two quarters",
+      "claim_source_span": "slide 7",
+      "status": "unverifiable",
+      "trust": 0.1,
+      "self_published": true,
+      "claim_asserted_at": "2025-03-12T00:00:00+00:00",
+      "note": "Not independently checkable, and mechanically impossible alongside a pre-revenue position. Reported as unverifiable rather than false - we did not find a source, we reasoned about one."
+    }
+  ],
+  "trace_note": "The verdict rests entirely on two timestamps. Both are visible in the trace and neither is inferred."
+}

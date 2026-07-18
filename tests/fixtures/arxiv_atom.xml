@@ -1,0 +1,83 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/cvqKTPY7b9k+DxrgOtEgeB6IMRE</id>
+  <title>arXiv Query: search_query=(cat:cs.LG OR cat:cs.DC OR cat:cs.PL) AND all:inference&amp;id_list=&amp;start=0&amp;max_results=3</title>
+  <updated>2026-07-18T20:45:00Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=(cat:cs.LG+OR+(cat:cs.DC+OR+cat:cs.PL))+AND+all:inference&amp;start=0&amp;max_results=3&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>3</opensearch:itemsPerPage>
+  <opensearch:totalResults>35190</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2607.15275v1</id>
+    <title>RoboTTT: Context Scaling for Robot Policies</title>
+    <updated>2026-07-16T17:59:06Z</updated>
+    <link href="https://arxiv.org/abs/2607.15275v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2607.15275v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Recent robot foundation models operate with single-step or short-history visuomotor context. We introduce Test-Time-Training Robot Policies (RoboTTT), a robot model and training recipe that scale visuomotor context to 8K timesteps, three orders of magnitude beyond state-of-the-art policies, without growing inference latency. At this context length, we unlock new robot capabilities: one-shot in-context imitation from human video demonstrations, on-the-fly policy improvement, robustness to perturbations, and stronger performance on multi-stage, long-horizon tasks. We also observe, for the first time, steady gains in closed-loop performance as pretraining context length scales. At its core, RoboTTT integrates Test-Time Training into robot foundation models such as Vision-Language-Action policies, yielding a sequence model whose recurrent state consists of fast weights, parameters updated by gradient descent during both training and inference, compressing histories into weight space and retrieving contextual information for long-context conditioning. To scale training context length, the recipe combines sequence action forcing with truncated backpropagation through time. On challenging real-robot manipulation tasks, RoboTTT improves overall performance by 87% over the single-step context baseline and fully completes a five-minute, ten-stage assembly task, which no baseline ever does. RoboTTT trained with 8K-timestep context outperforms the same model pretrained with 1K timesteps by 62%, suggesting context length as a new scaling axis for robot foundation models. Videos are available at https://research.nvidia.com/labs/gear/robottt/</summary>
+    <category term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-07-16T17:59:06Z</published>
+    <arxiv:comment>Project website: http://research.nvidia.com/labs/gear/robottt/</arxiv:comment>
+    <arxiv:primary_category term="cs.RO"/>
+    <author>
+      <name>Yunfan Jiang</name>
+    <arxiv:affiliation>Some Research Lab</arxiv:affiliation></author>
+    <author>
+      <name>Yevgen Chebotar</name>
+    </author>
+    <author>
+      <name>Ruijie Zheng</name>
+    </author>
+    <author>
+      <name>Fengyuan Hu</name>
+    </author>
+    <author>
+      <name>Yunhao Ge</name>
+    </author>
+    <author>
+      <name>Jimmy Wu</name>
+    </author>
+    <author>
+      <name>Tianyuan Dai</name>
+    </author>
+    <author>
+      <name>Scott Reed</name>
+    </author>
+    <author>
+      <name>Li Fei-Fei</name>
+    </author>
+    <author>
+      <name>Yuke Zhu</name>
+    </author>
+    <author>
+      <name>Linxi "Jim" Fan</name>
+    </author>
+  </entry><entry>
+    <id>http://arxiv.org/abs/2607.15180v1</id>
+    <title>RTS Smoother-Guided Learning of Physics-Based Neural Differential Models</title>
+    <updated>2026-07-16T16:34:48Z</updated>
+    <link href="https://arxiv.org/abs/2607.15180v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2607.15180v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Ordinary differential equations (ODEs) are widely used to model dynamical systems in physics, biology, neuroscience, and physiology, but in many applications some equations of the dynamics are unknown and only a subset of the state variables are measured. We propose a hybrid neural--physics framework in which the known components of the ODE are kept explicit and the missing components are represented by a neural network. The proposed method consists of two stages where we alternate between state and parameter estimation and iterate until a predetermined criterion is met. Specifically, in the first step, we treat the model parameters as being known and we infer the latent states from the available measurements using a Rauch--Tung--Striebel (RTS) smoother. In the second stage, we treat the smoothed trajectories as being known and use them to estimate the neural networks' parameters through backpropagation. We evaluate the method on benchmark systems spanning linear, nonlinear, and stiff dynamics under partial state observation. Across these settings, the proposed method learns missing ODE components from incomplete measurements while exploiting and retaining interpretable mechanistic structure and improving latent-state reconstruction and long-horizon prediction.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="eess.SY" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-07-16T16:34:48Z</published>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Ahmet Demirkaya</name>
+    </author>
+    <author>
+      <name>Georgios Stratis</name>
+    </author>
+    <author>
+      <name>Tales Imbiriba</name>
+    </author>
+    <author>
+      <name>Zachary D. Danziger</name>
+    </author>
+    <author>
+      <name>Deniz Erdogmus</name>
+    </author>
+  </entry>
+</feed>

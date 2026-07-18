@@ -1,0 +1,31 @@
+[
+ {
+  "sha": "9f2c1ab6d4e5f60718293a4b5c6d7e8f90a1b2c3",
+  "html_url": "https://github.com/anaruiz/tinyjit/commit/9f2c1ab",
+  "commit": {
+   "message": "register allocator: linear scan + spill heuristics",
+   "author": {
+    "date": "2024-05-20T17:58:11Z"
+   },
+   "committer": {
+    "date": "2024-06-01T12:00:00Z"
+   }
+  },
+  "author": {
+   "login": "anaruiz"
+  }
+ },
+ {
+  "sha": "1a2b3c4d5e6f70819a2b3c4d5e6f708192a3b4c5",
+  "html_url": "https://github.com/anaruiz/tinyjit/commit/1a2b3c4",
+  "commit": {
+   "message": "tests for guard deopt",
+   "author": {
+    "date": "2024-05-18T11:02:00Z"
+   }
+  },
+  "author": {
+   "login": "anaruiz"
+  }
+ }
+]
