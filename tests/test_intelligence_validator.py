@@ -313,7 +313,12 @@ def test_check_claims_uses_scoped_store_search_and_injected_core(monkeypatch) ->
             "company_id": COMPANY_ID,
             "kind": EventKind.DECK_CLAIM,
             "as_of": T0 + timedelta(days=10),
-        }
+        },
+        {
+            "company_id": COMPANY_ID,
+            "kind": EventKind.VALIDATION_RESULT,
+            "as_of": T0 + timedelta(days=10),
+        },
     ]
     assert queries == ["revenue reached 40k", "second"]
     assert checked == [(claims[0], [result]), (claims[1], [result])]

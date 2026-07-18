@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import date, datetime, time, timezone
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from core import llm
 from core import search as web_search
@@ -91,7 +91,7 @@ def _verdict(
 
 
 def check_claim(
-    claim: Event, results: list[SearchResult], judge: Judge = llm.complete
+    claim: Event, results: list[SearchResult], judge: Judge | None = None
 ) -> ClaimVerdict:
     """Pure per-claim validator. Search text reaches the judge only as untrusted data."""
     if claim.kind != EventKind.DECK_CLAIM:
@@ -100,6 +100,7 @@ def check_claim(
         return _verdict(claim, ClaimStatus.NOT_ATTEMPTED)
     if not results:
         return _verdict(claim, ClaimStatus.UNVERIFIABLE)
+    judge = judge or llm.complete
 
     claim_text, _ = _claim_fields(claim)
     documents = {
@@ -181,18 +182,95 @@ def check_claim(
 
 
 def check_claims(company_id: UUID, as_of: datetime | None = None) -> list[ClaimVerdict]:
-    """Store/search wrapper. The single as_of value scopes the entire claim read."""
+    """Validate claims and persist deterministic receipts without historical lookahead."""
     from memory import store
 
     live_search = as_of is None
     as_of = as_of or utcnow()
     claims = store.events(company_id=company_id, kind=EventKind.DECK_CLAIM, as_of=as_of)
+    existing_events = (
+        store.events(
+            company_id=company_id,
+            kind=EventKind.VALIDATION_RESULT,
+            as_of=as_of,
+        )
+        if claims
+        else []
+    )
+    existing_ids = {event.event_id for event in existing_events}
+    existing_by_claim = {
+        str(event.payload.get("claim_id")): event
+        for event in existing_events
+        if event.payload.get("claim_id")
+    }
+    stored_results: list[SearchResult] = []
+    if not live_search and claims:
+        history = store.events(company_id=company_id, as_of=as_of)
+        for event in history:
+            if event.kind in {EventKind.DECK_CLAIM, EventKind.VALIDATION_RESULT}:
+                continue
+            if not event.source_url or not event.evidence_span or event.integrity_flags:
+                continue
+            stored_results.append(
+                SearchResult(
+                    title=str(event.payload.get("title") or event.kind),
+                    url=event.source_url,
+                    snippet=event.evidence_span,
+                    published_at=event.observed_at.isoformat(),
+                    self_published=bool(event.payload.get("self_published")),
+                )
+            )
     verdicts = []
     for claim in claims:
+        stored_event = existing_by_claim.get(str(claim.event_id))
+        if stored_event is not None:
+            try:
+                verdicts.append(ClaimVerdict.model_validate(stored_event.payload))
+                continue
+            except Exception:
+                pass
         claim_text, _ = _claim_fields(claim)
-        results = web_search.search(claim_text) if live_search else []
-        verdicts.append(check_claim(claim, results))
+        results = web_search.search(claim_text) if live_search else stored_results
+        verdict = check_claim(claim, results)
+        verdicts.append(verdict)
+        event = _verdict_event(verdict, claim, validated_at=as_of)
+        if event.event_id not in existing_ids:
+            try:
+                store.append(event)
+                existing_ids.add(event.event_id)
+            except NotImplementedError:
+                pass
     return verdicts
+
+
+def _verdict_event(verdict: ClaimVerdict, claim: Event, *, validated_at: datetime) -> Event:
+    evidence_times = [
+        value
+        for value in (verdict.claim_asserted_at, verdict.counter_evidence_at)
+        if value is not None
+    ]
+    observed_at = max([validated_at, *evidence_times])
+    identity = ":".join(
+        (
+            str(verdict.claim_id),
+            str(verdict.status),
+            verdict.corroborating_url or "",
+            verdict.corroborating_span or "",
+            observed_at.isoformat(),
+        )
+    )
+    return Event(
+        event_id=uuid5(NAMESPACE_URL, f"validation:{identity}"),
+        entity_id=claim.entity_id,
+        company_id=verdict.company_id,
+        kind=EventKind.VALIDATION_RESULT,
+        source=Source.VALIDATOR,
+        source_url=verdict.corroborating_url,
+        observed_at=observed_at,
+        evidence_span=verdict.corroborating_span,
+        payload=verdict.model_dump(mode="json"),
+        confidence=verdict.trust,
+    )
 
 
 def to_events(verdicts: list[ClaimVerdict], as_of: datetime) -> list[Event]:

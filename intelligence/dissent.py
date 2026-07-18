@@ -21,6 +21,10 @@ from schema.events import AntiMemo, Event, EventKind, ScreeningResult
 
 Judge = Callable[..., str | dict]
 
+SPREAD_MAX_WEIGHT = 0.65
+SPREAD_MEAN_WEIGHT = 0.35
+UNKNOWN_UNCERTAINTY = 0.5
+
 _SYSTEM = (
     "Write the strongest evidence-grounded case against proceeding. Name one specific "
     "load-bearing claim; do not write a balanced summary and do not invent evidence."
@@ -150,3 +154,26 @@ def generate(company_id: UUID, as_of: datetime, judge: Judge = llm.complete) -> 
     events = store.events(company_id=company_id, as_of=as_of)
     screening = screen.three_axis(company_id, as_of)
     return generate_from_evidence(company_id, as_of, events, screening, judge)
+
+
+def uncertainty_from_spread(anti_memo: AntiMemo) -> float:
+    """Convert separate bull/bear axis gaps into bounded decision uncertainty."""
+    axes = ("founder", "market", "idea_vs_market")
+    raw = [anti_memo.axis_spreads.get(axis) for axis in axes]
+    if not all(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        and float(value) >= 0.0
+        for value in raw
+    ):
+        return UNKNOWN_UNCERTAINTY
+    spreads = [float(value) for value in raw]
+    clipped = [max(0.0, min(1.0, value)) for value in spreads]
+    return round(
+        min(
+            1.0,
+            SPREAD_MAX_WEIGHT * max(clipped) + SPREAD_MEAN_WEIGHT * (sum(clipped) / len(clipped)),
+        ),
+        4,
+    )

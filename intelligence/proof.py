@@ -240,10 +240,19 @@ def _regularity_score(commit_times: list[datetime]) -> float:
     return min(1.0, sorted(gaps)[len(gaps) // 2] / max(gaps) * 2.0)
 
 
-def grade(challenge_id: UUID, artifact: str, trace: dict) -> list[Event]:
+def grade(
+    challenge_id: UUID,
+    artifact: str,
+    trace: dict,
+    *,
+    attestation: dict | None = None,
+    expected_company_id: UUID | None = None,
+) -> list[Event]:
     """Grade either the raw C trace or D's timestamped commit/question trace adapter."""
     now = utcnow()
     issued = _issued_event(challenge_id, now)
+    if expected_company_id is not None and issued.company_id != expected_company_id:
+        raise ValueError("challenge does not belong to expected company")
     if trace.get("company_id") and UUID(str(trace["company_id"])) != issued.company_id:
         raise ValueError("trace company does not match challenge")
     if trace.get("entity_id") and UUID(str(trace["entity_id"])) != issued.entity_id:
@@ -251,7 +260,27 @@ def grade(challenge_id: UUID, artifact: str, trace: dict) -> list[Event]:
     if issued.company_id is None:
         raise ValueError("issued challenge has no company")
 
+    # D overwrites any client value with its server-built attestation before
+    # calling the grader. Keep the keyword form for direct trusted callers.
+    attestation = attestation or (
+        trace.get("attestation") if isinstance(trace.get("attestation"), dict) else None
+    )
     legacy = "commits" in trace and "events" not in trace
+    synthesized_attestation = False
+    if legacy and attestation is None and trace.get("seeded") is not True:
+        synthesized_attestation = True
+        attestation = {
+            "challenge_anchored": False,
+            "attested_fields": [],
+            "self_reported_fields": [
+                field
+                for field in ("pushed_back_on_constraint", "questions_asked", "commits")
+                if field in trace
+            ],
+            "trust": 0.35,
+            "demo_seeded": False,
+            "note": "Legacy trace was not independently attested.",
+        }
     source_url = str(trace["source_url"]) if trace.get("source_url") else None
     if legacy:
         started_at = _parse_iso(trace.get("started_at"))
@@ -367,8 +396,19 @@ def grade(challenge_id: UUID, artifact: str, trace: dict) -> list[Event]:
     latency_profile = [
         (right - left).total_seconds() / 60 for left, right in zip(commit_times, commit_times[1:])
     ]
+    score_challenged = challenged
+    if attestation:
+        attested_fields = set(attestation.get("attested_fields") or [])
+        self_reported_fields = set(attestation.get("self_reported_fields") or [])
+        if (
+            "pushed_back_on_constraint" in self_reported_fields
+            and "pushed_back_on_constraint" not in attested_fields
+        ):
+            score_challenged = None
     behavior_components = {
-        "constraint_pushback": 1.0 if challenged is True else 0.15 if challenged is False else 0.5,
+        "constraint_pushback": (
+            1.0 if score_challenged is True else 0.15 if score_challenged is False else 0.5
+        ),
         "iteration": _iteration_score(iterations),
         "time_to_first_commit": _first_commit_score(first_commit),
         "clarification": 1.0 if clarified else 0.0,
@@ -377,11 +417,33 @@ def grade(challenge_id: UUID, artifact: str, trace: dict) -> list[Event]:
     artifact_value = _weighted(artifact_components, ARTIFACT_WEIGHTS)
     behavior_value = _weighted(behavior_components, BEHAVIOR_WEIGHTS)
     submission_digest = hashlib.sha256(
-        json.dumps({"artifact": artifact, "trace": trace}, sort_keys=True, default=str).encode()
+        json.dumps(
+            {"artifact": artifact, "trace": trace, "attestation": attestation},
+            sort_keys=True,
+            default=str,
+        ).encode()
     ).hexdigest()
 
     seeded = trace.get("seeded") is True
     disclosure = str(trace.get("disclosure") or "") if seeded else None
+    # D owns confidence scaling for server-built attestations. C only applies a
+    # low-trust fallback when the legacy adapter arrived without D provenance.
+    attestation_trust = 0.35 if synthesized_attestation else 1.0
+    artifact_confidence = round(0.9 * attestation_trust, 3)
+    behavior_confidence = round(0.95 * attestation_trust, 3)
+    integrity_flags = []
+    unattested_fields = (
+        set(attestation.get("self_reported_fields") or [])
+        - set(attestation.get("attested_fields") or [])
+        if attestation
+        else set()
+    )
+    if unattested_fields:
+        integrity_flags.append("unattested_trace")
+    if seeded:
+        artifact_confidence = 0.0
+        behavior_confidence = 0.0
+        integrity_flags.append("seeded_demo")
     artifact_event = Event(
         event_id=uuid5(NAMESPACE_URL, f"proof-artifact:{challenge_id}:{submission_digest}"),
         entity_id=issued.entity_id,
@@ -396,16 +458,18 @@ def grade(challenge_id: UUID, artifact: str, trace: dict) -> list[Event]:
             "works": works,
             "sound": sound,
             "handled_ambiguity": handled_ambiguity,
-            "value": artifact_value,
-            "y": artifact_value,
+            "value": None if seeded else artifact_value,
+            "y": None if seeded else artifact_value,
             "components": artifact_components,
-            "confidence": 0.9,
+            "confidence": artifact_confidence,
             "caveat": CAVEAT,
             "seeded": seeded,
             "disclosure": disclosure,
+            "attestation": attestation,
         },
         evidence_span=artifact_receipt,
-        confidence=0.9,
+        confidence=artifact_confidence,
+        integrity_flags=integrity_flags,
     )
     behavior_event = Event(
         event_id=uuid5(NAMESPACE_URL, f"proof-behavior:{challenge_id}:{submission_digest}"),
@@ -423,16 +487,18 @@ def grade(challenge_id: UUID, artifact: str, trace: dict) -> list[Event]:
             "iteration_count": iterations,
             "time_to_first_commit_min": first_commit,
             "latency_profile": latency_profile,
-            "value": behavior_value,
-            "y": behavior_value,
+            "value": None if seeded else behavior_value,
+            "y": None if seeded else behavior_value,
             "components": behavior_components,
-            "confidence": 0.95,
+            "confidence": behavior_confidence,
             "caveat": CAVEAT,
             "seeded": seeded,
             "disclosure": disclosure,
+            "attestation": attestation,
         },
         evidence_span=behavior_receipt[:240],
-        confidence=0.95,
+        confidence=behavior_confidence,
+        integrity_flags=integrity_flags,
     )
     return [artifact_event, behavior_event]
 

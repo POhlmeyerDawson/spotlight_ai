@@ -259,10 +259,23 @@ def test_grade_legacy_trace_emits_scalar_payloads_readable_by_d(monkeypatch) -> 
 
 def test_constraint_pushback_dominates_behavior_value(monkeypatch) -> None:
     _install_issued_store(monkeypatch)
-    pushed = proof.grade(CHALLENGE_ID, "same artifact", _legacy_trace(pushed_back=True))[1].payload
-    complied = proof.grade(CHALLENGE_ID, "same artifact", _legacy_trace(pushed_back=False))[
-        1
-    ].payload
+    attestation = {
+        "attested_fields": ["pushed_back_on_constraint"],
+        "self_reported_fields": [],
+        "trust": 1.0,
+    }
+    pushed = proof.grade(
+        CHALLENGE_ID,
+        "same artifact",
+        _legacy_trace(pushed_back=True),
+        attestation=attestation,
+    )[1].payload
+    complied = proof.grade(
+        CHALLENGE_ID,
+        "same artifact",
+        _legacy_trace(pushed_back=False),
+        attestation=attestation,
+    )[1].payload
 
     assert pushed["value"] - complied["value"] > 0.3
     assert (
