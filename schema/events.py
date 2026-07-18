@@ -7,8 +7,10 @@ Owner: A. Changes require 4-person agreement (SHARED.md).
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from enum import StrEnum
+from typing import Optional, Union
 from uuid import UUID, uuid4
+
+from ._backport import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -54,17 +56,17 @@ class Event(BaseModel):
     """One observation about the world, stamped with when the world produced it."""
 
     event_id: UUID = Field(default_factory=uuid4)
-    entity_id: UUID | None = None  # resolved person; None until entity resolution runs
-    company_id: UUID | None = None
+    entity_id: Optional[UUID] = None  # resolved person; None until entity resolution runs
+    company_id: Optional[UUID] = None
     kind: EventKind
     source: Source
-    source_url: str | None = None
+    source_url: Optional[str] = None
 
     observed_at: datetime  # WHEN THE WORLD PRODUCED IT — the only field scoring may filter on
     ingested_at: datetime = Field(default_factory=utcnow)  # when we saw it. NEVER used in scoring.
 
     payload: dict = Field(default_factory=dict)
-    evidence_span: str | None = None  # exact quoted text / commit sha / slide id backing this
+    evidence_span: Optional[str] = None  # exact quoted text / commit sha / slide id backing this
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)  # extraction confidence
     integrity_flags: list[str] = Field(default_factory=list)
 
@@ -89,8 +91,8 @@ class ResolutionStatus(StrEnum):
 
 
 class EntityCandidate(BaseModel):
-    name: str | None = None
-    email: str | None = None
+    name: Optional[str] = None
+    email: Optional[str] = None
     urls: list[str] = Field(default_factory=list)
     handles: dict[str, str] = Field(default_factory=dict)  # {"github": "x", "hn": "y"}
     source: Source
@@ -152,11 +154,11 @@ class ClaimVerdict(BaseModel):
     claim_source_span: str  # e.g. "slide 7" — where the founder said it
     status: ClaimStatus
     trust: float = Field(ge=0.0, le=1.0)  # per-claim. There is no company-level trust number.
-    corroborating_url: str | None = None
-    corroborating_span: str | None = None  # a VERIFIED with no span is NOT_ATTEMPTED
+    corroborating_url: Optional[str] = None
+    corroborating_span: Optional[str] = None  # a VERIFIED with no span is NOT_ATTEMPTED
     self_published: bool = False  # weight below independent sources
-    claim_asserted_at: datetime | None = None  # timestamps decide fraud-shaped vs time-shaped
-    counter_evidence_at: datetime | None = None
+    claim_asserted_at: Optional[datetime] = None  # timestamps decide fraud-shaped vs time-shaped
+    counter_evidence_at: Optional[datetime] = None
 
 
 class GateOutcome(StrEnum):
@@ -197,8 +199,8 @@ class AntiMemo(BaseModel):
 
 class RawSignal(BaseModel):
     source: Source
-    source_url: str | None = None
-    content: str | bytes
+    source_url: Optional[str] = None
+    content: Union[str, bytes]
     fetched_at: datetime = Field(default_factory=utcnow)
     meta: dict = Field(default_factory=dict)
 
