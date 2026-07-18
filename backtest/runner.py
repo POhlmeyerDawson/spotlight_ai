@@ -150,7 +150,7 @@ def _trajectory(member: dict, points: int = 12) -> list[dict]:
     Every point is a real filter run at that cutoff — never an interpolation backwards
     from the final value, which would be lookahead wearing a chart's clothing.
     """
-    cut = _aware(member["truncation_date"])
+    cut = _series_bound(member)
     cid = _as_uuid(member.get("company_id"))
 
     try:
@@ -182,14 +182,53 @@ def _trajectory(member: dict, points: int = 12) -> list[dict]:
         log.info("calibration: replaying %s from fixture (%s)", member.get("founder"), exc)
 
     return [
-        {**p, "as_of": _aware(p["as_of"]).isoformat()}
+        # Normalize `founder_score` onto `mu` so downstream code reads one field
+        # regardless of which path produced the series.
+        {**p, "mu": p.get("mu", p.get("founder_score")), "as_of": _aware(p["as_of"]).isoformat()}
         for p in member.get("trajectory", [])
         if _aware(p["as_of"]) <= cut  # the fixture is truncated too, not trusted blindly
     ]
 
 
+def _series_bound(member: dict) -> datetime:
+    """How far a replayed trajectory may run — up to, but never through, breakout.
+
+    Distinct from the source truncation date, and conflating the two was a bug:
+    clipping the series at `source_truncation_date` (the FIRST point) collapsed every
+    winner to a single value, so nothing cleared the threshold and the hit rate was 0.
+    The claim under test is "the score was already rising before the breakout", which
+    needs the span between those dates, not a point.
+    """
+    if member.get("breakout_at"):
+        return _aware(member["breakout_at"])
+    points = member.get("trajectory") or []
+    if points:
+        return max(_aware(pt["as_of"]) for pt in points if pt.get("as_of"))
+    return _truncation(member)
+
+
+def _truncation(member: dict) -> datetime:
+    """The hand-set pre-breakout source cutoff. The cohort calls this
+    `source_truncation_date`; earlier drafts called it `truncation_date`. Controls carry
+    neither — they are matched contemporaries, not hand-truncated sources — so their own
+    last observed point is the honest bound."""
+    for key in ("truncation_date", "source_truncation_date", "as_of"):
+        if member.get(key):
+            return _aware(member[key])
+    points = member.get("trajectory") or []
+    if points:
+        return max(_aware(pt["as_of"]) for pt in points if pt.get("as_of"))
+    raise KeyError("cohort member has no truncation date and no trajectory")
+
+
 def _peak(series: list[dict]) -> float | None:
-    values = [p["mu"] for p in series if isinstance(p.get("mu"), (int, float))]
+    # The live replay emits `mu`; hand-collected fixture points say `founder_score`.
+    values = [
+        v
+        for p in series
+        for v in (p.get("mu"), p.get("founder_score"))
+        if isinstance(v, (int, float))
+    ]
     return max(values) if values else None
 
 
@@ -213,7 +252,7 @@ def run_calibration() -> dict:
                 "founder": m.get("founder"),
                 "company_id": m.get("company_id"),
                 "label": str(m.get("label", "unknown")).lower(),
-                "truncation_date": _aware(m["truncation_date"]).isoformat(),
+                "truncation_date": _truncation(m).isoformat(),
                 "trajectory": series,
                 "peak_mu": peak,
                 "cleared_threshold": bool(peak is not None and peak >= threshold),

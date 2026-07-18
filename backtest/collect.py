@@ -133,7 +133,23 @@ def load_cohort() -> dict:
 
     if not members:
         raise LookupError("backtest cohort is empty")
-    return {"threshold": float(blob.get("threshold", 0.6)), "members": members}
+    return {"threshold": _threshold(blob), "members": members, "policy": _policy(blob)}
+
+
+def _threshold(blob: dict) -> float:
+    """The cohort states its threshold as an object — {value, axis, policy} — which is
+    the better shape: a bare number does not say what it applies to. Assuming a float
+    raised TypeError, /backtest degraded to the fixture without saying so, and the
+    calibration page showed seeded numbers while looking like a live replay."""
+    raw = blob.get("threshold", 0.6)
+    if isinstance(raw, dict):
+        raw = raw.get("value", 0.6)
+    return float(raw)
+
+
+def _policy(blob: dict) -> str | None:
+    raw = blob.get("threshold")
+    return raw.get("policy") if isinstance(raw, dict) else None
 
 
 def _fixture_member(founder: str) -> dict | None:
