@@ -112,3 +112,42 @@ def test_demo_path_is_labelled_not_scored_as_real() -> None:
     _, att = attest.attest("ch", {}, demo=True)
     assert att["demo_seeded"] is True
     assert "pre-recorded" in att["note"]
+
+
+# --- 3. the attestation must reach the grader, not only the events ------------
+
+
+def test_attestation_travels_inside_the_trace() -> None:
+    """C weights self-reported behaviour down at scoring time, so the grader needs
+    to know what was observed BEFORE it produces a scalar. Post-grade confidence
+    scaling stays as a second line of defence, not the only one."""
+    attest.reset()
+    attest.record_issue("ch-1", T0, "company-a")
+    merged, att = attest.attest("ch-1", {"pushed_back_on_constraint": True})
+    assert merged["attestation"] == att
+    assert merged["attestation"]["self_reported_fields"] == ["pushed_back_on_constraint"]
+
+
+# --- 4. a challenge is bound to the company it was written for ----------------
+
+
+def test_challenge_is_bound_to_its_company() -> None:
+    """A challenge is generated from ONE company's central technical claim. Grading
+    it onto another company would let an easy challenge inflate an unrelated founder."""
+    from uuid import uuid4
+
+    attest.reset()
+    a, b = uuid4(), uuid4()
+    attest.record_issue("ch-1", T0, str(a))
+
+    assert attest.challenge_belongs_to("ch-1", a) is True
+    assert attest.challenge_belongs_to("ch-1", b) is False
+
+
+def test_unknown_provenance_is_not_treated_as_a_mismatch() -> None:
+    """None means 'cannot tell' and must not be conflated with False — a server
+    restart loses the issue record, and that is our problem, not the founder's."""
+    from uuid import uuid4
+
+    attest.reset()
+    assert attest.challenge_belongs_to("never-issued", uuid4()) is None

@@ -292,6 +292,14 @@ def get_dissent(company_id: str, as_of: datetime | None = None) -> dict:
         from intelligence import dissent
 
         cid = company_uuid(company_id)
+
+        # Prefer C's combined dissent/council view when it exists — it is the
+        # richer artifact. Falls back to the plain anti-memo, so this route keeps
+        # working whether or not the council has shipped.
+        combined = _council_view(cid, cutoff)
+        if combined is not None:
+            return {"company_id": company_id, **combined, "degraded": False}
+
         anti = dissent.generate(cid, cutoff)
         out = {
             "company_id": company_id,
@@ -309,6 +317,43 @@ def get_dissent(company_id: str, as_of: datetime | None = None) -> dict:
 
     result = degrade(live, lambda: seed(f"dissent_{company_id}"))
     _DISSENT_SERVED.add(company_id)  # only reached if the anti-memo actually rendered
+    return result
+
+
+def _council_view(cid, cutoff) -> dict | None:
+    """intelligence.council.view_dissent, when C has shipped it."""
+    try:
+        from intelligence import council
+    except ImportError:
+        return None
+    try:
+        view = council.view_dissent(cid, cutoff)
+    except (AttributeError, NotImplementedError):
+        return None
+    return view if isinstance(view, dict) else view.model_dump(mode="json")
+
+
+@router.post("/{company_id}/council")
+def run_council(company_id: str, as_of: datetime | None = None) -> dict:
+    """Run C's AI Council. Like the dissent view, actually serving a council
+    deliberation is what unlocks the recommendation — never a client boolean."""
+    cutoff = resolve_as_of(as_of)
+
+    def live() -> dict:
+        from intelligence import council
+
+        out = council.deliberate(company_uuid(company_id), cutoff)
+        out = out if isinstance(out, dict) else out.model_dump(mode="json")
+        return {"company_id": company_id, **out, "degraded": False}
+
+    def fallback() -> dict:
+        fixture = seed_or(f"council_{company_id}", None)
+        if fixture is None:
+            raise HTTPException(503, "the AI Council is not available yet")
+        return {**fixture, "company_id": company_id, "degraded": True}
+
+    result = degrade(live, fallback)
+    _DISSENT_SERVED.add(company_id)
     return result
 
 
@@ -332,7 +377,7 @@ def issue_proof(company_id: str) -> dict:
         ch = proof.generate(company_uuid(company_id))
         # The server's own record of when this went out. Without it a submitted
         # trace cannot be placed in time except by trusting the submitter.
-        attest.record_issue(str(ch.challenge_id), ch.issued_at)
+        attest.record_issue(str(ch.challenge_id), ch.issued_at, str(company_uuid(company_id)))
         return {
             "challenge_id": str(ch.challenge_id),
             "company_id": company_id,
@@ -365,19 +410,51 @@ def grade_proof(
         from intelligence import proof
         from memory import store
 
+        cid = company_uuid(company_id)
+
+        # A challenge is written against ONE company's central technical claim.
+        # Grading it onto another company's founder score would let a submission
+        # for an easy challenge inflate an unrelated founder. Rejected before any
+        # event is appended, because the log has no undo.
+        if attest.challenge_belongs_to(challenge_id, cid) is False:
+            raise HTTPException(
+                409,
+                f"challenge {challenge_id} was not issued for company {company_id}",
+            )
+
         # Split the trace into what we observed and what we were told, BEFORE
         # grading. Pushing back on the planted constraint is worth half the
         # behavioural score, so accepting it on the client's word would hand the
-        # sharpest signal in the system to anyone willing to assert it.
+        # sharpest signal in the system to anyone willing to assert it. The
+        # attestation rides inside the trace so the grader can weight
+        # self-reported behaviour down at scoring time, not merely afterwards.
         graded_trace, attestation = attest.attest(
             challenge_id, sub.trace, repo_url=sub.repo_url, demo=sub.demo
         )
 
+        artifact, trace, cid_for_grade = sub.artifact, graded_trace, challenge_id
         if sub.demo:
-            events = proof.seed_demo_completion(company_uuid(company_id))
-        else:
-            events = proof.grade(as_uuid(challenge_id), sub.artifact, graded_trace)
+            # seed_demo_completion returns the pre-run artifact + trace, not events.
+            # Running it through the real grader is both more honest for the demo
+            # and what keeps the seeded path on the same code path as a live one.
+            seeded = proof.seed_demo_completion(cid)
+            if isinstance(seeded, dict):
+                artifact = seeded.get("artifact", artifact)
+                trace = {**seeded.get("trace", {}), "attestation": attestation}
+                cid_for_grade = seeded.get("challenge_id", challenge_id)
+            else:
+                events = attest.apply(list(seeded or []), attestation)
+                for ev in events:
+                    store.append(ev)
+                return {
+                    "company_id": company_id,
+                    "challenge_id": challenge_id,
+                    "graded_event_ids": [str(e.event_id) for e in events],
+                    "attestation": attestation,
+                    "degraded": False,
+                }
 
+        events = proof.grade(as_uuid(cid_for_grade), artifact, trace)
         events = attest.apply(events, attestation)
         appended = []
         for ev in events or []:

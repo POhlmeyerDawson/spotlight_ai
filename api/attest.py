@@ -36,22 +36,59 @@ SELF_REPORTABLE = (
     "iterations",
 )
 
-# Server-side record of when each challenge was issued. In-process is fine for a
-# demo; the point is that the anchor is ours, not the client's.
-_ISSUED: dict[str, datetime] = {}
+# Server-side record of when each challenge was issued AND who it was issued to.
+# In-process is fine for a demo; the point is that the anchor is ours, not the
+# client's. The company is recorded so a submission cannot be graded against a
+# different company than the challenge was written for.
+_ISSUED: dict[str, tuple[datetime, str | None]] = {}
 
 
-def record_issue(challenge_id: str, issued_at: datetime | None = None) -> None:
-    _ISSUED[str(challenge_id)] = issued_at or utcnow()
+def record_issue(
+    challenge_id: str, issued_at: datetime | None = None, company_id: str | None = None
+) -> None:
+    _ISSUED[str(challenge_id)] = (issued_at or utcnow(), str(company_id) if company_id else None)
 
 
 def issued_at(challenge_id: str) -> datetime | None:
-    return _ISSUED.get(str(challenge_id))
+    rec = _ISSUED.get(str(challenge_id))
+    return rec[0] if rec else None
+
+
+def issued_company(challenge_id: str) -> str | None:
+    rec = _ISSUED.get(str(challenge_id))
+    return rec[1] if rec else None
 
 
 def reset() -> None:
     """Test/demo hook."""
     _ISSUED.clear()
+
+
+def challenge_belongs_to(challenge_id: str, company_id: UUID | None) -> bool | None:
+    """Does this challenge belong to this company? None when we cannot tell.
+
+    Checked against our own issue record first, then the PROOF_CHALLENGE_ISSUED
+    event. Without this, a submission for an easy company's challenge could be
+    graded onto a different company's founder score.
+    """
+    if company_id is None:
+        return None
+
+    recorded = issued_company(challenge_id)
+    if recorded is not None:
+        return recorded == str(company_id)
+
+    try:
+        from memory import store
+        from schema.events import EventKind
+
+        cid = uuid_or_none(challenge_id)
+        for ev in store.events(as_of=utcnow(), kind=str(EventKind.PROOF_CHALLENGE_ISSUED)):
+            if str(ev.payload.get("challenge_id")) == str(challenge_id) or ev.event_id == cid:
+                return ev.company_id == company_id
+    except Exception:  # noqa: BLE001 - unknown provenance is not a mismatch
+        return None
+    return None
 
 
 def attest(
@@ -64,7 +101,10 @@ def attest(
     """Return (trace_for_grading, attestation).
 
     trace_for_grading keeps the client's fields — the grader still needs them —
-    but every server-observable value is overwritten with what we actually saw.
+    but every server-observable value is overwritten with what we actually saw,
+    and the attestation travels INSIDE the trace so the grader can weight
+    self-reported behaviour differently rather than only having it corrected
+    after the fact.
     """
     now = utcnow()
     issued = issued_at(challenge_id)
@@ -98,6 +138,10 @@ def attest(
         "demo_seeded": demo,
         "note": _note(issued is not None, bool(fetched), self_reported, demo),
     }
+    # The grader needs this BEFORE scoring, not just afterwards: a self-reported
+    # pushback must not earn the same scalar as an observed one. Post-grade
+    # confidence scaling stays as a second line of defence.
+    merged["attestation"] = attestation
     return merged, attestation
 
 
