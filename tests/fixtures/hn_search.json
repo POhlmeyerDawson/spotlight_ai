@@ -1,0 +1,38 @@
+{
+ "hits": [
+  {
+   "objectID": "43682088",
+   "title": "The path to open-sourcing the DeepSeek inference engine",
+   "url": "https://github.com/deepseek-ai/open-infra-index/tree/main/OpenSourcing_DeepSeek_Inference_Engine",
+   "author": "Palmik",
+   "points": 550,
+   "num_comments": 63,
+   "created_at": "2025-04-14T15:03:10Z",
+   "story_id": 43682088
+  },
+  {
+   "objectID": "48050751",
+   "title": "DeepSeek 4 Flash local inference engine for Metal",
+   "url": "https://github.com/antirez/ds4",
+   "author": "tamnd",
+   "points": 499,
+   "num_comments": 159,
+   "created_at": "2026-05-07T15:40:24Z",
+   "story_id": 48050751
+  },
+  {
+   "objectID": "39999999",
+   "comment_text": "We rewrote the scheduler; p99 dropped 4x.",
+   "author": "someuser",
+   "created_at": "2024-03-02T09:14:00.000Z",
+   "story_id": 39990000,
+   "points": null
+  },
+  {
+   "objectID": "39999998",
+   "title": "",
+   "created_at": "2024-03-02T09:14:00.000Z"
+  }
+ ],
+ "nbHits": 4
+}

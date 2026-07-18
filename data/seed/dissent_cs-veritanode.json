@@ -1,0 +1,20 @@
+{
+  "company_id": "cs-veritanode",
+  "company_name": "Veritanode",
+  "generated_at": "2025-06-01T00:00:00+00:00",
+  "bear_case": "We have talked ourselves into treating an absence of evidence as a neutral fact because we have an elegant mechanism for handling it. The Proof Protocol is not neutral - it is a way of manufacturing a reason to stay engaged with a file that contains nothing. A solo founder with five years of unverifiable NDA work and four unfalsifiable-from-outside claims is, on the base rate, someone whose numbers came from a spreadsheet rather than a benchmark. The challenge we designed is one they can pass by being a competent engineer for a weekend, which is a much lower bar than the one the deck implies they have already cleared.",
+  "weakest_evidence": [
+    "Every number in the file originates from the founder. There is not one independent observation of any kind.",
+    "The NDA explanation for zero public work is accepted, not verified. We cannot verify it and we have not tried.",
+    "The market axis scores 0.7 on confidence 0.44, derived from two deck slides. That number is closer to a guess than we are comfortable admitting on a scorecard.",
+    "Entity resolution returned NEW with no aliases. We do not actually know that no public work exists - only that we did not find any."
+  ],
+  "load_bearing_claim": "recall@10 >= 0.94 while reading <= 0.3% of index bytes per query, at a p99 under 900us. If recall and latency do not hold on the SAME benchmark run, there is no product - just two separately achievable numbers presented together.",
+  "axis_spreads": {"founder": 0.0, "market": 0.42, "idea_vs_market": 0.0},
+  "spread_note": "Two axes have zero spread because they have zero evidence. A zero spread here means unknown, not agreed.",
+  "what_would_change_my_mind": [
+    "A challenge artifact where recall and p99 are reported from one run, with raw latency samples rather than a summary statistic.",
+    "The founder pushing back on the page-cache warming we requested. Compliance on that point would tell us the deck numbers were produced the same way.",
+    "Any independent trace of five years of storage work - a patent, a conference attendance, a former colleague willing to be named."
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "company_id": "vb-tensorpage",
+  "company_name": "Tensorpage",
+  "generated_at": "2025-06-01T00:00:00+00:00",
+  "bear_case": "We have scored eighteen months of visible, legible, well-written engineering and called it conviction. But visibility is the one signal every other fund also has - this founder is on the front page, publishes benchmarks, and answers criticism in public. There is no information asymmetry here, so we will pay a market price for a company whose core technique is already published in a preprint that any serving framework can implement. The self-correction we weighted so heavily is admirable and is also what a person does when their number is about to be checked in public. Two people, one allocator, no pricing model, and a much larger engineering surface ahead of them than behind.",
+  "weakest_evidence": [
+    "The market axis carries confidence 0.61 against founder confidence 0.88. We are extrapolating commercial potential from developer adoption, which historically converts badly for infrastructure libraries.",
+    "148 dependent repositories is a count of imports, not of users who would pay if the license changed tomorrow.",
+    "Two production users are named by the team and were not independently confirmed.",
+    "The technique is published with a public benchmark harness, which is excellent practice and also a complete implementation guide for a well-resourced competitor."
+  ],
+  "load_bearing_claim": "That a paged KV-cache allocator is a company rather than a feature of somebody else's serving framework. If it is a feature, the technical excellence is real, the outcome is an acquihire, and our return does not clear the fund.",
+  "axis_spreads": {"founder": 0.11, "market": 0.38, "idea_vs_market": 0.29},
+  "spread_note": "Narrow founder spread, wide market spread. Both readings of this file agree completely about the engineer and not at all about the business.",
+  "what_would_change_my_mind": [
+    "A stated commercial model. Any model - hosted, enterprise licensing, support - would move the market axis more than another release would.",
+    "One of the major serving frameworks depending on this rather than reimplementing it. That is the whole bull case in one observable event.",
+    "Evidence of a third hire, which would test whether the disaggregated-prefill direction is staffed or aspirational."
+  ]
+}

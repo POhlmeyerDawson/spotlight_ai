@@ -1,0 +1,67 @@
+{
+  "id": "cs-veritanode",
+  "name": "Veritanode",
+  "archetype": 2,
+  "archetype_label": "Cold Start",
+  "as_of": "2025-06-01T00:00:00+00:00",
+  "one_liner": "Cross-region vector index with sub-millisecond p99 on commodity NVMe.",
+  "sector": "ai-infra",
+  "discovery": "inbound",
+  "founders": [
+    {"name": "Anselm Kroeger", "entity_key": "cs-veritanode-founder", "resolution_status": "new", "resolution_note": "No public handles to match against. Entity created from the deck alone."}
+  ],
+  "axes": {
+    "founder": {
+      "score": null,
+      "trend": null,
+      "confidence": 0.0,
+      "band": null,
+      "evidence_count": 0,
+      "reason": "No observable evidence. This is an absence, not a zero - the distinction is the whole point of the gate.",
+      "evidence": []
+    },
+    "market": {
+      "score": 0.7,
+      "trend": 0.0,
+      "confidence": 0.44,
+      "band": 0.21,
+      "evidence_count": 2,
+      "evidence": [
+        {"event_ref": "cs-veritanode#0", "kind": "deck_claim", "source": "deck", "observed_at": "2025-04-08T00:00:00+00:00", "span": "slide 3: \"p99 < 900us @ 1.2B vectors, 3 regions, commodity NVMe, zero GPU in the read path\"", "url": "deck://veritanode-seed-2025.pdf#slide=3"},
+        {"event_ref": "cs-veritanode#2", "kind": "deck_claim", "source": "deck", "observed_at": "2025-04-08T00:00:00+00:00", "span": "slide 5: \"recall@10 >= 0.94 vs brute force, touching <=0.3% of index bytes per query\"", "url": "deck://veritanode-seed-2025.pdf#slide=5"}
+      ]
+    },
+    "idea_vs_market": {
+      "score": null,
+      "trend": null,
+      "confidence": 0.0,
+      "band": null,
+      "evidence_count": 0,
+      "reason": "Cannot be assessed from self-published claims alone.",
+      "evidence": []
+    }
+  },
+  "momentum": null,
+  "gate": {
+    "outcome": "proof_protocol",
+    "rationale": "Four falsifiable infrastructure claims, zero independent evidence of any kind. There is nothing to score, so we create evidence instead of guessing.",
+    "absence_is_suspicious": false,
+    "absence_rationale": "Five years of storage work behind an NDA produces no public artifact. That is a known-benign explanation, so absence does not count against the founder."
+  },
+  "claims": [
+    {"claim_text": "p99 read latency under 900 microseconds for a 1.2B-vector index across three regions on commodity NVMe", "claim_source_span": "slide 3", "status": "not_attempted", "trust": 0.0, "self_published": true, "note": "No independent source exists to check this against. Routed to the Proof Protocol.", "claim_asserted_at": "2025-04-08T00:00:00+00:00"},
+    {"claim_text": "incremental rebuild cost is linear in churn, not corpus size", "claim_source_span": "slide 4", "status": "not_attempted", "trust": 0.0, "self_published": true, "claim_asserted_at": "2025-04-08T00:00:00+00:00"},
+    {"claim_text": "recall@10 >= 0.94 while reading <= 0.3% of index bytes", "claim_source_span": "slide 5", "status": "not_attempted", "trust": 0.0, "self_published": true, "claim_asserted_at": "2025-04-08T00:00:00+00:00"},
+    {"claim_text": "region loss mid-query is transparent to the client", "claim_source_span": "slide 6", "status": "not_attempted", "trust": 0.0, "self_published": true, "claim_asserted_at": "2025-04-08T00:00:00+00:00"}
+  ],
+  "proof_protocol": {
+    "status": "issued",
+    "issued_at": "2025-05-06T09:00:00+00:00",
+    "central_claim": "recall@10 >= 0.94 while reading <= 0.3% of index bytes per query, with a p99 under 900us",
+    "prompt": "Build a reproducible benchmark for a 50M-vector shard on a single commodity NVMe node. Report recall@10 against exact search, bytes read per query, and the p99 latency distribution - not the mean. Ship the harness, the raw latency samples, and whatever it takes for us to rerun it.",
+    "ambiguous_requirement": "The spec never states the embedding dimensionality or the distance metric. Do they ask, or do they pick one silently and present the result as general?",
+    "planted_bad_constraint": "We asked them to warm the page cache before measuring - which would invalidate the entire commodity-NVMe claim. Do they push back, or comply and report a flattering number?",
+    "grading_axes": ["asks_before_assuming", "pushes_back_on_bad_constraint", "reports_p99_not_mean", "artifact_actually_reruns"]
+  },
+  "trace_note": "Every span above is quoted verbatim from the source document. Click through resolves to the slide id."
+}

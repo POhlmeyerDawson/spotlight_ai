@@ -1,0 +1,22 @@
+{
+  "company_id": "intl-zaryad",
+  "company_name": "Zaryad Compute",
+  "generated_at": "2025-06-01T00:00:00+00:00",
+  "bear_case": "We like this file because it flatters the thesis. A brilliant, overlooked maintainer whom nobody else can see is the exact story our system was built to produce, and that is a reason to distrust the enthusiasm rather than to trust it. What we actually have is one person, alone for two years, who has never charged anyone, never hired anyone, and never had to persuade a stranger of anything. Every observed behaviour is the behaviour of an excellent maintainer. Nothing in twenty months of evidence tells us she wants to run a company or would be good at it, and 'low visibility' may be the correct market price for exactly that.",
+  "weakest_evidence": [
+    "Zero commercial evidence. No revenue, no pricing, no customer conversation - the entire market axis rests on 63 dependent repositories, which is usage, not demand.",
+    "Market axis confidence is 0.52. We are ranking this second on an axis we barely have a read on.",
+    "The four-way entity merge is confidence 0.88. It is load-bearing for the founder score and it is not certain.",
+    "Three of six sources required translation. We are reading the strength of technical writing through a translation layer and we have not measured how much that distorts.",
+    "'Nobody else can see her' is asserted from our own visibility percentile, computed by our own pipeline. It is not independently checked."
+  ],
+  "load_bearing_claim": "That a two-year solo maintainer wants to build a company rather than continue maintaining a library. If that is false, everything else in the file remains true and entirely irrelevant to us.",
+  "axis_spreads": {"founder": 0.14, "market": 0.47, "idea_vs_market": 0.26},
+  "spread_note": "The market spread is the widest in the entire set. That is the honest picture: high agreement on the engineering, near-total disagreement on the company.",
+  "what_would_change_my_mind": [
+    "Any evidence of an attempt to charge someone, at any price, even once.",
+    "Evidence of recruiting - one conversation with a prospective co-founder would move the founder axis more than another release would.",
+    "Confirmation of the entity merge directly from her, which also tests whether she engages with an inbound approach at all."
+  ],
+  "equity_note": "The visibility argument cuts both ways and the memo should say so. Being hard to find is a real edge for us on entry price. It is also a real disadvantage for the company in hiring, in sales and in every subsequent round, and we should not price only the half that benefits us."
+}

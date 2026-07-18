@@ -1,0 +1,47 @@
+{
+  "name": "AI infrastructure and developer tools",
+  "updated_at": "2025-06-01T00:00:00+00:00",
+  "sectors": [
+    {"id": "ai-infra", "label": "AI infrastructure", "weight": 0.45, "include": true},
+    {"id": "dev-tools", "label": "Developer tools", "weight": 0.35, "include": true},
+    {"id": "data-infra", "label": "Data infrastructure", "weight": 0.20, "include": true},
+    {"id": "consumer", "label": "Consumer", "weight": 0.0, "include": false},
+    {"id": "fintech", "label": "Fintech", "weight": 0.0, "include": false}
+  ],
+  "stage": {
+    "include": ["pre-seed", "seed"],
+    "exclude": ["series-a", "series-b+"],
+    "note": "Pre-product is in scope. That is the whole point of the Proof Protocol."
+  },
+  "geo": {
+    "include": ["global"],
+    "excluded_regions": [],
+    "note": "Deliberately unrestricted. Geographic filters are the cheapest way to systematically miss the Type 6 founder."
+  },
+  "check_size": {
+    "currency": "USD",
+    "min": 250000,
+    "target": 750000,
+    "max": 2000000,
+    "ownership_target_pct": 8.0
+  },
+  "risk_appetite": {
+    "level": "high",
+    "value": 0.75,
+    "scale": "0 = only fully de-risked traction, 1 = pre-product technical conviction",
+    "implications": [
+      "Zero public signal routes to PROOF_PROTOCOL, never to an automatic pass.",
+      "An unverifiable claim is reported as unverifiable. It is not scored as false.",
+      "Low visibility is treated as a property of the observer, not of the founder."
+    ]
+  },
+  "ranking_policy": {
+    "id": "min_axis_with_momentum_tiebreak",
+    "description": "Rank by the weakest of the three axes, then by momentum. The axes are never averaged into one number - not here, not in the UI.",
+    "never": "blended_score"
+  },
+  "hard_filters": [
+    {"id": "no_pedigree", "description": "School, employer brand and investor name are excluded from every scoring input. Invariant #3."},
+    {"id": "as_of_scoped", "description": "Every read is as_of-scoped. Invariant #1."}
+  ]
+}

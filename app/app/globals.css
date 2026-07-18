@@ -1,0 +1,294 @@
+@import "tailwindcss";
+
+/* ===========================================================================
+   THE PLATE SYSTEM — tokens (DESIGN.md §2)
+
+   Five values. The discipline is the design. There is never a sixth hue: where
+   something needs distinguishing, this app uses position, weight, or rule-work.
+   That constraint is why the three axes are told apart by column and marker
+   shape rather than by three series colours.
+
+   --signal is RATIONED to ~2% of pixels. In this app it earns its place on
+   exactly two things: CONTRADICTED claims and caught injections. Not buttons,
+   not nav, not headings, not the threshold line.
+   =========================================================================== */
+
+:root {
+  --paper: #efedea; /* warm ground. Not #fff — white reads clinical */
+  --ink: #0a0a0a; /* type and the coolest field band */
+  --cobalt: #1e2edc; /* the saturated field colour */
+  --sky: #7fb2e8; /* nodes, edges, accent on dark grounds */
+  --signal: #e0492a; /* hot core only. ~2% of pixels, ever */
+  --surround: #e5e5e5; /* the desk the plates sit on */
+
+  /* Alpha steps of ink — rules and secondary type. Not new hues. */
+  --ink-70: color-mix(in srgb, var(--ink) 70%, transparent);
+  --ink-52: color-mix(in srgb, var(--ink) 52%, transparent);
+  --ink-38: color-mix(in srgb, var(--ink) 38%, transparent);
+  --ink-16: color-mix(in srgb, var(--ink) 16%, transparent);
+  --ink-09: color-mix(in srgb, var(--ink) 9%, transparent);
+  --paper-70: color-mix(in srgb, var(--paper) 70%, transparent);
+  --paper-38: color-mix(in srgb, var(--paper) 38%, transparent);
+  --paper-16: color-mix(in srgb, var(--paper) 16%, transparent);
+
+  /* Default triple: paper ground / ink figure / cobalt accent (§4.2) */
+  --ground: var(--paper);
+  --figure: var(--ink);
+  --accent: var(--cobalt);
+  --rule: var(--ink-16);
+  --muted: var(--ink-52);
+
+  --sheet-margin: clamp(0.75rem, 1.6vw, 1.75rem);
+
+  /* expo.out — the system's one display ease (§8.2). No overshoot, anywhere. */
+  --expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --power2-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* --- the three fixed ground/figure/accent triples (§4.2). Do not improvise. --- */
+.g-paper {
+  --ground: var(--paper);
+  --figure: var(--ink);
+  --accent: var(--cobalt);
+  --rule: var(--ink-16);
+  --muted: var(--ink-52);
+}
+.g-cobalt {
+  --ground: var(--cobalt);
+  --figure: var(--paper);
+  --accent: var(--sky);
+  --rule: var(--paper-16);
+  --muted: var(--paper-70);
+}
+.g-ink {
+  --ground: var(--ink);
+  --figure: var(--paper);
+  --accent: var(--sky);
+  --rule: var(--paper-16);
+  --muted: var(--paper-70);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-cobalt: var(--cobalt);
+  --color-sky: var(--sky);
+  --color-signal: var(--signal);
+  --color-surround: var(--surround);
+  --color-ground: var(--ground);
+  --color-figure: var(--figure);
+  --color-accent: var(--accent);
+  --color-rule: var(--rule);
+  --color-muted: var(--muted);
+  --font-display: var(--font-instrument-serif);
+  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+}
+
+/* =========================================================================== */
+
+html {
+  background: var(--surround);
+  /* §3.3 — load-bearing in an app that is mostly columns of figures. */
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  background: var(--surround);
+  color: var(--ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- type scale (§3.2) --- */
+.display {
+  font-family: var(--font-instrument-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(2.5rem, 6.4vw, 6.25rem);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  max-width: 15ch;
+  text-wrap: balance;
+}
+.quiet {
+  font-family: var(--font-instrument-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(1.75rem, 4.4vw, 4rem);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  max-width: 20ch;
+}
+.lede {
+  font-size: clamp(1.0625rem, 1.5vw, 1.4375rem);
+  line-height: 1.5;
+  max-width: 40ch;
+}
+.body-t {
+  font-size: clamp(1.0625rem, 1.35vw, 1.3125rem);
+  line-height: 1.55;
+}
+.caption {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  max-width: 32ch;
+}
+.meta {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+.mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+/*
+ * §3.4 duotone — the system's ONE emphasis mechanism. Emphasis changes COLOUR,
+ * never opacity or weight. Scoped to the container, not the heading class (§9),
+ * so it reaches .quiet and .lede too.
+ */
+.words em {
+  font-style: normal;
+  color: var(--accent);
+}
+/* The one exception: an integrity turn is the rationed signal colour. */
+.words em.sig {
+  color: var(--signal);
+}
+
+/* --- the sheet: a plate is an object lying on the surround (§4.1) --- */
+.sheet {
+  position: relative;
+  margin: var(--sheet-margin);
+  min-height: calc(100svh - var(--sheet-margin) * 2);
+  padding: clamp(1.5rem, 2.6vw, 2.75rem);
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: clamp(1.25rem, 2.4vw, 2.25rem);
+  overflow: hidden;
+  background: var(--ground);
+  color: var(--figure);
+  /* margin + shadow is the entire trick that makes a page read as print. */
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.06),
+    0 12px 34px rgb(0 0 0 / 0.09);
+}
+
+/* The visual bleeds past the sheet padding; type never does (§4.1). */
+.bleed {
+  position: relative;
+  margin-inline: calc(clamp(1.5rem, 2.6vw, 2.75rem) * -1);
+}
+
+/* A canvas must never participate in intrinsic sizing (§9). */
+.canvas-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* --- furniture: the ticket-stub table (§4.3) --- */
+.stub {
+  display: flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--rule);
+}
+.stub > * {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.625rem 0.875rem;
+  border-right: 1px solid var(--rule);
+}
+.stub > *:last-child {
+  border-right: 0;
+}
+@media (max-width: 560px) {
+  .stub {
+    flex-direction: column;
+  }
+  .stub > * {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .stub > *:last-child {
+    border-bottom: 0;
+  }
+}
+
+/* --- reveal: 24px of travel, 1.1s, expo.out (§8.3) --- */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 1.1s var(--expo-out),
+    transform 1.1s var(--expo-out);
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+/* Captions and rules use the quieter ease and hold still more (§8.2/§8.3). */
+.reveal-quiet {
+  opacity: 0;
+  transition: opacity 0.5s var(--power2-out);
+}
+.reveal-quiet.is-in {
+  opacity: 1;
+}
+
+/*
+ * §8.5 — reduced motion means "no vestibular motion", not "no visual".
+ * Keep the opacity reveal, drop the travel, shorten it, freeze the field churn.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    transform: none;
+    transition-duration: 0.3s;
+  }
+  .reveal-quiet {
+    transition-duration: 0.3s;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* --- evidence: the quoted span every trace bottoms out in --- */
+.evidence-span {
+  border-left: 2px solid var(--accent);
+  background: var(--ink-09);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.g-cobalt .evidence-span,
+.g-ink .evidence-span {
+  background: var(--paper-16);
+}
+
+/*
+ * NOT_ATTEMPTED is hatched, not blank. A gap we did not look into must look
+ * different from a gap we looked into and found nothing. Rule-work, not a hue.
+ */
+.hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--ink-16) 0 1px,
+    transparent 1px 7px
+  );
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--cobalt);
+  color: var(--paper);
+}

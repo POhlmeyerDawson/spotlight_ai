@@ -1,0 +1,35 @@
+{
+  "company_id": "intl-zaryad",
+  "company_name": "Zaryad Compute",
+  "as_of": "2025-06-01T00:00:00+00:00",
+  "sections": {
+    "thesis": "If long-context inference runs acceptably on an 8GB consumer card, the addressable deployment surface for local models changes shape [intl-zaryad#0]. The published measurement is a 61% memory reduction at under 1% quality loss up to 32k tokens [intl-zaryad#1], and the benchmark reproduces from a single script with no cluster [intl-zaryad#3].",
+    "founder": "Twenty months of compounding work on one artifact, alone, by one person [intl-zaryad#4]. The trajectory is monotone: prototype kernel, measured autotuning across three GPU SKUs, int8 KV path, 63 dependent repositories at the most recent tag [intl-zaryad#6]. This founder appeared in our system as four separate entities - one Cyrillic form and three romanizations - and was merged on a shared repository URL. Unmerged, each fragment carried a quarter of the evidence and none of them cleared any threshold. That fragmentation is the mechanism by which this profile normally stays invisible.",
+    "market": "Local and edge inference, buyer-led adoption, no enterprise sales motion. GAP: no revenue, no pricing, no commercial conversations of any kind. The 63 dependent repositories are the only demand evidence and they are usage, not willingness to pay.",
+    "risks": [
+      "No commercial evidence whatsoever. This is a maintainer, not yet a company, and the gap between those is where most of this kind of investment fails.",
+      "Single maintainer, two years, no co-founder. Key-person risk is total.",
+      "Sole distribution channel is the repository. There is no English-language writing about this work, which is an advantage for us on entry and a disadvantage for the company's hiring and sales later.",
+      "Our confidence on the market axis is 0.52 and we are reporting that rather than rounding it up. Three of the six contributing sources required translation."
+    ],
+    "gaps_flagged": [
+      "No revenue verification attempted - the company asserts no revenue.",
+      "No commercial or pricing evidence exists to evaluate.",
+      "Three source documents are not in English. Spans are quoted in the original with translations attached; the original is the evidence.",
+      "Institution is recorded as a neutral biographical fact and is excluded from every scoring input. It appears in this file and in no feature.",
+      "Entity merge across four name forms is high-confidence but not certain. If the merge is wrong, the founder score is overstated."
+    ],
+    "recommendation": "PROCEED to a first conversation, at the top of this week's list. The technical evidence is stronger than anything else in the current set and the visibility percentile is 0.07 - this founder is not competitively priced because almost nobody else's pipeline can see her. Lead with the commercial question, because that is the only real gap and it is a large one."
+  },
+  "recommendation": "PROCEED to a first conversation, at the top of this week's list. Strongest technical evidence in the current set, visibility percentile 0.07. Lead with the commercial question.",
+  "citations": [
+    {"ref": "intl-zaryad#0", "span": "commit c81b204 \"blocksparse: tile so the working set fits 8GB; the point is the cheap card\"", "url": "https://github.com/kmorozova-dev/sparsekern/commits/main"},
+    {"ref": "intl-zaryad#1", "span": "\"Мы показываем снижение потребления памяти на 61% при потере качества менее 1% на последовательностях до 32k токенов.\"", "span_translated": "\"We show a 61% memory reduction with under 1% quality loss at sequence lengths up to 32k.\"", "url": "https://cyberleninka.ru/article/n/blochno-razrezhennoe-vnimanie-na-potrebitelskih-gpu", "language": "ru"},
+    {"ref": "intl-zaryad#3", "span": "v0.3.0 — \"32k context on a 3060. Benchmarks reproduce with one script and no cluster.\"", "url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.3.0"},
+    {"ref": "intl-zaryad#4", "span": "\"Два года я поддерживаю эту библиотеку одна.\"", "span_translated": "\"I have maintained this library alone for two years.\"", "url": "https://habr.com/ru/articles/812934/", "language": "ru"},
+    {"ref": "intl-zaryad#6", "span": "v0.5.0 — \"int8 KV path stable. 63 dependent repos, most of them in languages I do not read.\"", "url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.5.0"}
+  ],
+  "entity_resolution_notes": [
+    "Four name forms - Ксения Морозова, Ksenia Morozova, Kseniia Morozova, Xenia Morozova - merged into one entity on a shared repository URL, confidence 0.88. If this merge is wrong, the founder score is overstated and should be recomputed per fragment."
+  ]
+}
