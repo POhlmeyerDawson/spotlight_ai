@@ -341,7 +341,27 @@ def test_missing_artifact_judgment_does_not_pass_submission(monkeypatch) -> None
 
 
 def test_mixed_company_history_does_not_emit_cross_company_rollup() -> None:
+    """A rollup spanning companies must not be ATTRIBUTED to one of them.
+
+    CONTRACT CHANGE — C to confirm. This previously asserted that no rollup was
+    emitted at all. The concern behind it is right: a reading derived from two
+    companies' events must not be filed under one of them. But withholding the
+    rollup entirely froze the founder score at the moment a founder started their
+    second company, which is exactly the serial-founder case Type 3 exists to
+    demonstrate — the archetype's headline claim is that the score PERSISTS across
+    companies, and the events kept accruing while the filter simply stopped
+    receiving observations.
+
+    The rollup is now emitted with company_id=None. That satisfies the original
+    concern — it is filed under no company and cannot pollute either one — while
+    the founder score, which is entity-scoped, keeps accumulating.
+    """
     other = _signal()
     other.company_id = uuid4()
     result = flags.evaluate(ENTITY_ID, T0 + timedelta(days=1), events=[_signal(), other])
-    assert all(event.payload.get("rollup") is not True for event in result)
+
+    rollups = [event for event in result if event.payload.get("rollup") is True]
+    assert rollups, "the founder score must keep accruing across a company boundary"
+    assert all(event.company_id is None for event in rollups), (
+        "a mixed-company reading must not be attributed to any single company"
+    )

@@ -530,6 +530,26 @@ RULES: list[Rule] = [
 # ---------------------------------------------------------------------------
 
 
+# Integrity flags that make an event unusable as evidence, as opposed to merely
+# annotating where it came from.
+#
+# This distinction is load-bearing. Excluding every event with ANY integrity flag
+# meant that `transliterated_name` — set on 100% of the events belonging to the
+# non-Latin-script founders — silently voided their entire evidence base. All three
+# scored at the untouched prior, which reads as "average founder" rather than "we
+# could not read this", and the system built to find founders others cannot see was
+# systematically blind to exactly them. D.md names this as the guarded failure for
+# that archetype: silent low-scoring via degraded extraction confidence.
+#
+# A stripped injection means the content was tampered with and cannot be trusted.
+# A transliterated name, a non-English source or an inferred date are notes about
+# provenance: they belong in the memo and the trace, never in a decision to ignore
+# the evidence.
+IMPEACHING_FLAGS: frozenset[str] = frozenset(
+    {"injection_stripped", "prompt_injection", "content_tampered", "unattested_trace"}
+)
+
+
 def evaluate_events(events: list[Event], entity_id: UUID, as_of: datetime) -> list[Event]:
     """Pure core: as_of-scoped events in, one GREEN_FLAG event per APPLICABLE rule out.
 
@@ -542,7 +562,7 @@ def evaluate_events(events: list[Event], entity_id: UUID, as_of: datetime) -> li
         if e.entity_id == entity_id
         and e.observed_at <= as_of
         and e.kind not in {EventKind.GREEN_FLAG, EventKind.INTEGRITY}
-        and not e.integrity_flags
+        and not (set(e.integrity_flags) & IMPEACHING_FLAGS)
     ]
     if not events:
         return []
@@ -599,7 +619,10 @@ def evaluate(
         if event.entity_id == entity_id
         and event.observed_at <= as_of
         and event.kind not in {EventKind.GREEN_FLAG, EventKind.INTEGRITY}
-        and not event.integrity_flags
+        # Same rule as evaluate_events: only IMPEACHING flags disqualify evidence.
+        # This filter is duplicated here, so leaving it un-fixed kept the entire
+        # non-Latin-script cohort at zero flags even after the core was corrected.
+        and not (set(event.integrity_flags) & IMPEACHING_FLAGS)
     ]
     per_rule = evaluate_events(scoped, entity_id=entity_id, as_of=as_of)
     if not scoped:
@@ -623,9 +646,17 @@ def evaluate(
     fired = [row["id"] for row in flag_rows if row["applicable"] and row["fired"]]
     anchor = max(event.observed_at for event in scoped)
     company_ids = {event.company_id for event in scoped if event.company_id is not None}
-    if len(company_ids) > 1:
-        return per_rule
-    company_id = next(iter(company_ids), None)
+    # A rollup describes the FOUNDER, not a company, so spanning several companies is
+    # not a reason to withhold it — it is the serial-founder case, and suppressing the
+    # rollup there froze the score at the moment a founder started their second
+    # company. Type 3 exists to show the founder score PERSISTING across companies;
+    # the guard did precisely the opposite, and silently: the events kept accruing
+    # while the filter simply stopped receiving observations.
+    #
+    # When the evidence spans more than one company the rollup is stamped with no
+    # company_id, because attributing one company's reading to another would be the
+    # actual error the guard was reaching for.
+    company_id = next(iter(company_ids), None) if len(company_ids) == 1 else None
     self_consistency = sum(event.confidence for event in per_rule) / max(len(per_rule), 1)
     source_evidence_ids = sorted(
         {

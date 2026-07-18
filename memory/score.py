@@ -1,7 +1,8 @@
-"""Founder Score: local-linear-trend Kalman filter.
+"""Founder scoring with a calibrated observation boundary and Kalman filter.
 
-The A scorer remains authoritative. C's payload shapes and contradiction references
-are accepted at the observation boundary, while raw sourcing events remain ignored.
+Builder A's local-linear-trend filter remains authoritative. Builder C's green-flag
+calibration, payload shapes, proof weighting, and contradiction references are
+integrated at the event-to-observation boundary.
 """
 
 from __future__ import annotations
@@ -25,30 +26,52 @@ _OBSERVATION_KINDS = {
     EventKind.PROOF_ARTIFACT,
     EventKind.PROOF_BEHAVIOR,
 }
+OBSERVATION_KINDS = tuple(_OBSERVATION_KINDS)
+
+# A's source weighting remains the baseline. C's proof-kind multiplier makes
+# verified behavioral evidence materially less noisy without rewarding raw volume.
 _SOURCE_PENALTY = {
-    Source.PROOF_PROTOCOL: 0.5,
-    Source.VALIDATOR: 0.8,
-    Source.GITHUB: 1.0,
-    Source.ARXIV: 1.0,
-    Source.MANUAL: 1.0,
-    Source.HN: 1.2,
-    Source.WEB: 1.4,
-    Source.DECK: 1.6,
+    Source.PROOF_PROTOCOL: 0.15,
+    Source.VALIDATOR: 0.6,
+    Source.GITHUB: 0.6,
+    Source.ARXIV: 0.7,
+    Source.MANUAL: 1.2,
+    Source.HN: 0.9,
+    Source.WEB: 1.0,
+    Source.DECK: 2.0,
+}
+SOURCE_PENALTY = _SOURCE_PENALTY
+KIND_NOISE = {
+    EventKind.GREEN_FLAG: 1.0,
+    EventKind.PROOF_ARTIFACT: 0.2,
+    EventKind.PROOF_BEHAVIOR: 0.2,
 }
 
 MU0 = 0.5
 R0 = 0.08
-P0 = (0.25, 0.25)  # compatibility constants for C's calibration tests
+P0 = (0.25, 0.25)  # public compatibility constants for calibration diagnostics
 _X0 = np.array([MU0, 0.0])
 _P0 = np.array([[P0[0], 0.0], [0.0, P0[1]]])
-_H = np.array([[1.0, 0.0]])
+H = np.array([[1.0, 0.0]])
+_H = H
 _DAYS_PER_YEAR = 365.25
 _CLAIM_REF_KEYS = ("claim_id", "claim_ids", "supporting_claim_ids", "supporting_claims")
+
+# Green-flag rates are sensor yes-rates, not capability scores. This monotone
+# calibration puts them on the same scale as the other observations while retaining
+# the raw event payload and shrinking unknown evidence counts toward the cohort prior.
+RATE_MID = 0.30
+RATE_SLOPE = 8.0
+# Keep calibration on the capability scale without inflating a high raw signal;
+# this preserves the anti-volume invariant for repeated evidence.
+SCORE_FLOOR, SCORE_CEIL = 0.12, 0.80
+RATE_PRIOR = 0.26
+SHRINK_K = 8.0
 
 
 @dataclass(frozen=True)
 class Observation:
-    """Compatibility view used by C's diagnostics; A uses SchemaObservation."""
+    """Compatibility view used by C diagnostics; A uses ``SchemaObservation``."""
 
     event_id: UUID
     observed_at: datetime
@@ -115,6 +138,26 @@ def contradicted_claim_ids(as_of: datetime) -> set[UUID]:
     return out
 
 
+def calibrate(rate: float, n_flags: int = 0) -> float:
+    """Map a weighted green-flag yes-rate monotonically to capability scale."""
+    try:
+        count = int(n_flags)
+    except (TypeError, ValueError):
+        count = 0
+    n = count if count > 0 else int(SHRINK_K)
+    shrunk = (float(rate) * n + RATE_PRIOR * SHRINK_K) / (n + SHRINK_K)
+    squashed = 1.0 / (1.0 + float(np.exp(-RATE_SLOPE * (shrunk - RATE_MID))))
+    return float(SCORE_FLOOR + squashed * (SCORE_CEIL - SCORE_FLOOR))
+
+
+def _flag_count(payload: dict) -> int:
+    flags = payload.get("flags")
+    if isinstance(flags, list):
+        return len(flags)
+    count = payload.get("n_flags") or payload.get("evaluated")
+    return int(count) if isinstance(count, (int, float)) and not isinstance(count, bool) else 0
+
+
 def _derive_y(payload: dict) -> float | None:
     for key in ("value", "y", "yes_rate", "score"):
         value = payload.get(key)
@@ -127,7 +170,11 @@ def _derive_y(payload: dict) -> float | None:
             if not isinstance(flag, dict):
                 continue
             weight = flag.get("weight", 1.0)
-            weight = float(weight) if isinstance(weight, (int, float)) else 1.0
+            weight = (
+                float(weight)
+                if isinstance(weight, (int, float)) and not isinstance(weight, bool)
+                else 1.0
+            )
             denominator += weight
             numerator += weight if bool(flag.get("fired")) else 0.0
         if denominator:
@@ -137,11 +184,26 @@ def _derive_y(payload: dict) -> float | None:
     return None
 
 
+def _source_penalty(event: Event, payload: dict) -> float:
+    value = payload.get("source_penalty", _SOURCE_PENALTY.get(event.source, 1.0))
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 1.0
+
+
+def _kind_noise(event: Event) -> float:
+    return KIND_NOISE.get(event.kind, 1.0)
+
+
 def _noise(event: Event, payload: dict) -> float:
     consistency = payload.get("self_consistency", event.confidence)
+    consistency = (
+        float(consistency)
+        if isinstance(consistency, (int, float)) and not isinstance(consistency, bool)
+        else 1.0
+    )
     consistency = float(np.clip(consistency, 0.05, 1.0))
-    penalty = float(payload.get("source_penalty", _SOURCE_PENALTY.get(event.source, 1.0)))
-    return max(_params()[1] / consistency * penalty, 1e-6)
+    return max(
+        _params()[1] / consistency * _source_penalty(event, payload) * _kind_noise(event), 1e-6
+    )
 
 
 def _observation_from_event(event: Event, entity_id: UUID) -> SchemaObservation | None:
@@ -149,11 +211,23 @@ def _observation_from_event(event: Event, entity_id: UUID) -> SchemaObservation 
     value = _derive_y(payload)
     if value is None:
         return None
-    consistency = float(np.clip(payload.get("self_consistency", event.confidence), 0.05, 1.0))
-    penalty = float(payload.get("source_penalty", _SOURCE_PENALTY.get(event.source, 1.0)))
+    if event.kind == EventKind.GREEN_FLAG:
+        value = calibrate(value, _flag_count(payload))
+    consistency = payload.get("self_consistency", event.confidence)
+    consistency = (
+        float(consistency)
+        if isinstance(consistency, (int, float)) and not isinstance(consistency, bool)
+        else 1.0
+    )
+    consistency = float(np.clip(consistency, 0.05, 1.0))
+    penalty = _source_penalty(event, payload) * _kind_noise(event)
     rule_ids = payload.get("rule_ids")
-    if rule_ids is None:
-        rule_ids = [str(payload["rule_id"])] if "rule_id" in payload else []
+    if isinstance(rule_ids, (list, tuple)):
+        normalized_rule_ids = [str(rule_id) for rule_id in rule_ids]
+    elif rule_ids is None:
+        normalized_rule_ids = [str(payload["rule_id"])] if "rule_id" in payload else []
+    else:
+        normalized_rule_ids = [str(rule_ids)]
     return SchemaObservation(
         entity_id=entity_id,
         observed_at=event.observed_at,
@@ -161,14 +235,14 @@ def _observation_from_event(event: Event, entity_id: UUID) -> SchemaObservation 
         self_consistency=consistency,
         source_penalty=penalty,
         event_ids=[event.event_id],
-        rule_ids=[str(rule_id) for rule_id in rule_ids],
+        rule_ids=normalized_rule_ids,
     )
 
 
 def build_observations(entity_id: UUID, as_of: datetime) -> list[SchemaObservation]:
     contradicted_events = queries.contradicted_event_ids(entity_id, as_of)
     contradicted_claims = contradicted_claim_ids(as_of)
-    observations: list[SchemaObservation] = []
+    observations_for_entity: list[SchemaObservation] = []
     for event in store.get_store().events(entity_id=entity_id, as_of=as_of):
         if event.kind not in _OBSERVATION_KINDS:
             continue
@@ -181,15 +255,35 @@ def build_observations(entity_id: UUID, as_of: datetime) -> list[SchemaObservati
             )
             continue
         if observation := _observation_from_event(event, entity_id):
-            observations.append(observation)
+            observations_for_entity.append(observation)
         else:
             log.debug("score: unrecognised payload shape on %s (%s)", event.event_id, event.kind)
-    observations.sort(key=lambda item: (item.observed_at, str(item.event_ids[0])))
-    return observations
+    observations_for_entity.sort(key=lambda item: (item.observed_at, str(item.event_ids[0])))
+
+    # Exact duplicate evidence at one world-time is one measurement, not N votes.
+    # Keep all event IDs so the score remains auditable and receipts are lossless.
+    deduplicated: list[SchemaObservation] = []
+    for observation in observations_for_entity:
+        if deduplicated:
+            previous = deduplicated[-1]
+            same_measurement = (
+                previous.observed_at == observation.observed_at
+                and previous.value == observation.value
+                and previous.self_consistency == observation.self_consistency
+                and previous.source_penalty == observation.source_penalty
+                and previous.rule_ids == observation.rule_ids
+            )
+            if same_measurement:
+                deduplicated[-1] = previous.model_copy(
+                    update={"event_ids": [*previous.event_ids, *observation.event_ids]}
+                )
+                continue
+        deduplicated.append(observation)
+    return deduplicated
 
 
 def observations(entity_id: UUID, as_of: datetime) -> ObservationSet:
-    """C-compatible diagnostic view over the shared A observation boundary."""
+    """C-compatible diagnostic view over A's shared observation boundary."""
     kept_schema = build_observations(entity_id, as_of)
     kept_ids = {event_id for item in kept_schema for event_id in item.event_ids}
     kept = [
@@ -226,14 +320,11 @@ def _run_filter(entity_id: UUID, as_of: datetime) -> tuple[np.ndarray, np.ndarra
     last_t: datetime | None = None
     for observation in observations_for_entity:
         if last_t is not None:
-            transition = _F(_dt_years(observation.observed_at, last_t))
+            dt_years = _dt_years(observation.observed_at, last_t)
+            transition = _F(dt_years)
             x = transition @ x
-            covariance = transition @ covariance @ transition.T + _Q(
-                _dt_years(observation.observed_at, last_t), q
-            )
-        measurement_noise = max(
-            _params()[1] / observation.self_consistency * observation.source_penalty, 1e-6
-        )
+            covariance = transition @ covariance @ transition.T + _Q(dt_years, q)
+        measurement_noise = _noise_for_schema(observation)
         innovation = (_H @ covariance @ _H.T).item() + measurement_noise
         gain = (covariance @ _H.T) / innovation
         residual = observation.value - (_H @ x).item()
@@ -259,7 +350,7 @@ def founder(entity_id: UUID, as_of: datetime) -> FounderScore:
     return FounderScore(
         entity_id=entity_id,
         as_of=as_of,
-        mu=float(state[0]),
+        mu=float(np.clip(state[0], 0.0, 1.0)),
         band=float(np.sqrt(max(covariance[0, 0], 0.0))),
         trend=float(state[1]),
         contributing_event_ids=contributing,
@@ -270,7 +361,8 @@ def founder(entity_id: UUID, as_of: datetime) -> FounderScore:
 def forecast(entity_id: UUID, as_of: datetime, k_days: int) -> tuple[float, float]:
     q, _ = _params()
     state, covariance, _ = _run_filter(entity_id, as_of)
-    transition = _F(float(k_days) / _DAYS_PER_YEAR)
+    dt_years = float(k_days) / _DAYS_PER_YEAR
+    transition = _F(dt_years)
     state = transition @ state
-    covariance = transition @ covariance @ transition.T + _Q(float(k_days) / _DAYS_PER_YEAR, q)
-    return float(state[0]), float(np.sqrt(max(covariance[0, 0], 0.0)))
+    covariance = transition @ covariance @ transition.T + _Q(dt_years, q)
+    return float(np.clip(state[0], 0.0, 1.0)), float(np.sqrt(max(covariance[0, 0], 0.0)))

@@ -56,9 +56,11 @@ def get_company(company_id: str, as_of: datetime | None = None) -> dict:
         if detail is None:
             raise HTTPException(404, f"unknown company: {company_id}")
 
+    cutoff = resolve_as_of(as_of)
+    detail = _normalize_detail(detail, company_id, cutoff)
+
     # Overlay the live score so the detail page shows what the filter actually
     # computed rather than a number frozen into the fixture.
-    cutoff = resolve_as_of(as_of)
     cid = company_uuid(company_id) or as_uuid(detail.get("company_id"))
     if cid:
         detail["company_id"] = str(cid)
@@ -78,6 +80,104 @@ def get_company(company_id: str, as_of: datetime | None = None) -> dict:
         except Exception:  # noqa: BLE001 - a fixture detail page still beats a 500
             pass
     return detail
+
+
+def _normalize_detail(detail: dict, company_id: str, cutoff) -> dict:
+    """Emit the client's CompanyDetail contract instead of the fixture's own shape.
+
+    The detail payload disagreed with the list on three things at once: axes came back
+    0..1 where the list sends 0..100, `gate` was an object where the list sends a
+    string, and `events[]` was absent entirely. The dashboard papered over all of it in
+    app/lib/adapt.ts. An adapter that translates between two of our own endpoints is a
+    bug with a shim on top, so the translation belongs here, once.
+    """
+    from api.main import _ranked_row
+
+    out = dict(detail)
+
+    # Same builder as the ranked list, so the two endpoints cannot drift again.
+    # Resolved to a UUID first: _ranked_row looks the founder up by id, and handing it
+    # a slug silently produced no live axis, so the fixture's authored score won and
+    # the detail page disagreed with the list it was reached from.
+    cid = company_uuid(company_id)
+    row = {
+        "company_id": str(cid) if cid else out.get("company_id"),
+        "name": out.get("name"),
+        "archetype": out.get("archetype"),
+    }
+    try:
+        summary = _ranked_row(row, cutoff)
+        out |= {k: summary[k] for k in summary if k not in ("axes",)}
+        merged = dict(summary.get("axes") or {})
+        for name, axis in (out.get("axes") or {}).items():
+            if name not in merged and isinstance(axis, dict):
+                merged[name] = _axis_to_client(axis)
+        out["axes"] = merged
+    except Exception:  # noqa: BLE001 - a detail page still beats a 500
+        out["axes"] = {
+            k: _axis_to_client(v) for k, v in (out.get("axes") or {}).items() if isinstance(v, dict)
+        }
+
+    gate = detail.get("gate")
+    out["gate"] = gate.get("outcome") if isinstance(gate, dict) else gate
+    out["gate_rationale"] = gate.get("rationale") if isinstance(gate, dict) else None
+
+    out.setdefault("events", _events_for(company_id, cutoff))
+    out.setdefault("claims", [])
+    out.setdefault("integrity", _integrity_for(company_id, cutoff))
+    out.setdefault("proof_protocol", None)
+    out.setdefault("entity_resolution_note", None)
+    return out
+
+
+def _axis_to_client(axis: dict) -> dict:
+    """Fixture axes are authored 0..1; the client's Axis is 0..100 in score units."""
+    scale = (
+        (lambda v: None if v is None else round(float(v) * 100, 1))
+        if (isinstance(axis.get("score"), (int, float)) and axis["score"] <= 1.0)
+        else (lambda v: v)
+    )
+    return {
+        **axis,
+        "score": scale(axis.get("score")),
+        "band": scale(axis.get("band")),
+        "trend": scale(axis.get("trend")),
+        "evidence_event_ids": axis.get("evidence_event_ids")
+        or [str(e.get("event_ref") or "") for e in (axis.get("evidence") or [])],
+    }
+
+
+def _events_for(company_id: str, cutoff) -> list[dict]:
+    from memory import store
+
+    cid = company_uuid(company_id)
+    if cid is None:
+        return []
+    return [
+        {
+            "event_id": str(e.event_id),
+            "kind": str(e.kind),
+            "source": str(e.source),
+            "observed_at": e.observed_at.isoformat(),
+            "evidence_span": e.evidence_span,
+            "quoted_span": e.evidence_span,
+            "source_url": e.source_url,
+            "confidence": e.confidence,
+            "integrity_flags": e.integrity_flags,
+        }
+        for e in sorted(
+            store.events(as_of=cutoff, company_id=cid), key=lambda e: e.observed_at, reverse=True
+        )[:80]
+    ]
+
+
+def _integrity_for(company_id: str, cutoff) -> list[dict]:
+    """Surfaced, never silent — a provenance note the founder should not be punished for."""
+    return [
+        {"flag": f, "event_id": e["event_id"], "evidence_span": e.get("quoted_span")}
+        for e in _events_for(company_id, cutoff)
+        for f in (e.get("integrity_flags") or [])
+    ]
 
 
 def _detail_from_store(company_id: str, slug: str) -> dict | None:

@@ -105,7 +105,17 @@ def client() -> TestClient:
 
 
 def test_health(client: TestClient) -> None:
-    assert client.get("/health").json() == {"ok": True}
+    """Liveness, plus the diagnostics that exist so quiet degradations are visible.
+
+    Asserted by invariant rather than by exact shape: /health is deliberately the
+    place new warnings get added, and pinning it to an exact dict makes every such
+    addition look like a regression.
+    """
+    body = client.get("/health").json()
+    assert body["ok"] is True
+    assert "github_authenticated" in body
+    # The check must never be the thing that takes health down.
+    assert client.get("/health").status_code == 200
 
 
 @pytest.mark.parametrize(

@@ -152,3 +152,36 @@ def test_unknown_provenance_is_not_treated_as_a_mismatch() -> None:
 
     attest.reset()
     assert attest.challenge_belongs_to("never-issued", uuid4()) is None
+
+
+# --- 5. a transliterated name must not void a founder's evidence --------------
+
+
+def test_provenance_flags_do_not_disqualify_evidence() -> None:
+    """The Type 6 failure, caught in code rather than on stage.
+
+    Every event belonging to a non-Latin-script founder carries `transliterated_name`.
+    Excluding any event with ANY integrity flag therefore voided their entire evidence
+    base: all three scored at the untouched prior, which reads as "average founder"
+    rather than "we could not read this". The system built to find founders others
+    cannot see was blind to precisely them.
+    """
+    from intelligence.flags import IMPEACHING_FLAGS
+
+    # Provenance notes — they belong in the memo and the trace, never in a decision
+    # to ignore the evidence.
+    for annotation in (
+        "transliterated_name",
+        "non_english_source",
+        "date_inferred",
+        "ocr_low_conf",
+        "low_visibility",
+    ):
+        assert annotation not in IMPEACHING_FLAGS, (
+            f"{annotation!r} describes where evidence came from, not whether it can be "
+            "trusted — treating it as disqualifying silently penalises exactly the "
+            "founders this thesis exists to find"
+        )
+
+    # Tampered content genuinely cannot be trusted.
+    assert "injection_stripped" in IMPEACHING_FLAGS
