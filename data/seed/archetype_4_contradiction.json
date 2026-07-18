@@ -15,7 +15,10 @@
           "key": "cx-arcwell-founder",
           "name": "Ruben Castellanos",
           "name_normalized": "ruben castellanos",
-          "handles": {"github": "rcastellanos", "hn": "rcastell"}
+          "handles": {
+            "github": "rcastellanos",
+            "hn": "rcastell"
+          }
         }
       ],
       "events": [
@@ -24,7 +27,15 @@
           "source": "github",
           "source_url": "https://github.com/arcwell-data/arcwell/commits/main",
           "observed_at": "2024-06-18T09:00:00+00:00",
-          "payload": {"repo": "arcwell-data/arcwell", "commits_30d": 29, "files_touched": 17, "net_lines": 1840, "topic": "point-in-time correct feature joins"},
+          "payload": {
+            "repo": "arcwell-data/arcwell",
+            "commits_30d": 29,
+            "files_touched": 17,
+            "net_lines": 1840,
+            "topic": "point-in-time correct feature joins",
+            "stars": 150,
+            "role": "owner"
+          },
           "evidence_span": "commit 2f81ba0 \"as-of joins: never leak a feature value observed after the label\"",
           "confidence": 0.92
         },
@@ -33,7 +44,12 @@
           "source": "github",
           "source_url": "https://github.com/arcwell-data/arcwell/releases/tag/v0.2.0",
           "observed_at": "2024-11-07T12:00:00+00:00",
-          "payload": {"repo": "arcwell-data/arcwell", "tag": "v0.2.0", "changelog_entries": 15, "downloads_90d": 4100},
+          "payload": {
+            "repo": "arcwell-data/arcwell",
+            "tag": "v0.2.0",
+            "changelog_entries": 15,
+            "downloads_90d": 4100
+          },
           "evidence_span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"",
           "confidence": 0.95
         },
@@ -42,7 +58,14 @@
           "source": "deck",
           "source_url": "deck://arcwell-seed-2025.pdf#slide=6",
           "observed_at": "2025-03-12T00:00:00+00:00",
-          "payload": {"claim": "$40K ARR across 6 paying customers", "claim_type": "revenue", "amount_usd": 40000, "customers": 6, "slide": 6, "self_published": true},
+          "payload": {
+            "claim": "$40K ARR across 6 paying customers",
+            "claim_type": "revenue",
+            "amount_usd": 40000,
+            "customers": 6,
+            "slide": 6,
+            "self_published": true
+          },
           "evidence_span": "slide 6: \"$40K ARR, 6 paying customers, 0% logo churn since January\"",
           "confidence": 0.98
         },
@@ -51,7 +74,12 @@
           "source": "deck",
           "source_url": "deck://arcwell-seed-2025.pdf#slide=7",
           "observed_at": "2025-03-12T00:00:00+00:00",
-          "payload": {"claim": "net revenue retention of 140% over the last two quarters", "claim_type": "revenue", "slide": 7, "self_published": true},
+          "payload": {
+            "claim": "net revenue retention of 140% over the last two quarters",
+            "claim_type": "revenue",
+            "slide": 7,
+            "self_published": true
+          },
           "evidence_span": "slide 7: \"140% NRR over the last two quarters\"",
           "confidence": 0.94
         },
@@ -60,7 +88,13 @@
           "source": "hn",
           "source_url": "https://news.ycombinator.com/item?id=43790112",
           "observed_at": "2025-05-02T17:45:00+00:00",
-          "payload": {"parent_title": "Ask HN: founders, when did you start charging?", "points": 38, "independent_source": true, "self_published": false, "author_handle": "rcastell"},
+          "payload": {
+            "parent_title": "Ask HN: founders, when did you start charging?",
+            "points": 38,
+            "independent_source": true,
+            "self_published": false,
+            "author_handle": "rcastell"
+          },
           "evidence_span": "\"We are still pre-revenue. Everyone on Arcwell today is on a free design-partner agreement and we have not turned billing on.\"",
           "confidence": 0.93
         },
@@ -69,7 +103,13 @@
           "source": "hn",
           "source_url": "https://news.ycombinator.com/item?id=43790450",
           "observed_at": "2025-05-02T19:10:00+00:00",
-          "payload": {"parent_title": "Ask HN: founders, when did you start charging?", "points": 12, "independent_source": true, "self_published": false, "author_handle": "rcastell"},
+          "payload": {
+            "parent_title": "Ask HN: founders, when did you start charging?",
+            "points": 12,
+            "independent_source": true,
+            "self_published": false,
+            "author_handle": "rcastell"
+          },
           "evidence_span": "\"To be precise: six design partners, zero invoices sent. Pricing page goes up when the usage metering is trustworthy.\"",
           "confidence": 0.91
         }
@@ -87,7 +127,10 @@
           "key": "cx-tallwind-founder",
           "name": "Saoirse Lindqvist",
           "name_normalized": "saoirse lindqvist",
-          "handles": {"github": "slindqvist", "hn": "saoirsel"}
+          "handles": {
+            "github": "slindqvist",
+            "hn": "saoirsel"
+          }
         }
       ],
       "events": [
@@ -96,7 +139,15 @@
           "source": "github",
           "source_url": "https://github.com/tallwind/meterkit/commits/main",
           "observed_at": "2024-07-09T09:00:00+00:00",
-          "payload": {"repo": "tallwind/meterkit", "commits_30d": 34, "files_touched": 19, "net_lines": 2100, "topic": "idempotent usage event ingestion"},
+          "payload": {
+            "repo": "tallwind/meterkit",
+            "commits_30d": 34,
+            "files_touched": 19,
+            "net_lines": 2100,
+            "topic": "idempotent usage event ingestion",
+            "stars": 90,
+            "role": "owner"
+          },
           "evidence_span": "commit 6b0a3fd \"dedupe on (tenant, idempotency_key); double-billing is unrecoverable trust damage\"",
           "confidence": 0.92
         },
@@ -105,7 +156,13 @@
           "source": "hn",
           "source_url": "https://news.ycombinator.com/item?id=42610338",
           "observed_at": "2025-01-08T16:25:00+00:00",
-          "payload": {"parent_title": "Ask HN: what are you working on in 2025?", "points": 44, "independent_source": true, "self_published": false, "author_handle": "saoirsel"},
+          "payload": {
+            "parent_title": "Ask HN: what are you working on in 2025?",
+            "points": 44,
+            "independent_source": true,
+            "self_published": false,
+            "author_handle": "saoirsel"
+          },
           "evidence_span": "\"Tallwind is pre-revenue right now. Four design partners, no billing turned on, planning to charge from Q1.\"",
           "confidence": 0.94
         },
@@ -114,7 +171,12 @@
           "source": "github",
           "source_url": "https://github.com/tallwind/meterkit/releases/tag/v0.4.0",
           "observed_at": "2025-01-28T11:00:00+00:00",
-          "payload": {"repo": "tallwind/meterkit", "tag": "v0.4.0", "changelog_entries": 21, "downloads_90d": 7800},
+          "payload": {
+            "repo": "tallwind/meterkit",
+            "tag": "v0.4.0",
+            "changelog_entries": 21,
+            "downloads_90d": 7800
+          },
           "evidence_span": "v0.4.0 — \"metering reconciliation report; the number you bill is now provable from raw events\"",
           "confidence": 0.95
         },
@@ -123,7 +185,14 @@
           "source": "deck",
           "source_url": "deck://tallwind-seed-2025.pdf#slide=5",
           "observed_at": "2025-03-10T00:00:00+00:00",
-          "payload": {"claim": "$40K ARR across 5 paying customers", "claim_type": "revenue", "amount_usd": 40000, "customers": 5, "slide": 5, "self_published": true},
+          "payload": {
+            "claim": "$40K ARR across 5 paying customers",
+            "claim_type": "revenue",
+            "amount_usd": 40000,
+            "customers": 5,
+            "slide": 5,
+            "self_published": true
+          },
           "evidence_span": "slide 5: \"$40K ARR, 5 paying customers, first invoice sent 2025-02-03\"",
           "confidence": 0.97
         },
@@ -132,7 +201,12 @@
           "source": "deck",
           "source_url": "deck://tallwind-seed-2025.pdf#slide=6",
           "observed_at": "2025-03-10T00:00:00+00:00",
-          "payload": {"claim": "converted 4 of 4 design partners to paid contracts in February", "claim_type": "traction", "slide": 6, "self_published": true},
+          "payload": {
+            "claim": "converted 4 of 4 design partners to paid contracts in February",
+            "claim_type": "traction",
+            "slide": 6,
+            "self_published": true
+          },
           "evidence_span": "slide 6: \"4/4 design partners converted to paid in February; 5th customer inbound\"",
           "confidence": 0.93
         },
@@ -141,7 +215,13 @@
           "source": "hn",
           "source_url": "https://news.ycombinator.com/item?id=43411029",
           "observed_at": "2025-03-21T13:40:00+00:00",
-          "payload": {"title": "We turned billing on and immediately found three metering bugs", "points": 197, "comments": 74, "independent_source": true, "self_published": false},
+          "payload": {
+            "title": "We turned billing on and immediately found three metering bugs",
+            "points": 197,
+            "comments": 74,
+            "independent_source": true,
+            "self_published": false
+          },
           "evidence_span": "\"Six weeks of invoices in. Three metering bugs, all in our favour, all refunded. Here is the reconciliation query we should have shipped first.\"",
           "confidence": 0.95
         }

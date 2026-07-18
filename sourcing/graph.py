@@ -36,7 +36,22 @@ log = logging.getLogger(__name__)
 # Breakout founders to seed personalized PageRank on. Names or handles; matched against
 # entity display_name / name_normalized. D: extend this list — it is the only knob that
 # decides what "proximity to greatness" points at.
-SEED_FOUNDERS: list[str] = []
+# Founders with a demonstrated track record, used to personalize the walk. Proximity
+# is measured TO these people, so leaving the list empty was not a neutral default:
+# PPR fell back to top-degree hubs and "proximity to greatness" quietly became
+# "proximity to whoever is most connected", which is the visibility proxy this
+# system exists to avoid.
+#
+# In the seeded corpus the demonstrated successes are the visible builders and the
+# serial founders whose prior company shipped. On real data this becomes the funded
+# outcomes — a founder we backed who worked out is added here, which is how the
+# channels learn quality rather than volume.
+SEED_FOUNDERS: list[str] = [
+    "Marisol Ferreira",
+    "Devon Achterberg",
+    "Ingrid Solberg",
+    "Nkechi Obiora",
+]
 
 # Relative edge strength. Co-authorship and co-commit are deliberate collaboration;
 # a shared thread is weak evidence and must not dominate the walk.
@@ -285,7 +300,13 @@ def hidden_ranking(as_of: datetime, k: int = 50) -> list[HiddenCandidate]:
     )
     ppr = nx.pagerank(g, personalization=personalization, weight="weight")
 
-    nodes = list(g.nodes)
+    # Seeds are the reference points, not discoveries — you cannot surface someone you
+    # personalized the walk on. Leaving them in put a seed founder at the top of the
+    # hidden ranking, which reads as the system rediscovering its own inputs.
+    # Excluded from the OUTPUT only: they stay in the graph, because the diffusion
+    # to everyone else flows through them.
+    seeds = {v for v, mass in personalization.items() if mass}
+    nodes = [v for v in g.nodes if v not in seeds] or list(g.nodes)
     z_ppr = _z(np.array([ppr[v] for v in nodes]))
     z_vis = _z(np.array([g.nodes[v]["visibility"] for v in nodes]))
 

@@ -16,8 +16,14 @@
           "name_native": "Ксения Морозова",
           "script": "Cyrillic",
           "name_normalized": "kseniya morozova",
-          "romanization_variants": ["Ksenia Morozova", "Kseniia Morozova", "Xenia Morozova"],
-          "handles": {"github": "kmorozova-dev"},
+          "romanization_variants": [
+            "Ksenia Morozova",
+            "Kseniia Morozova",
+            "Xenia Morozova"
+          ],
+          "handles": {
+            "github": "kmorozova-dev"
+          },
           "affiliation_note": "Institution recorded as a neutral biographical fact. Excluded from every scoring input per Invariant #3.",
           "institution_native": "Иркутский региональный технический институт",
           "institution": "Irkutsk Regional Technical Institute"
@@ -29,70 +35,170 @@
           "source": "github",
           "source_url": "https://github.com/kmorozova-dev/sparsekern/commits/main",
           "observed_at": "2023-08-21T07:30:00+00:00",
-          "payload": {"repo": "kmorozova-dev/sparsekern", "commits_30d": 37, "files_touched": 14, "net_lines": 2600, "stars": 11, "topic": "block-sparse attention kernel targeting 8GB VRAM"},
+          "payload": {
+            "repo": "kmorozova-dev/sparsekern",
+            "commits_30d": 37,
+            "files_touched": 14,
+            "net_lines": 2600,
+            "stars": 11,
+            "topic": "block-sparse attention kernel targeting 8GB VRAM",
+            "role": "owner"
+          },
           "evidence_span": "commit c81b204 \"blocksparse: tile so the working set fits 8GB; the point is the cheap card\"",
           "confidence": 0.9,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "paper",
           "source": "arxiv",
           "source_url": "https://cyberleninka.ru/article/n/blochno-razrezhennoe-vnimanie-na-potrebitelskih-gpu",
           "observed_at": "2024-02-14T00:00:00+00:00",
-          "payload": {"title_native": "Блочно-разреженное внимание на потребительских GPU", "title": "Block-sparse attention on consumer GPUs", "language": "ru", "venue": "regional journal, not indexed in English-language databases", "citations": 3},
+          "payload": {
+            "title_native": "Блочно-разреженное внимание на потребительских GPU",
+            "title": "Block-sparse attention on consumer GPUs",
+            "language": "ru",
+            "venue": "regional journal, not indexed in English-language databases",
+            "citations": 3
+          },
           "evidence_span": "\"Мы показываем снижение потребления памяти на 61% при потере качества менее 1% на последовательностях до 32k токенов.\" (\"We show a 61% memory reduction with under 1% quality loss at sequence lengths up to 32k.\")",
           "confidence": 0.88,
-          "integrity_flags": ["transliterated_name", "non_english_source"]
+          "integrity_flags": [
+            "transliterated_name",
+            "non_english_source"
+          ]
         },
         {
           "kind": "repo_activity",
           "source": "github",
           "source_url": "https://github.com/kmorozova-dev/sparsekern/commits/main",
           "observed_at": "2024-05-30T08:00:00+00:00",
-          "payload": {"repo": "kmorozova-dev/sparsekern", "commits_30d": 44, "files_touched": 21, "net_lines": 3300, "stars": 38, "topic": "autotuner for block size per GPU SKU"},
+          "payload": {
+            "repo": "kmorozova-dev/sparsekern",
+            "commits_30d": 44,
+            "files_touched": 21,
+            "net_lines": 3300,
+            "stars": 38,
+            "topic": "autotuner for block size per GPU SKU",
+            "role": "owner"
+          },
           "evidence_span": "commit 71ae09f \"autotune: measured on 1650/3060/4060, table committed, not inferred\"",
           "confidence": 0.9,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "release",
           "source": "github",
           "source_url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.3.0",
           "observed_at": "2024-09-12T09:20:00+00:00",
-          "payload": {"repo": "kmorozova-dev/sparsekern", "tag": "v0.3.0", "changelog_entries": 18, "stars": 96, "downloads_90d": 2400},
+          "payload": {
+            "repo": "kmorozova-dev/sparsekern",
+            "tag": "v0.3.0",
+            "changelog_entries": 18,
+            "stars": 96,
+            "downloads_90d": 2400
+          },
           "evidence_span": "v0.3.0 — \"32k context on a 3060. Benchmarks reproduce with one script and no cluster.\"",
           "confidence": 0.94,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "profile_fact",
           "source": "web",
           "source_url": "https://habr.com/ru/articles/812934/",
           "observed_at": "2024-10-03T00:00:00+00:00",
-          "payload": {"fact_native": "Автор поддерживает библиотеку в одиночку два года", "fact": "Maintained the library alone for two years", "language": "ru", "platform": "Russian-language technical blog, no English mirror"},
+          "payload": {
+            "fact_native": "Автор поддерживает библиотеку в одиночку два года",
+            "fact": "Maintained the library alone for two years",
+            "language": "ru",
+            "platform": "Russian-language technical blog, no English mirror",
+            "followers": 24,
+            "karma": 9
+          },
           "evidence_span": "\"Два года я поддерживаю эту библиотеку одна. Задача не в том, чтобы обучать модели, а в том, чтобы их можно было запускать на том, что у людей уже есть.\"",
           "confidence": 0.86,
-          "integrity_flags": ["transliterated_name", "non_english_source"]
+          "integrity_flags": [
+            "transliterated_name",
+            "non_english_source"
+          ]
         },
         {
           "kind": "repo_activity",
           "source": "github",
           "source_url": "https://github.com/kmorozova-dev/sparsekern/commits/main",
           "observed_at": "2025-01-16T08:00:00+00:00",
-          "payload": {"repo": "kmorozova-dev/sparsekern", "commits_30d": 51, "files_touched": 27, "net_lines": 4100, "stars": 214, "external_contributors": 6, "topic": "quantized KV path"},
+          "payload": {
+            "repo": "kmorozova-dev/sparsekern",
+            "commits_30d": 51,
+            "files_touched": 27,
+            "net_lines": 4100,
+            "stars": 214,
+            "external_contributors": 6,
+            "topic": "quantized KV path",
+            "role": "owner"
+          },
           "evidence_span": "commit 3d0c8f5 \"int8 KV path: 32k context inside 8GB, accuracy delta table in bench/README\"",
           "confidence": 0.92,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/tensorpage/pagekv/commits?author=kmorozova-dev",
+          "observed_at": "2025-02-18T09:12:00+00:00",
+          "evidence_span": "14 commits to the block-table allocator over six weeks",
+          "integrity_flags": [
+            "transliterated_name"
+          ],
+          "payload": {
+            "repo": "tensorpage/pagekv",
+            "commits_30d": 14,
+            "files_touched": 9,
+            "net_lines": 820,
+            "topic": "eviction path rewrite",
+            "contributor_not_owner": true
+          }
+        },
+        {
+          "kind": "paper",
+          "source": "arxiv",
+          "source_url": "https://arxiv.org/abs/2503.00711",
+          "observed_at": "2025-03-02T00:00:00+00:00",
+          "evidence_span": "Fragmentation-Free KV Caching via Block Tables",
+          "integrity_flags": [
+            "transliterated_name"
+          ],
+          "payload": {
+            "title": "Fragmentation-Free KV Caching via Block Tables",
+            "arxiv_id": "2503.00711",
+            "author_position": 3
+          }
         },
         {
           "kind": "release",
           "source": "github",
           "source_url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.5.0",
           "observed_at": "2025-04-22T10:00:00+00:00",
-          "payload": {"repo": "kmorozova-dev/sparsekern", "tag": "v0.5.0", "changelog_entries": 30, "stars": 487, "downloads_90d": 19800, "dependent_repos": 63},
+          "payload": {
+            "repo": "kmorozova-dev/sparsekern",
+            "tag": "v0.5.0",
+            "changelog_entries": 30,
+            "stars": 487,
+            "downloads_90d": 19800,
+            "dependent_repos": 63
+          },
           "evidence_span": "v0.5.0 — \"int8 KV path stable. 63 dependent repos, most of them in languages I do not read.\"",
           "confidence": 0.94,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         }
       ]
     },
@@ -109,8 +215,13 @@
           "name_native": "अर्जुन देशपांडे",
           "script": "Devanagari",
           "name_normalized": "arjun deshpande",
-          "romanization_variants": ["Arjun Deshpaande", "Arjoon Deshpande"],
-          "handles": {"github": "adeshpande-tantu"},
+          "romanization_variants": [
+            "Arjun Deshpaande",
+            "Arjoon Deshpande"
+          ],
+          "handles": {
+            "github": "adeshpande-tantu"
+          },
           "affiliation_note": "Institution recorded as a neutral biographical fact. Excluded from every scoring input per Invariant #3.",
           "institution_native": "शासकीय अभियांत्रिकी महाविद्यालय, नागपुर",
           "institution": "Government Engineering College, Nagpur"
@@ -122,60 +233,132 @@
           "source": "github",
           "source_url": "https://github.com/adeshpande-tantu/tantu-sched/commits/main",
           "observed_at": "2023-11-09T05:40:00+00:00",
-          "payload": {"repo": "adeshpande-tantu/tantu-sched", "commits_30d": 31, "files_touched": 16, "net_lines": 2400, "stars": 6, "topic": "deadline-aware batch scheduler"},
+          "payload": {
+            "repo": "adeshpande-tantu/tantu-sched",
+            "commits_30d": 31,
+            "files_touched": 16,
+            "net_lines": 2400,
+            "stars": 6,
+            "topic": "deadline-aware batch scheduler",
+            "role": "owner"
+          },
           "evidence_span": "commit ba0917e \"schedule by deadline slack, not arrival order; starvation bound is provable\"",
           "confidence": 0.89,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "paper",
           "source": "arxiv",
           "source_url": "https://www.ijcaonline.org/archives/volume186/number12/tantu-deterministic-batching/",
           "observed_at": "2024-04-27T00:00:00+00:00",
-          "payload": {"title": "Deterministic Batching for Heterogeneous Inference Fleets", "language": "en", "venue": "regional conference proceedings, low citation index", "citations": 2},
+          "payload": {
+            "title": "Deterministic Batching for Heterogeneous Inference Fleets",
+            "language": "en",
+            "venue": "regional conference proceedings, low citation index",
+            "citations": 2
+          },
           "evidence_span": "\"Tail latency at p99.9 improves 4.1x versus arrival-order batching at identical throughput.\"",
           "confidence": 0.87,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "profile_fact",
           "source": "web",
           "source_url": "https://www.youtube.com/watch?v=tantu-mtg-marathi-2024",
           "observed_at": "2024-06-15T00:00:00+00:00",
-          "payload": {"fact_native": "नागपूर सिस्टिम्स मीटअप मध्ये सादरीकरण", "fact": "Presented at a regional systems meetup", "language": "mr", "attendance": 40, "english_coverage": "none"},
+          "payload": {
+            "fact_native": "नागपूर सिस्टिम्स मीटअप मध्ये सादरीकरण",
+            "fact": "Presented at a regional systems meetup",
+            "language": "mr",
+            "attendance": 40,
+            "english_coverage": "none",
+            "followers": 14,
+            "karma": 5
+          },
           "evidence_span": "Talk given in Marathi; no English transcript, no coverage outside the meetup's own channel.",
           "confidence": 0.8,
-          "integrity_flags": ["transliterated_name", "non_english_source"]
+          "integrity_flags": [
+            "transliterated_name",
+            "non_english_source"
+          ]
         },
         {
           "kind": "release",
           "source": "github",
           "source_url": "https://github.com/adeshpande-tantu/tantu-sched/releases/tag/v0.2.0",
           "observed_at": "2024-08-30T06:15:00+00:00",
-          "payload": {"repo": "adeshpande-tantu/tantu-sched", "tag": "v0.2.0", "changelog_entries": 14, "stars": 41},
+          "payload": {
+            "repo": "adeshpande-tantu/tantu-sched",
+            "tag": "v0.2.0",
+            "changelog_entries": 14,
+            "stars": 41
+          },
           "evidence_span": "v0.2.0 — \"deadline scheduling with a starvation proof in docs/proof.md\"",
           "confidence": 0.93,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "repo_activity",
           "source": "github",
           "source_url": "https://github.com/adeshpande-tantu/tantu-sched/commits/main",
           "observed_at": "2025-02-11T06:00:00+00:00",
-          "payload": {"repo": "adeshpande-tantu/tantu-sched", "commits_30d": 46, "files_touched": 24, "net_lines": 3500, "stars": 158, "external_contributors": 4, "topic": "preemption without losing partial batches"},
+          "payload": {
+            "repo": "adeshpande-tantu/tantu-sched",
+            "commits_30d": 46,
+            "files_touched": 24,
+            "net_lines": 3500,
+            "stars": 158,
+            "external_contributors": 4,
+            "topic": "preemption without losing partial batches",
+            "role": "owner"
+          },
           "evidence_span": "commit 5f28ad1 \"preempt: checkpoint partial batch state so eviction costs microseconds, not a rerun\"",
           "confidence": 0.91,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/quillstack/qs-trace/commits?author=adeshpande",
+          "observed_at": "2025-05-06T11:40:00+00:00",
+          "evidence_span": "9 commits to the span-sampling path",
+          "integrity_flags": [
+            "transliterated_name"
+          ],
+          "payload": {
+            "repo": "quillstack/qs-trace",
+            "commits_30d": 9,
+            "files_touched": 6,
+            "net_lines": 430,
+            "topic": "sampler backpressure",
+            "contributor_not_owner": true
+          }
         },
         {
           "kind": "release",
           "source": "github",
           "source_url": "https://github.com/adeshpande-tantu/tantu-sched/releases/tag/v0.4.0",
           "observed_at": "2025-05-08T07:00:00+00:00",
-          "payload": {"repo": "adeshpande-tantu/tantu-sched", "tag": "v0.4.0", "changelog_entries": 25, "stars": 302, "dependent_repos": 29},
+          "payload": {
+            "repo": "adeshpande-tantu/tantu-sched",
+            "tag": "v0.4.0",
+            "changelog_entries": 25,
+            "stars": 302,
+            "dependent_repos": 29
+          },
           "evidence_span": "v0.4.0 — \"preemptible batches. Two operators running this in production, neither of them wrote about it.\"",
           "confidence": 0.93,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         }
       ]
     },
@@ -192,8 +375,14 @@
           "name_native": "陈慕云",
           "script": "Han",
           "name_normalized": "chen muyun",
-          "romanization_variants": ["Muyun Chen", "Chen Mu-yun", "Chen Mu Yun"],
-          "handles": {"github": "muyun-c"},
+          "romanization_variants": [
+            "Muyun Chen",
+            "Chen Mu-yun",
+            "Chen Mu Yun"
+          ],
+          "handles": {
+            "github": "muyun-c"
+          },
           "affiliation_note": "Institution recorded as a neutral biographical fact. Excluded from every scoring input per Invariant #3.",
           "institution_native": "兰州理工大学",
           "institution": "Lanzhou University of Technology"
@@ -205,60 +394,134 @@
           "source": "github",
           "source_url": "https://github.com/muyun-c/xiliu/commits/main",
           "observed_at": "2023-12-18T02:10:00+00:00",
-          "payload": {"repo": "muyun-c/xiliu", "commits_30d": 28, "files_touched": 12, "net_lines": 1900, "stars": 4, "topic": "speculative decoding with a swappable draft model"},
+          "payload": {
+            "repo": "muyun-c/xiliu",
+            "commits_30d": 28,
+            "files_touched": 12,
+            "net_lines": 1900,
+            "stars": 4,
+            "topic": "speculative decoding with a swappable draft model",
+            "role": "owner"
+          },
           "evidence_span": "commit 9c02bd7 \"draft model is a runtime argument, not a build-time constant\"",
           "confidence": 0.88,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "profile_fact",
           "source": "web",
           "source_url": "https://zhuanlan.zhihu.com/p/678451209",
           "observed_at": "2024-03-08T00:00:00+00:00",
-          "payload": {"fact_native": "自适应草稿模型的推测解码实现笔记", "fact": "Implementation notes on adaptive draft models for speculative decoding", "language": "zh", "platform": "Chinese-language technical forum", "upvotes": 340, "english_coverage": "none"},
+          "payload": {
+            "fact_native": "自适应草稿模型的推测解码实现笔记",
+            "fact": "Implementation notes on adaptive draft models for speculative decoding",
+            "language": "zh",
+            "platform": "Chinese-language technical forum",
+            "upvotes": 340,
+            "english_coverage": "none",
+            "followers": 14,
+            "karma": 5
+          },
           "evidence_span": "\"接受率低于 0.4 时切换草稿模型比继续投机更划算，我们用一个滑动窗口在线估计接受率。\" (\"Below a 0.4 acceptance rate, swapping the draft model beats continuing to speculate; we estimate acceptance online with a sliding window.\")",
           "confidence": 0.85,
-          "integrity_flags": ["transliterated_name", "non_english_source"]
+          "integrity_flags": [
+            "transliterated_name",
+            "non_english_source"
+          ]
         },
         {
           "kind": "release",
           "source": "github",
           "source_url": "https://github.com/muyun-c/xiliu/releases/tag/v0.2.0",
           "observed_at": "2024-07-19T03:00:00+00:00",
-          "payload": {"repo": "muyun-c/xiliu", "tag": "v0.2.0", "changelog_entries": 17, "stars": 52},
+          "payload": {
+            "repo": "muyun-c/xiliu",
+            "tag": "v0.2.0",
+            "changelog_entries": 17,
+            "stars": 52
+          },
           "evidence_span": "v0.2.0 — \"online acceptance-rate estimation; draft model swaps mid-request without a restart\"",
           "confidence": 0.92,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "paper",
           "source": "arxiv",
           "source_url": "https://arxiv.org/abs/2411.04338",
           "observed_at": "2024-11-07T00:00:00+00:00",
-          "payload": {"title": "Adaptive Draft Selection for Speculative Decoding", "authors": 1, "venue": "preprint", "citations": 5, "artifact_link": "https://github.com/muyun-c/xiliu"},
+          "payload": {
+            "title": "Adaptive Draft Selection for Speculative Decoding",
+            "authors": 1,
+            "venue": "preprint",
+            "citations": 5,
+            "artifact_link": "https://github.com/muyun-c/xiliu"
+          },
           "evidence_span": "\"Adaptive draft selection recovers 1.9x end-to-end speedup on workloads where a fixed draft model degrades to 1.1x.\"",
           "confidence": 0.9,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "repo_activity",
           "source": "github",
           "source_url": "https://github.com/muyun-c/xiliu/commits/main",
           "observed_at": "2025-03-05T02:30:00+00:00",
-          "payload": {"repo": "muyun-c/xiliu", "commits_30d": 42, "files_touched": 23, "net_lines": 3100, "stars": 271, "external_contributors": 8, "topic": "multi-draft tree verification"},
+          "payload": {
+            "repo": "muyun-c/xiliu",
+            "commits_30d": 42,
+            "files_touched": 23,
+            "net_lines": 3100,
+            "stars": 271,
+            "external_contributors": 8,
+            "topic": "multi-draft tree verification",
+            "role": "owner"
+          },
           "evidence_span": "commit e4a1207 \"verify a tree of drafts in one forward pass; acceptance up 22% on long tails\"",
           "confidence": 0.91,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
         },
         {
           "kind": "release",
           "source": "github",
           "source_url": "https://github.com/muyun-c/xiliu/releases/tag/v0.4.0",
           "observed_at": "2025-05-27T04:00:00+00:00",
-          "payload": {"repo": "muyun-c/xiliu", "tag": "v0.4.0", "changelog_entries": 22, "stars": 604, "dependent_repos": 47},
+          "payload": {
+            "repo": "muyun-c/xiliu",
+            "tag": "v0.4.0",
+            "changelog_entries": 22,
+            "stars": 604,
+            "dependent_repos": 47
+          },
           "evidence_span": "v0.4.0 — \"tree verification. 604 stars, zero English-language writeups, 47 dependent repos.\"",
           "confidence": 0.93,
-          "integrity_flags": ["transliterated_name"]
+          "integrity_flags": [
+            "transliterated_name"
+          ]
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/tensorpage/pagekv/commits?author=muyun-c",
+          "observed_at": "2025-08-21T14:05:00+00:00",
+          "evidence_span": "6 commits adding the speculative-decode benchmark",
+          "integrity_flags": [
+            "transliterated_name"
+          ],
+          "payload": {
+            "repo": "tensorpage/pagekv",
+            "commits_30d": 6,
+            "files_touched": 4,
+            "net_lines": 260,
+            "topic": "speculative decode benchmark",
+            "contributor_not_owner": true
+          }
         }
       ]
     }
