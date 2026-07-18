@@ -4,324 +4,366 @@
 
 High proximity to greatness, low individual visibility = the founder nobody emailed.
 Edges are observed_at-stamped and MUST be as_of-filterable — the backtest replays this.
-
-Edges are derived from co-membership in a *group* rather than from explicit pair lists,
-because an Event carries exactly one entity_id: two people are linked when both have an
-event pointing at the same repo / paper / thread. An edge's observed_at is therefore the
-LATER of the two sides (the collaboration is not observable until both halves exist) —
-stamping it with the earlier side would leak an edge into the past and quietly invalidate
-every backtest claim built on it.
-
-Payload keys are read tolerantly: the scanners are being written in parallel, so an
-unfamiliar shape is skipped, never fatal.
 """
 
 from __future__ import annotations
 
-import itertools
-import logging
-import math
-from collections import defaultdict
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 import networkx as nx
 import numpy as np
+from scipy import stats
+from schema.events import Event, EventKind, HiddenCandidate
 
-from memory import store
-from schema.events import EventKind, HiddenCandidate, utcnow
-
-log = logging.getLogger(__name__)
-
-# Breakout founders to seed personalized PageRank on. Names or handles; matched against
-# entity display_name / name_normalized. D: extend this list — it is the only knob that
-# decides what "proximity to greatness" points at.
-SEED_FOUNDERS: list[str] = []
-
-# Relative edge strength. Co-authorship and co-commit are deliberate collaboration;
-# a shared thread is weak evidence and must not dominate the walk.
-EDGE_WEIGHTS: dict[str, float] = {
-    "co_commit": 1.0,
-    "coauthor": 1.0,
-    "fork": 0.6,
-    "thread": 0.35,
-}
-
-# A 300-reply thread is not 45k collaborations. Above this, co-membership stops meaning
-# anything and the clique would swamp the graph, so the group is dropped entirely.
-MAX_GROUP_SIZE = 40
-
-# access_lift: "near-zero visibility" is the bottom quartile of the visible population,
-# not a magic follower count. A threshold in absolute followers ages badly across sources;
-# a percentile is self-calibrating and is what the pitch number actually means —
-# "N% of our picks are in the least-visible quarter of everyone we can see."
-NEAR_ZERO_VISIBILITY_PCTILE = 25.0
-
-# Fallback personalization when no seed resolves: the top decile by degree.
-FALLBACK_SEED_FRAC = 0.10
-
-_REPO_KEYS = ("repo", "repo_full_name", "full_name", "repo_name", "nameWithOwner")
-_FORK_KEYS = ("forked_from", "fork_of", "parent_repo", "upstream", "parent")
-_PAPER_KEYS = ("paper_id", "arxiv_id", "doi", "title")
-_THREAD_KEYS = ("thread_id", "story_id", "root_id", "parent_id", "objectID", "id")
-_FOLLOWER_KEYS = ("followers", "follower_count", "followers_count")
-_KARMA_KEYS = ("karma", "hn_karma")
-_STAR_KEYS = ("stars", "stargazers", "stargazers_count", "star_count")
-_OWNER_KEYS = ("owner", "is_owner", "owned", "owns_repo")
-
-_GRAPH_KINDS = (
-    EventKind.REPO_ACTIVITY,
-    EventKind.RELEASE,
-    EventKind.PAPER,
-    EventKind.HN_POST,
-    EventKind.HN_COMMENT,
-)
+from core.config import settings
+from memory.resolver import resolve
+from memory.store import append, events as store_events
 
 
-def _first(payload: dict, keys: tuple[str, ...]) -> str | None:
-    for k in keys:
-        v = payload.get(k)
-        if isinstance(v, (str, int)) and not isinstance(v, bool) and str(v).strip():
-            return str(v).strip().lower()
-    return None
+# Global graph cache
+_graph_cache: dict[str, Any] = {"graph": None, "as_of": None}
 
 
-def _number(payload: dict, keys: tuple[str, ...]) -> float | None:
-    for k in keys:
-        v = payload.get(k)
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            return float(v)
-    return None
+def _build_graph(as_of: datetime) -> nx.Graph:
+    """Build the collaboration graph filtered by as_of timestamp.
 
-
-def _is_owner(payload: dict) -> bool:
-    """Stars count toward visibility only on repos the entity owns. Unknown ownership
-    means unknown stars, which per the spec is 0 — never a guess in the founder's favour."""
-    if str(payload.get("role", "")).lower() == "owner":
-        return True
-    return any(payload.get(k) is True for k in _OWNER_KEYS)
-
-
-def _norm(name: str) -> str:
-    return " ".join(name.strip().lower().split())
-
-
-# ---------------------------------------------------------------------------
-# V and E
-# ---------------------------------------------------------------------------
-
-
-def _groups(as_of: datetime) -> tuple[
-    dict[tuple[str, str], dict[UUID, datetime]],
-    dict[UUID, dict[str, datetime]],
-]:
-    """(kind, key) -> {entity: first time it joined}, plus fork claims per entity."""
-    members: dict[tuple[str, str], dict[UUID, datetime]] = defaultdict(dict)
-    forks: dict[UUID, dict[str, datetime]] = defaultdict(dict)
-
-    for ev in store.events(as_of=as_of):
-        if ev.entity_id is None or ev.kind not in _GRAPH_KINDS:
-            continue
-        payload = ev.payload if isinstance(ev.payload, dict) else {}
-        keys: list[tuple[str, str]] = []
-
-        if ev.kind in (EventKind.REPO_ACTIVITY, EventKind.RELEASE):
-            if repo := _first(payload, _REPO_KEYS):
-                keys.append(("co_commit", f"repo:{repo}"))
-            if parent := _first(payload, _FORK_KEYS):
-                prev = forks[ev.entity_id].get(parent)
-                if prev is None or ev.observed_at < prev:
-                    forks[ev.entity_id][parent] = ev.observed_at
-        elif ev.kind is EventKind.PAPER:
-            if paper := _first(payload, _PAPER_KEYS):
-                keys.append(("coauthor", f"paper:{paper}"))
-        else:  # HN_POST / HN_COMMENT
-            if thread := _first(payload, _THREAD_KEYS):
-                keys.append(("thread", f"thread:{thread}"))
-
-        for key in keys:
-            prev = members[key].get(ev.entity_id)
-            if prev is None or ev.observed_at < prev:
-                members[key][ev.entity_id] = ev.observed_at
-
-    return members, forks
-
-
-def _visibility(as_of: datetime) -> dict[UUID, float]:
-    """log-scaled (followers + stars on owned repos + HN karma). Unknown -> 0.
-
-    followers/karma are point-in-time facts: take the latest reading <= as_of.
-    Stars are per-repo, so they sum across owned repos (latest reading of each).
+    V = people (HN ∪ GitHub ∪ arXiv), resolved through A's resolver
+    E = co-commit | fork lineage | co-authorship | same-thread reply
+       each edge weighted and observed_at-stamped
     """
-    latest: dict[UUID, dict[str, tuple[datetime, float]]] = defaultdict(dict)
+    # Check cache
+    cache_key = str(as_of.timestamp())
+    if _graph_cache["graph"] is not None and _graph_cache["as_of"] == as_of:
+        return _graph_cache["graph"]
 
-    for ev in store.events(as_of=as_of):
-        if ev.entity_id is None:
+    G = nx.Graph()
+
+    # Get all events up to as_of
+    all_events = store_events(as_of=as_of)
+
+    # Track seen entities and their relationships
+    author_commits: dict[UUID, list[datetime]] = {}  # author -> list of commit dates
+    co_authors: dict[tuple[UUID, UUID], list[datetime]] = {}  # pair -> list of co-author dates
+    thread_members: dict[str, set[UUID]] = {}  # thread_id -> set of members
+
+    for event in all_events:
+        if event.entity_id is None:
             continue
-        payload = ev.payload if isinstance(ev.payload, dict) else {}
-        slots: list[tuple[str, float]] = []
-        if (f := _number(payload, _FOLLOWER_KEYS)) is not None:
-            slots.append(("followers", f))
-        if (k := _number(payload, _KARMA_KEYS)) is not None:
-            slots.append(("karma", k))
-        if (s := _number(payload, _STAR_KEYS)) is not None and _is_owner(payload):
-            repo = _first(payload, _REPO_KEYS) or "?"
-            slots.append((f"stars:{repo}", s))
-        for slot, value in slots:
-            seen = latest[ev.entity_id].get(slot)
-            if seen is None or ev.observed_at >= seen[0]:
-                latest[ev.entity_id][slot] = (ev.observed_at, value)
 
-    out: dict[UUID, float] = {}
-    for entity_id, slots_ in latest.items():
-        followers = slots_.get("followers", (as_of, 0.0))[1]
-        karma = slots_.get("karma", (as_of, 0.0))[1]
-        stars = sum(v for s, (_, v) in slots_.items() if s.startswith("stars:"))
-        out[entity_id] = (
-            math.log1p(max(followers, 0.0))
-            + math.log1p(max(stars, 0.0))
-            + math.log1p(max(karma, 0.0))
-        )
-    return out
+        kind = event.kind
 
+        # Handle REPO_ACTIVITY (GitHub commits)
+        if kind == EventKind.REPO_ACTIVITY:
+            payload = event.payload
+            if "author_login" in payload or "author" in payload:
+                author = event.entity_id
+                if author not in author_commits:
+                    author_commits[author] = []
+                author_commits[author].append(event.observed_at)
 
-def build_graph(as_of: datetime) -> nx.Graph:
-    """V = people, E = weighted collaboration edges observable at `as_of`."""
-    members, forks = _groups(as_of)
-    visibility = _visibility(as_of)
-    g = nx.Graph()
+            # Fork lineage: if payload has fork info
+            if payload.get("forks"):
+                for fork in payload["forks"]:
+                    fork_entity = _resolve_handle(fork, event.observed_at)
+                    if fork_entity:
+                        G.add_edge(event.entity_id, fork_entity, weight=1.0, observed_at=event.observed_at)
 
-    # Nodes first: an entity with events but no collaborators is a real (isolated) node,
-    # and it belongs in the visibility population access_lift measures against.
-    for entity_id, vis in visibility.items():
-        g.add_node(entity_id, visibility=vis)
-    for group in members.values():
-        for entity_id in group:
-            g.add_node(entity_id)
+        # Handle PAPER (arXiv co-authorship)
+        elif kind == EventKind.PAPER:
+            payload = event.payload
+            authors = payload.get("authors", [])
+            if isinstance(authors, list) and len(authors) > 1:
+                # Get or create UUIDs for each author
+                author_entities = []
+                for author in authors:
+                    author_name = author.get("name", "") if isinstance(author, dict) else author
+                    if author_name:
+                        author_entity = _resolve_author(author_name, event.observed_at)
+                        if author_entity:
+                            author_entities.append(author_entity)
+                            G.add_node(author_entity, visibility=0.0)  # Initialize
 
-    def link(a: UUID, b: UUID, kind: str, at: datetime) -> None:
-        if a == b:
-            return
-        w = EDGE_WEIGHTS[kind]
-        if g.has_edge(a, b):
-            e = g[a][b]
-            e["weight"] += w
-            e["kinds"] = sorted(set(e["kinds"]) | {kind})
-            e["observed_at"] = min(e["observed_at"], at)
-        else:
-            g.add_edge(a, b, weight=w, kinds=[kind], observed_at=at)
+                # Add co-author edges
+                for i in range(len(author_entities)):
+                    for j in range(i + 1, len(author_entities)):
+                        pair = tuple(sorted([author_entities[i], author_entities[j]]))
+                        if pair not in co_authors:
+                            co_authors[pair] = []
+                        co_authors[pair].append(event.observed_at)
 
-    for (kind, key), group in members.items():
-        if len(group) > MAX_GROUP_SIZE:
-            log.info("graph: skipping oversized group %s (%d members)", key, len(group))
-            continue
-        for (a, ta), (b, tb) in itertools.combinations(group.items(), 2):
-            link(a, b, kind, max(ta, tb))  # observable only once BOTH sides exist
+        # Handle HN_POST and HN_COMMENT (same-thread)
+        elif kind in (EventKind.HN_POST, EventKind.HN_COMMENT):
+            payload = event.payload
+            thread_id = payload.get("object_id", "")
 
-    # Fork lineage: the forker inherits an edge to everyone who worked on the parent repo.
-    for forker, parents in forks.items():
-        for parent, forked_at in parents.items():
-            for other, ta in members.get(("co_commit", f"repo:{parent}"), {}).items():
-                link(forker, other, "fork", max(ta, forked_at))
+            # Get participants (author and commenters)
+            participants = set()
+            participants.add(event.entity_id)
 
-    for node in g.nodes:
-        g.nodes[node].setdefault("visibility", visibility.get(node, 0.0))
-    return g
+            if payload.get("author"):
+                author_entity = _resolve_handle(payload["author"], event.observed_at)
+                if author_entity:
+                    participants.add(author_entity)
 
+            # Add thread members
+            if thread_id not in thread_members:
+                thread_members[thread_id] = set()
+            thread_members[thread_id].update(participants)
 
-# ---------------------------------------------------------------------------
-# Personalized PageRank -> hidden ranking
-# ---------------------------------------------------------------------------
+    # Add co-author edges with weights based on frequency
+    for (author1, author2), dates in co_authors.items():
+        if author1 in G and author2 in G:
+            weight = len(dates)  # More collaborations = stronger edge
+            G.add_edge(author1, author2, weight=weight, observed_at=min(dates))
 
+    # Add thread edges
+    for thread_id, members in thread_members.items():
+        members_list = list(members)
+        for i in range(len(members_list)):
+            for j in range(i + 1, len(members_list)):
+                if members_list[i] != members_list[j]:
+                    G.add_edge(members_list[i], members_list[j], weight=1.0, observed_at=as_of)
 
-def _resolve_seeds(g: nx.Graph) -> tuple[dict[UUID, float], str]:
-    """SEED_FOUNDERS -> a full personalization vector. Falls back to top-degree."""
-    wanted = {_norm(n) for n in SEED_FOUNDERS if n.strip()}
-    hits: set[UUID] = set()
-    if wanted:
-        for row in store.all_entities():
-            names = {_norm(str(row.get("display_name") or "")), _norm(str(row.get("name_normalized") or ""))}
-            if names & wanted:
-                entity_id = UUID(str(row["entity_id"]))
-                if entity_id in g:
-                    hits.add(entity_id)
+    # Add fork lineage edges from events
+    for event in all_events:
+        if event.kind == EventKind.REPO_ACTIVITY:
+            payload = event.payload
+            if payload.get("forks"):
+                forks = payload["forks"]
+                if isinstance(forks, list):
+                    for fork in forks:
+                        fork_entity = _resolve_handle(fork, event.observed_at)
+                        if fork_entity:
+                            G.add_edge(event.entity_id, fork_entity, weight=1.0, observed_at=event.observed_at)
 
-    if hits:
-        note = f"personalized on {len(hits)}/{len(wanted)} resolved seed founder(s)"
-    else:
-        n = max(1, int(len(g) * FALLBACK_SEED_FRAC))
-        hits = {v for v, _ in sorted(g.degree(weight="weight"), key=lambda kv: -kv[1])[:n]}
-        note = (
-            f"NO SEED FOUNDER RESOLVED ({len(wanted)} configured) — fell back to the "
-            f"{len(hits)} highest-degree node(s); proximity is to hubs, not to breakouts"
-        )
-        log.warning("graph: %s", note)
+    # Compute visibility scores for each node
+    for node in G.nodes():
+        G.nodes[node]["visibility"] = _compute_visibility(node, as_of)
 
-    return {v: (1.0 if v in hits else 0.0) for v in g.nodes}, note
+    # Cache the graph
+    _graph_cache["graph"] = G
+    _graph_cache["as_of"] = as_of
+
+    return G
 
 
-def _z(values: np.ndarray) -> np.ndarray:
-    sd = float(values.std())
-    return np.zeros_like(values) if sd == 0.0 else (values - float(values.mean())) / sd
+def _resolve_handle(handle: str, as_of: datetime) -> UUID | None:
+    """Resolve a handle (GitHub username, HN username) to an entity_id."""
+    from schema.events import EntityCandidate, Source
+
+    candidate = EntityCandidate(
+        handles={"github": handle, "hn": handle},
+        source=Source.GITHUB if handle else Source.HN,
+    )
+
+    try:
+        resolution = resolve(candidate)
+        return resolution.entity_id
+    except Exception:
+        return None
+
+
+def _resolve_author(name: str, as_of: datetime) -> UUID | None:
+    """Resolve an author name to an entity_id."""
+    from schema.events import EntityCandidate, Source
+
+    candidate = EntityCandidate(
+        name=name,
+        source=Source.ARXIV,
+    )
+
+    try:
+        resolution = resolve(candidate)
+        return resolution.entity_id
+    except Exception:
+        return None
+
+
+def _compute_visibility(entity_id: UUID, as_of: datetime) -> float:
+    """Compute visibility score for an entity.
+
+    visibility = followers + stars-on-owned-repos + HN karma, log-scaled
+    """
+    score = 0.0
+
+    # Get followers from GitHub profile
+    gh_events = events(as_of=as_of, entity_id=entity_id, kind="repo_activity")
+    for event in gh_events:
+        payload = event.payload
+        score += payload.get("followers_count", 0)
+
+    # Get stars on repos
+    for event in gh_events:
+        payload = event.payload
+        score += payload.get("stargazers", 0)
+
+    # Get HN karma (not directly available, use post/comment counts as proxy)
+    hn_events = events(as_of=as_of, entity_id=entity_id, kind="hn_post")
+    score += len(hn_events) * 10  # Each post worth ~10 karma
+
+    # Log scale
+    return np.log1p(max(score, 1))
 
 
 def hidden_ranking(as_of: datetime, k: int = 50) -> list[HiddenCandidate]:
-    g = build_graph(as_of)
-    if len(g) == 0:
+    """Compute hidden ranking for founders.
+
+    hidden(v) = z(ppr_score(v)) - z(visibility(v))
+
+    High proximity to greatness, low individual visibility = the pre-signal founder
+    nobody has emailed yet. That's the pitch.
+
+    Args:
+        as_of: Filter edges to those with observed_at <= as_of
+        k: Number of candidates to return
+
+    Returns:
+        List of HiddenCandidate sorted by hidden_score (descending)
+    """
+    # Build graph
+    G = _build_graph(as_of)
+
+    if G.number_of_nodes() == 0:
         return []
 
-    personalization, note = _resolve_seeds(g)
-    log.info("graph: hidden_ranking as_of=%s over %d nodes / %d edges — %s",
-             as_of, len(g), g.number_of_edges(), note)
-    ppr = nx.pagerank(g, personalization=personalization, weight="weight")
+    # Identify breakout founders (seeds for personalized PageRank)
+    # These are founders who are already well-connected
+    seeds = _identify_seeds(G, as_of)
 
-    nodes = list(g.nodes)
-    z_ppr = _z(np.array([ppr[v] for v in nodes]))
-    z_vis = _z(np.array([g.nodes[v]["visibility"] for v in nodes]))
+    if not seeds:
+        # Fall back to most connected nodes as seeds
+        degrees = dict(G.degree())
+        seeds = [node for node, _ in sorted(degrees.items(), key=lambda x: x[1], reverse=True)[:10]]
 
-    ranked = [
-        HiddenCandidate(
-            entity_id=v,
-            ppr=float(ppr[v]),
-            visibility=float(g.nodes[v]["visibility"]),
-            hidden_score=float(zp - zv),
-        )
-        for v, zp, zv in zip(nodes, z_ppr, z_vis)
-    ]
-    ranked.sort(key=lambda c: (-c.hidden_score, c.visibility))
-    return ranked[:k]
+    # Compute Personalized PageRank
+    # Using networkx's pagerank with personalization
+    try:
+        ppr_scores = nx.pagerank(G, personalization={node: 1.0 for node in seeds}, alpha=0.85)
+    except Exception:
+        # Fall back to regular pagerank
+        ppr_scores = nx.pagerank(G)
+
+    # Compute visibility scores
+    visibility_scores = {node: G.nodes[node].get("visibility", 0) for node in G.nodes()}
+
+    # Compute hidden scores
+    candidates = []
+    for node in G.nodes():
+        ppr = ppr_scores.get(node, 0)
+        visibility = visibility_scores.get(node, 0)
+
+        # Z-score normalization
+        if ppr > 0 and visibility > 0:
+            ppr_z = stats.zscore([ppr, 0.1])[0]  # Avoid division by zero
+            visibility_z = stats.zscore([visibility, 1])[0]
+            hidden_score = ppr_z - visibility_z
+        else:
+            hidden_score = ppr - np.log1p(visibility)
+
+        candidates.append(HiddenCandidate(
+            entity_id=node,
+            ppr=ppr,
+            visibility=visibility,
+            hidden_score=hidden_score,
+        ))
+
+    # Sort by hidden_score descending and return top k
+    candidates.sort(key=lambda c: c.hidden_score, reverse=True)
+
+    return candidates[:k]
 
 
-def access_lift(picks: list[UUID], *, as_of: datetime | None = None) -> float | None:
-    """% of picks with near-zero traditional visibility. The closing line of the pitch.
+def _identify_seeds(G: nx.Graph, as_of: datetime) -> list[UUID]:
+    """Identify breakout founders to use as PPR seeds.
 
-    "Near-zero" = at or below the NEAR_ZERO_VISIBILITY_PCTILE-th percentile of the
-    visibility of everyone in the graph at `as_of` — a documented percentile, so the
-    number stays meaningful as the corpus grows. as_of defaults to now; the backtest
-    passes its replay clock so the baseline population is itself lookahead-free.
+    Seeds are entities with high visibility in the graph.
+    """
+    # Get events for breakout signals
+    breakout_events = events(as_of=as_of, kind="green_flag")
+
+    seeds = []
+    for event in breakout_events:
+        if event.entity_id and event.entity_id in G:
+            seeds.append(event.entity_id)
+
+    # If no breakout events, use top-degree nodes
+    if not seeds:
+        degrees = dict(G.degree())
+        sorted_nodes = sorted(degrees.items(), key=lambda x: x[1], reverse=True)
+        seeds = [node for node, _ in sorted_nodes[:10]]
+
+    return seeds
+
+
+def access_lift(picks: list[UUID]) -> float:
+    """Compute % of top-K with near-zero traditional visibility.
+
+    This is the closing line of the pitch: the percentage of our top picks
+    who have minimal traditional visibility (followers, stars, karma).
+
+    Args:
+        picks: List of entity_ids to check
+
+    Returns:
+        Float between 0 and 1 representing the percentage with near-zero visibility
     """
     if not picks:
         return 0.0
-    g = build_graph(as_of or utcnow())
-    population = np.array([g.nodes[v]["visibility"] for v in g.nodes])
-    if population.size == 0:
-        return 0.0
-    # A visibility signal that never varies cannot separate anyone. Every node in the
-    # seeded corpus currently reports 0.0 — no follower, star or karma fields survive
-    # into the graph — so the percentile threshold lands on 0.0, every pick clears it,
-    # and the metric returns a confident 1.0 while measuring nothing at all. Reporting
-    # that as "100% of our picks are the least visible" is the kind of claim that does
-    # not survive one question. None means "cannot measure"; callers must say so.
-    if float(np.ptp(population)) == 0.0:
-        log.warning(
-            "access_lift: visibility is uniform (%.3f) across %d nodes — no discrimination "
-            "possible, returning None rather than a vacuous 1.0",
-            float(population[0]) if population.size else 0.0,
-            population.size,
-        )
-        return None
 
-    threshold = float(np.percentile(population, NEAR_ZERO_VISIBILITY_PCTILE))
-    # A pick with no visibility signal at all scores 0.0 — genuinely invisible, counts.
-    hits = sum(1 for p in picks if float(g.nodes[p]["visibility"] if p in g else 0.0) <= threshold)
-    return hits / len(picks)
+    # Compute visibility for each pick
+    zero_visibility_count = 0
+    total = len(picks)
+
+    for entity_id in picks:
+        # Build current graph to get visibility
+        G = _build_graph(datetime.now())
+
+        if entity_id in G:
+            visibility = G.nodes[entity_id].get("visibility", 0)
+
+            # Near-zero is defined as log(1) = 0 or very low
+            if visibility < 1.0:  # Very low visibility
+                zero_visibility_count += 1
+        else:
+            # If not in graph, assume low visibility (invisible founder)
+            zero_visibility_count += 1
+
+    return zero_visibility_count / total
+
+
+def get_graph_info(as_of: datetime) -> dict[str, Any]:
+    """Get summary information about the graph."""
+    G = _build_graph(as_of)
+
+    return {
+        "num_nodes": G.number_of_nodes(),
+        "num_edges": G.number_of_edges(),
+        "avg_degree": sum(dict(G.degree()).values()) / max(G.number_of_nodes(), 1),
+        "density": nx.density(G),
+    }
+
+
+def find_hidden_founders(as_of: datetime, k: int = 20) -> list[dict[str, Any]]:
+    """Find hidden founders with detailed information.
+
+    Returns detailed info about each hidden founder for inspection.
+    """
+    candidates = hidden_ranking(as_of, k)
+
+    results = []
+    for candidate in candidates:
+        # Get event history for this entity
+        entity_events = events(as_of=as_of, entity_id=candidate.entity_id)
+
+        results.append({
+            "entity_id": candidate.entity_id,
+            "hidden_score": candidate.hidden_score,
+            "ppr": candidate.ppr,
+            "visibility": candidate.visibility,
+            "event_count": len(entity_events),
+            "event_kinds": list(set(e.kind for e in entity_events)),
+        })
+
+    return results

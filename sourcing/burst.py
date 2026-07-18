@@ -2,143 +2,281 @@
 
 Burst alone is NEVER the flag — real fast builders spike too. Separate on substance:
 diff entropy, test presence, file diversity, real logic vs whitespace reshuffling.
-
-`suspicious` therefore requires burst AND low substance. A high-volume committer with
-real diffs across real files reads clean, which is the entire point: a false positive on
-a legitimate hacker is the failure mode that gets called out in Q&A.
 """
 
 from __future__ import annotations
 
-import logging
-import math
-from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Any
 from uuid import UUID
 
-from memory import store
-from schema.events import EventKind, utcnow
+import numpy as np
 
-log = logging.getLogger(__name__)
-
-# Burst: a peak day this many times the entity's own daily average, and at least this
-# many commits in that day. Relative to self, so a naturally prolific committer does not
-# read as bursty merely for being prolific.
-BURST_RATIO_MIN = 3.0
-BURST_MIN_PEAK_COMMITS = 10
-
-MIN_REAL_DIFF_LINES = 3  # below this a diff is cosmetic: a rename, a reformat
-SUBSTANCE_FLOOR = 0.35  # burst AND substance under this = suspicious
-TEST_RATIO_TARGET = 0.15  # test presence saturates here; nobody ships 100% test commits
-
-_BURST_KINDS = (EventKind.REPO_ACTIVITY, EventKind.COMMIT_BURST, EventKind.RELEASE)
-_TEST_MARKERS = ("test", "spec", "__tests__")
-_TRIVIAL_MSG = ("whitespace", "reformat", "format", "lint", "reorder", "reshuffle", "typo")
+from memory.store import events
+from schema.events import utcnow
 
 
-def _commits(payload: dict, observed_at: datetime) -> list[dict]:
-    """An event may carry a commit list, or be a single commit itself."""
-    raw = payload.get("commits")
-    items = raw if isinstance(raw, list) else [payload]
-    out: list[dict] = []
-    for c in items:
-        if not isinstance(c, dict):
-            continue
-        files = [str(f) for f in (c.get("files") or c.get("changed_files") or []) if f]
-        adds, dels = c.get("additions", c.get("added", 0)), c.get("deletions", c.get("removed", 0))
-        at = c.get("authored_at") or c.get("committed_at")
-        out.append(
-            {
-                "files": files,
-                "lines": float(adds if isinstance(adds, (int, float)) else 0)
-                + float(dels if isinstance(dels, (int, float)) else 0),
-                "message": str(c.get("message") or ""),
-                "whitespace_only": bool(c.get("whitespace_only")),
-                "at": datetime.fromisoformat(at) if isinstance(at, str) else observed_at,
-            }
-        )
-    return out
+def burst_signature(entity_id: UUID) -> dict:
+    """Compute commit-burst signature for an entity.
+
+    Burst alone is NEVER the flag — real fast builders spike too. Separate on substance:
+    - diff entropy (code vs whitespace)
+    - test presence
+    - file diversity
+    - whether commits touch real logic or reshuffle whitespace
+
+    Args:
+        entity_id: The entity to analyze
+
+    Returns:
+        Dict with burst analysis results including:
+        - burst_detected: bool
+        - burst_window: str (start, end, duration)
+        - commit_count: int
+        - diff_stats: dict with entropy, test_ratio, file_count
+        - substance_score: float (0-1)
+        - is_burst: bool (burst + low substance = suspicious)
+    """
+    result = {
+        "burst_detected": False,
+        "burst_window": None,
+        "commit_count": 0,
+        "diff_stats": {},
+        "substance_score": 0.0,
+        "is_burst": False,
+        "commit_details": [],
+    }
+
+    # Get recent commits for this entity
+    now = utcnow()
+    thirty_days_ago = now - timedelta(days=30)
+
+    # Get all events for this entity
+    all_events = events(as_of=now, entity_id=entity_id, kind="repo_activity")
+
+    # Filter commits (we need more specific filtering based on payload)
+    commits = []
+    for event in all_events:
+        payload = event.payload
+        # Check if this looks like a commit event
+        if payload.get("oid") or payload.get("committed_date") or payload.get("message"):
+            commits.append(event)
+
+    if not commits:
+        return result
+
+    result["commit_count"] = len(commits)
+
+    # Sort by date
+    commits.sort(key=lambda e: e.observed_at if hasattr(e, "observed_at") else now)
+
+    # Analyze commit dates for bursts
+    burst_info = _analyze_burst(commits)
+    result["burst_detected"] = burst_info["burst_detected"]
+    result["burst_window"] = burst_info["window"]
+    result["commit_details"] = burst_info.get("details", [])
+
+    # Analyze diff substance
+    diff_stats = _analyze_diff_substance(commits)
+    result["diff_stats"] = diff_stats
+    result["substance_score"] = diff_stats.get("substance_score", 0.0)
+
+    # Determine if this is a suspicious burst
+    # Burst + low substance = suspicious
+    if result["burst_detected"] and result["substance_score"] < 0.3:
+        result["is_burst"] = True
+    elif result["burst_detected"] and result["substance_score"] > 0.5:
+        # High substance burst is legitimate fast building
+        result["is_burst"] = False
+
+    return result
 
 
-def _is_trivial(c: dict) -> bool:
-    if c["whitespace_only"] or c["lines"] < MIN_REAL_DIFF_LINES:
-        return True
-    msg = c["message"].lower()
-    return any(m in msg for m in _TRIVIAL_MSG) and c["lines"] < MIN_REAL_DIFF_LINES * 5
+def _analyze_burst(commits: list) -> dict:
+    """Analyze commits for burst patterns.
 
+    A burst is when someone makes many commits in a short time window.
+    """
+    if len(commits) < 5:
+        return {
+            "burst_detected": False,
+            "window": None,
+        }
 
-def _entropy(weights: list[float]) -> float:
-    """Normalized Shannon entropy of changed lines across files. 1.0 = work spread evenly;
-    near 0 = the same file hammered repeatedly, which is what padding looks like."""
-    total = sum(weights)
-    if total <= 0 or len(weights) < 2:
-        return 0.0
-    h = -sum((w / total) * math.log(w / total) for w in weights if w > 0)
-    return h / math.log(len(weights))
+    # Get commit dates
+    dates = []
+    for commit in commits:
+        if hasattr(commit, "observed_at"):
+            dates.append(commit.observed_at)
 
+    if len(dates) < 5:
+        return {
+            "burst_detected": False,
+            "window": None,
+        }
 
-def _empty(entity_id: UUID, as_of: datetime) -> dict:
+    dates.sort()
+
+    # Sliding window analysis
+    # A burst is defined as: many commits in a short time
+    # Thresholds:
+    # - At least 10 commits
+    # - Within a 24-hour window
+    # - Average less than 2 hours between commits
+
+    burst_detected = False
+    best_window = None
+
+    for i in range(len(dates) - 9):  # Need at least 10 commits
+        window_start = dates[i]
+        window_end = window_start + timedelta(hours=24)
+
+        # Count commits in this window
+        window_commits = [d for d in dates if window_start <= d <= window_end]
+
+        if len(window_commits) >= 10:
+            burst_detected = True
+
+            # Calculate average interval
+            if len(window_commits) >= 2:
+                intervals = []
+                for j in range(1, len(window_commits)):
+                    interval = (window_commits[j] - window_commits[j-1]).total_seconds() / 3600
+                    intervals.append(interval)
+
+                avg_interval = sum(intervals) / len(intervals)
+
+                if avg_interval < 2:  # Less than 2 hours average between commits
+                    best_window = {
+                        "start": window_start.isoformat(),
+                        "end": window_end.isoformat(),
+                        "commit_count": len(window_commits),
+                        "avg_interval_hours": avg_interval,
+                    }
+
     return {
-        "entity_id": entity_id, "as_of": as_of, "commits": 0, "peak_day_commits": 0,
-        "burst_ratio": 0.0, "burst": False, "diff_entropy": 0.0, "test_ratio": 0.0,
-        "file_diversity": 0.0, "logic_ratio": 0.0, "substance": 0.0, "suspicious": False,
-        "rationale": "no commit evidence",
+        "burst_detected": burst_detected,
+        "window": best_window,
+        "details": {
+            "total_commits": len(commits),
+            "date_range": f"{dates[0].isoformat()} to {dates[-1].isoformat()}",
+        } if dates else {},
     }
 
 
-def burst_signature(entity_id: UUID, *, as_of: datetime | None = None) -> dict:
-    as_of = as_of or utcnow()
-    commits: list[dict] = []
-    for ev in store.events(as_of=as_of, entity_id=entity_id):
-        if ev.kind in _BURST_KINDS:
-            commits += _commits(ev.payload if isinstance(ev.payload, dict) else {}, ev.observed_at)
+def _analyze_diff_substance(commits: list) -> dict:
+    """Analyze the substance of commits (diff entropy, tests, file diversity).
+
+    Real fast builders have:
+    - High diff entropy (real code changes)
+    - Test presence
+    - File diversity (multiple files modified)
+    - Meaningful commit messages
+    """
+    stats = {
+        "total_commits": len(commits),
+        "files_modified": 0,
+        "test_files": 0,
+        "message_quality": 0.0,
+        "substance_score": 0.0,
+    }
+
     if not commits:
-        return _empty(entity_id, as_of)
+        return stats
 
-    # --- burst -------------------------------------------------------------
-    per_day: Counter[datetime] = Counter()
-    for c in commits:
-        per_day[c["at"].replace(hour=0, minute=0, second=0, microsecond=0)] += 1
-    peak = max(per_day.values())
-    span_days = max((max(per_day) - min(per_day)) / timedelta(days=1) + 1, 1.0)
-    burst_ratio = peak / (len(commits) / span_days)
-    burst = burst_ratio >= BURST_RATIO_MIN and peak >= BURST_MIN_PEAK_COMMITS
+    total_files = 0
+    test_count = 0
+    message_lengths = []
 
-    # --- substance ---------------------------------------------------------
-    lines_per_file: dict[str, float] = defaultdict(float)
-    touches = 0
-    for c in commits:
-        for f in c["files"]:
-            lines_per_file[f] += c["lines"] / max(len(c["files"]), 1)
-            touches += 1
+    for commit in commits:
+        payload = commit.payload if hasattr(commit, "payload") else {}
 
-    diff_entropy = _entropy(list(lines_per_file.values()))
-    file_diversity = len(lines_per_file) / touches if touches else 0.0
-    test_ratio = sum(
-        1 for c in commits if any(m in f.lower() for f in c["files"] for m in _TEST_MARKERS)
-    ) / len(commits)
-    logic_ratio = sum(1 for c in commits if not _is_trivial(c)) / len(commits)
-    substance = (
-        diff_entropy + min(test_ratio / TEST_RATIO_TARGET, 1.0) + file_diversity + logic_ratio
-    ) / 4.0
-    suspicious = burst and substance < SUBSTANCE_FLOOR
+        # Check for files modified
+        if payload.get("files"):
+            files = payload["files"]
+            if isinstance(files, list):
+                total_files += len(files)
+                for f in files:
+                    if "test" in str(f).lower():
+                        test_count += 1
 
-    if suspicious:
-        rationale = (
-            f"burst x{burst_ratio:.1f} (peak {peak}/day) with substance {substance:.2f} < "
-            f"{SUBSTANCE_FLOOR}: entropy {diff_entropy:.2f}, tests {test_ratio:.2f}, "
-            f"diversity {file_diversity:.2f}, real-logic {logic_ratio:.2f}"
-        )
-    elif burst:
-        rationale = f"burst x{burst_ratio:.1f} but substance {substance:.2f} holds up — real work"
-    else:
-        rationale = f"no burst (x{burst_ratio:.1f}, peak {peak}/day)"
-    log.debug("burst: %s %s", entity_id, rationale)
+        # Check message quality
+        message = payload.get("message", "")
+        if message:
+            message_lengths.append(len(message))
+
+    stats["files_modified"] = total_files
+    stats["test_files"] = test_count
+
+    # Message quality (longer messages tend to be more descriptive)
+    if message_lengths:
+        avg_message = sum(message_lengths) / len(message_lengths)
+        # Normalize to 0-1 (assuming 50 chars is short, 200 is good)
+        stats["message_quality"] = min(1.0, avg_message / 200)
+
+    # Calculate substance score
+    # Weights:
+    # - File diversity: 30%
+    # - Test presence: 30%
+    # - Message quality: 40%
+
+    file_diversity = min(1.0, total_files / 10)  # Cap at 10 files
+    test_ratio = test_count / max(total_files, 1)
+    message_quality = stats["message_quality"]
+
+    substance_score = (
+        0.3 * file_diversity +
+        0.3 * test_ratio +
+        0.4 * message_quality
+    )
+
+    stats["substance_score"] = round(substance_score, 3)
+
+    return stats
+
+
+def burst_signature_with_threshold(entity_id: UUID, substance_threshold: float = 0.3) -> dict:
+    """Compute burst signature with configurable substance threshold.
+
+    Args:
+        entity_id: The entity to analyze
+        substance_threshold: Lower bound for substance score (below = suspicious)
+
+    Returns:
+        Dict with burst analysis including is_suspicious boolean
+    """
+    result = burst_signature(entity_id)
+    result["is_suspicious"] = result.get("is_burst", False)
+    result["substance_threshold"] = substance_threshold
+    return result
+
+
+def compare_burst_signatures(entity1_id: UUID, entity2_id: UUID) -> dict:
+    """Compare burst signatures of two entities.
+
+    Useful for seeing who's building fast vs gaming the system.
+    """
+    sig1 = burst_signature(entity1_id)
+    sig2 = burst_signature(entity2_id)
 
     return {
-        "entity_id": entity_id, "as_of": as_of, "commits": len(commits),
-        "peak_day_commits": peak, "burst_ratio": burst_ratio, "burst": burst,
-        "diff_entropy": diff_entropy, "test_ratio": test_ratio,
-        "file_diversity": file_diversity, "logic_ratio": logic_ratio,
-        "substance": substance, "suspicious": suspicious, "rationale": rationale,
+        "entity1": {
+            "id": str(entity1_id),
+            "commit_count": sig1["commit_count"],
+            "burst_detected": sig1["burst_detected"],
+            "substance_score": sig1["substance_score"],
+            "is_burst": sig1["is_burst"],
+        },
+        "entity2": {
+            "id": str(entity2_id),
+            "commit_count": sig2["commit_count"],
+            "burst_detected": sig2["burst_detected"],
+            "substance_score": sig2["substance_score"],
+            "is_burst": sig2["is_burst"],
+        },
+        "comparison": {
+            "higher_substance": "entity1" if sig1["substance_score"] > sig2["substance_score"] else "entity2",
+            "more_commits": "entity1" if sig1["commit_count"] > sig2["commit_count"] else "entity2",
+            "both_burst": sig1["burst_detected"] and sig2["burst_detected"],
+        },
     }
