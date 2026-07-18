@@ -359,7 +359,8 @@ def test_unfired_flag_observed_at_falls_back_to_input_max() -> None:
 def test_evaluate_wrapper_has_expected_signature() -> None:
     """evaluate() is the store-backed wrapper; verify its shape without touching the store stub."""
     signature = inspect.signature(evaluate)
-    assert list(signature.parameters) == ["entity_id", "as_of"]
+    assert list(signature.parameters) == ["entity_id", "as_of", "events"]
+    assert signature.parameters["events"].default is None
 
 
 # ---------------------------------------------------------------------------

@@ -191,21 +191,25 @@ def test_grade_emits_exact_two_events_with_locked_payloads_and_metadata() -> Non
 
     assert [event.kind for event in events] == [EventKind.PROOF_ARTIFACT, EventKind.PROOF_BEHAVIOR]
     artifact, behavior = events
-    assert artifact.payload == {
+    assert {
         "challenge_id": str(challenge_id),
         "artifact": "working artifact",
         "works": True,
         "sound": True,
         "handled_ambiguity": True,
-    }
-    assert behavior.payload == {
+    }.items() <= artifact.payload.items()
+    assert {
         "challenge_id": str(challenge_id),
         "challenged_bad_constraint": True,
         "asked_clarifying": True,
         "iteration_count": 2,
         "time_to_first_commit_min": 20.0,
         "latency_profile": [20.0],
-    }
+    }.items() <= behavior.payload.items()
+    for event in (artifact, behavior):
+        assert event.payload["value"] == event.payload["y"]
+        assert event.payload["components"]
+        assert event.payload["caveat"]
     assert artifact.confidence == 0.9
     assert behavior.confidence == 0.95
     for event in events:

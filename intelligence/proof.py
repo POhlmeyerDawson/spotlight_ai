@@ -13,16 +13,35 @@ founder re-enters the gate. That re-entry is the demo.
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
+import math
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from core import llm
 from schema.events import Challenge, Event, EventKind, Source, utcnow
 
 Judge = Callable[..., str | dict]
+
+FULL_DILIGENCE_CONFIDENCE = 0.99
+CAVEAT = "A short proof exercise is informative but is not full diligence."
+BEHAVIOR_WEIGHTS = {
+    "constraint_pushback": 0.55,
+    "iteration": 0.15,
+    "time_to_first_commit": 0.10,
+    "clarification": 0.15,
+    "latency_regularity": 0.05,
+}
+ARTIFACT_WEIGHTS = {"works": 0.45, "technically_sound": 0.35, "ambiguity_handling": 0.20}
+
+SEEDED_ARTIFACT = """# proof submission
+
+The ambiguous success condition is stated as an explicit assumption. The supplied
+constraint was challenged with measurements, then replaced by a safer bounded approach.
+The artifact includes a reproducible check and documents its remaining limitation.
+"""
 
 _SYSTEM = (
     "Design a 60–90 minute technical micro-challenge from the supplied claim. "
@@ -82,11 +101,12 @@ def _persist_challenge(challenge: Challenge, source_claim: Event | None) -> None
     )
 
 
-def generate(company_id: UUID, judge: Judge = llm.complete) -> Challenge:
+def generate(company_id: UUID, judge: Judge | None = None) -> Challenge:
     """Create a claim-specific challenge; deck text is always untrusted data."""
     from memory import store
 
     issued_at = utcnow()
+    judge = judge or llm.complete
     claims = store.events(company_id=company_id, kind=EventKind.DECK_CLAIM, as_of=issued_at)
     claims = [claim for claim in claims if not claim.integrity_flags and _claim_text(claim)]
     if not claims:
@@ -167,8 +187,61 @@ def _issued_event(challenge_id: UUID, as_of: datetime) -> Event:
     return matches[0]
 
 
+def _parse_iso(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else None
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+def _clip_score(value: object, default: float = 0.0) -> float:
+    if isinstance(value, bool):
+        return 1.0 if value else 0.0
+    if isinstance(value, (int, float)) and math.isfinite(float(value)):
+        return max(0.0, min(1.0, float(value)))
+    return default
+
+
+def _weighted(components: dict[str, float], weights: dict[str, float]) -> float:
+    return round(sum(components[key] * weight for key, weight in weights.items()), 4)
+
+
+def _iteration_score(count: int) -> float:
+    if count == 0:
+        return 0.0
+    if count == 1:
+        return 0.35
+    return 0.7 if count <= 3 else 1.0
+
+
+def _first_commit_score(minutes: float | None) -> float:
+    if minutes is None or minutes < 0:
+        return 0.5
+    if minutes <= 3:
+        return 0.4
+    if minutes <= 30:
+        return 1.0
+    if minutes <= 60:
+        return 0.7
+    return 0.4
+
+
+def _regularity_score(commit_times: list[datetime]) -> float:
+    if len(commit_times) < 3:
+        return 0.5
+    gaps = [(right - left).total_seconds() for left, right in zip(commit_times, commit_times[1:])]
+    if not gaps or max(gaps) <= 0:
+        return 0.5
+    return min(1.0, sorted(gaps)[len(gaps) // 2] / max(gaps) * 2.0)
+
+
 def grade(challenge_id: UUID, artifact: str, trace: dict) -> list[Event]:
-    """Turn a submitted artifact and behavioral trace into two low-noise observations."""
+    """Grade either the raw C trace or D's timestamped commit/question trace adapter."""
     now = utcnow()
     issued = _issued_event(challenge_id, now)
     if trace.get("company_id") and UUID(str(trace["company_id"])) != issued.company_id:
@@ -177,44 +250,142 @@ def grade(challenge_id: UUID, artifact: str, trace: dict) -> list[Event]:
         raise ValueError("trace entity does not match challenge")
     if issued.company_id is None:
         raise ValueError("issued challenge has no company")
-    company_id = issued.company_id
-    entity_id = issued.entity_id
-    completed_at = _completed_at(trace)
-    if completed_at < issued.observed_at or completed_at > now:
-        raise ValueError("trace completion time is outside the issued challenge window")
-    trace_events = _trace_events(trace, issued.observed_at, completed_at)
+
+    legacy = "commits" in trace and "events" not in trace
     source_url = str(trace["source_url"]) if trace.get("source_url") else None
-    test_results = trace.get("test_results")
-    if not isinstance(test_results, dict):
-        raise ValueError("trace.test_results is required")
-    passed, total = test_results.get("passed"), test_results.get("total")
-    valid_counts = (
-        all(isinstance(value, int) and not isinstance(value, bool) for value in (passed, total))
-        and 0 <= passed <= total
-    )
-    works = bool(valid_counts and total > 0 and passed == total)
-    sound = test_results.get("static_checks_passed") is True
-    event_types = [event_type for event_type, _ in trace_events]
-    challenged = "constraint_challenged" in event_types
-    clarified = "clarifying_question" in event_types
-    handled_ambiguity = clarified or "assumption_stated" in event_types
-    commit_times = [timestamp for event_type, timestamp in trace_events if event_type == "commit"]
+    if legacy:
+        started_at = _parse_iso(trace.get("started_at"))
+        submitted_at = _parse_iso(trace.get("submitted_at"))
+        seeded = trace.get("seeded") is True
+        if (
+            started_at is None
+            or submitted_at is None
+            or submitted_at < started_at
+            or submitted_at > now
+            or (not seeded and started_at < issued.observed_at)
+        ):
+            raise ValueError("legacy trace requires ordered aware start/submission times")
+        completed_at = submitted_at
+        commits = trace.get("commits")
+        if not isinstance(commits, list):
+            raise ValueError("legacy trace commits must be a list")
+        commit_times = []
+        for item in commits:
+            if not isinstance(item, dict) or (timestamp := _parse_iso(item.get("at"))) is None:
+                raise ValueError("legacy trace contains a malformed commit")
+            commit_times.append(timestamp)
+        commit_times.sort()
+        if any(timestamp < started_at or timestamp > submitted_at for timestamp in commit_times):
+            raise ValueError("legacy commit is outside the submission window")
+        questions = trace.get("questions_asked")
+        questions = [question for question in questions or [] if isinstance(question, str)]
+        clarified = bool(questions)
+        challenged_value = trace.get("pushed_back_on_constraint")
+        challenged = challenged_value if isinstance(challenged_value, bool) else None
+        if challenged is None:
+            try:
+                inference = llm.complete(
+                    "PLANTED BAD CONSTRAINT:\n"
+                    + str(issued.payload.get("planted_bad_constraint") or "unknown"),
+                    system="Infer only whether the supplied trace challenged the constraint.",
+                    tier="fast",
+                    untrusted=json.dumps({"questions": questions, "commits": commits}),
+                    json_mode=True,
+                )
+                challenged = inference.get("pushed_back") if isinstance(inference, dict) else None
+            except Exception:
+                challenged = None
+        try:
+            artifact_grade = llm.complete(
+                "Grade the submitted proof artifact against the issued challenge. Return JSON with "
+                "works, technically_sound, ambiguity_handling, and evidence_span.",
+                system="Judge only the submitted work and challenge.",
+                tier="deep",
+                untrusted=json.dumps(
+                    {"challenge": issued.payload, "artifact": artifact, "trace": trace}
+                ),
+                json_mode=True,
+            )
+            artifact_grade = artifact_grade if isinstance(artifact_grade, dict) else {}
+        except Exception:
+            artifact_grade = {}
+        artifact_components = {
+            "works": _clip_score(artifact_grade.get("works")),
+            "technically_sound": _clip_score(artifact_grade.get("technically_sound")),
+            "ambiguity_handling": _clip_score(artifact_grade.get("ambiguity_handling")),
+        }
+        proposed_receipt = artifact_grade.get("evidence_span")
+        grounded_receipt = (
+            proposed_receipt.strip()
+            if isinstance(proposed_receipt, str)
+            and proposed_receipt.strip()
+            and proposed_receipt.strip() in artifact
+            else artifact
+        )
+        artifact_receipt = grounded_receipt[:240]
+        handled_ambiguity = artifact_components["ambiguity_handling"] >= 0.5
+        works = artifact_components["works"] > 0.5
+        sound = artifact_components["technically_sound"] > 0.5
+        first_commit = (commit_times[0] - started_at).total_seconds() / 60 if commit_times else None
+        behavior_receipt = json.dumps(
+            {"questions_asked": questions, "commits": commits}, sort_keys=True
+        )
+    else:
+        completed_at = _completed_at(trace)
+        if completed_at < issued.observed_at or completed_at > now:
+            raise ValueError("trace completion time is outside the issued challenge window")
+        trace_events = _trace_events(trace, issued.observed_at, completed_at)
+        test_results = trace.get("test_results")
+        if not isinstance(test_results, dict):
+            raise ValueError("trace.test_results is required")
+        passed, total = test_results.get("passed"), test_results.get("total")
+        valid_counts = (
+            all(isinstance(value, int) and not isinstance(value, bool) for value in (passed, total))
+            and 0 <= passed <= total
+        )
+        works = bool(valid_counts and total > 0 and passed == total)
+        sound = bool(valid_counts and test_results.get("static_checks_passed") is True)
+        event_types = [event_type for event_type, _ in trace_events]
+        challenged = "constraint_challenged" in event_types
+        clarified = "clarifying_question" in event_types
+        handled_ambiguity = clarified or "assumption_stated" in event_types
+        commit_times = [
+            timestamp for event_type, timestamp in trace_events if event_type == "commit"
+        ]
+        first_commit = (
+            (commit_times[0] - issued.observed_at).total_seconds() / 60 if commit_times else None
+        )
+        artifact_components = {
+            "works": float(works),
+            "technically_sound": float(sound),
+            "ambiguity_handling": float(handled_ambiguity),
+        }
+        artifact_receipt = artifact[:240] or "Artifact submitted without text"
+        behavior_receipt = json.dumps(trace.get("events"), sort_keys=True)
+
     iterations = len(commit_times)
-    first_commit = (
-        (commit_times[0] - issued.observed_at).total_seconds() / 60 if commit_times else None
-    )
     latency_profile = [
         (right - left).total_seconds() / 60 for left, right in zip(commit_times, commit_times[1:])
     ]
-    behavior_receipt = json.dumps(trace.get("events"), sort_keys=True)
+    behavior_components = {
+        "constraint_pushback": 1.0 if challenged is True else 0.15 if challenged is False else 0.5,
+        "iteration": _iteration_score(iterations),
+        "time_to_first_commit": _first_commit_score(first_commit),
+        "clarification": 1.0 if clarified else 0.0,
+        "latency_regularity": _regularity_score(commit_times),
+    }
+    artifact_value = _weighted(artifact_components, ARTIFACT_WEIGHTS)
+    behavior_value = _weighted(behavior_components, BEHAVIOR_WEIGHTS)
     submission_digest = hashlib.sha256(
         json.dumps({"artifact": artifact, "trace": trace}, sort_keys=True, default=str).encode()
     ).hexdigest()
 
+    seeded = trace.get("seeded") is True
+    disclosure = str(trace.get("disclosure") or "") if seeded else None
     artifact_event = Event(
         event_id=uuid5(NAMESPACE_URL, f"proof-artifact:{challenge_id}:{submission_digest}"),
-        entity_id=entity_id,
-        company_id=company_id,
+        entity_id=issued.entity_id,
+        company_id=issued.company_id,
         kind=EventKind.PROOF_ARTIFACT,
         source=Source.PROOF_PROTOCOL,
         source_url=source_url,
@@ -225,27 +396,77 @@ def grade(challenge_id: UUID, artifact: str, trace: dict) -> list[Event]:
             "works": works,
             "sound": sound,
             "handled_ambiguity": handled_ambiguity,
+            "value": artifact_value,
+            "y": artifact_value,
+            "components": artifact_components,
+            "confidence": 0.9,
+            "caveat": CAVEAT,
+            "seeded": seeded,
+            "disclosure": disclosure,
         },
-        evidence_span=artifact[:240] or "Artifact submitted without text",
+        evidence_span=artifact_receipt,
         confidence=0.9,
     )
     behavior_event = Event(
         event_id=uuid5(NAMESPACE_URL, f"proof-behavior:{challenge_id}:{submission_digest}"),
-        entity_id=entity_id,
-        company_id=company_id,
+        entity_id=issued.entity_id,
+        company_id=issued.company_id,
         kind=EventKind.PROOF_BEHAVIOR,
         source=Source.PROOF_PROTOCOL,
         source_url=source_url,
         observed_at=completed_at,
         payload={
             "challenge_id": str(challenge_id),
-            "challenged_bad_constraint": challenged,
+            "challenged_bad_constraint": challenged is True,
+            "pushed_back_on_constraint": challenged,
             "asked_clarifying": clarified,
             "iteration_count": iterations,
             "time_to_first_commit_min": first_commit,
             "latency_profile": latency_profile,
+            "value": behavior_value,
+            "y": behavior_value,
+            "components": behavior_components,
+            "confidence": 0.95,
+            "caveat": CAVEAT,
+            "seeded": seeded,
+            "disclosure": disclosure,
         },
         evidence_span=behavior_receipt[:240],
         confidence=0.95,
     )
     return [artifact_event, behavior_event]
+
+
+def seed_demo_completion(company_id: UUID) -> list[Event]:
+    """Pre-run completion adapter used by D's demo grade route; disclosed, never presented live."""
+    from memory import store
+
+    now = utcnow()
+    issued = store.events(as_of=now, company_id=company_id, kind=EventKind.PROOF_CHALLENGE_ISSUED)
+    if not issued:
+        raise ValueError("no issued proof challenge for demo completion")
+    challenge_id = UUID(str(issued[-1].payload["challenge_id"]))
+    # Seeded activity is explicitly disclosed and anchored in the past so the
+    # demo never emits future-dated evidence, even when issuance happened now.
+    start = now - timedelta(minutes=80)
+
+    def at(minutes: int) -> str:
+        return (start + timedelta(minutes=minutes)).isoformat()
+
+    trace = {
+        "started_at": start.isoformat(),
+        "submitted_at": at(80),
+        "questions_asked": [
+            "Which interpretation of the success condition should the measurement use?"
+        ],
+        "pushed_back_on_constraint": True,
+        "commits": [
+            {"at": at(15), "message": "add measurement harness", "files": 4},
+            {"at": at(35), "message": "implement baseline", "files": 3},
+            {"at": at(58), "message": "replace unsuitable constraint", "files": 5},
+            {"at": at(76), "message": "document assumption and checks", "files": 2},
+        ],
+        "seeded": True,
+        "disclosure": "Generator and grader are live; this completion is pre-run.",
+    }
+    return grade(challenge_id, SEEDED_ARTIFACT, trace)

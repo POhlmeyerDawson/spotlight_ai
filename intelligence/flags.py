@@ -35,6 +35,21 @@ NOISE_FLOOR = 0.02
 NOISE_CEIL = 0.5
 UNINFORMATIVE = (0.5, 0.5)  # no flags evaluated -> tell the filter nothing
 
+# Public compatibility vocabulary shared with D's absence classifier.
+ARTIFACT_KINDS = (
+    EventKind.REPO_ACTIVITY,
+    EventKind.COMMIT_BURST,
+    EventKind.RELEASE,
+    EventKind.PROOF_ARTIFACT,
+    EventKind.PAPER,
+)
+CODE_KINDS = (
+    EventKind.REPO_ACTIVITY,
+    EventKind.COMMIT_BURST,
+    EventKind.RELEASE,
+    EventKind.PROOF_ARTIFACT,
+)
+
 _EVIDENCE_SPAN_MAX = 240
 
 RuleCheck = Callable[[Sequence[Event]], tuple[bool, list[Event]]]
@@ -47,6 +62,11 @@ class Rule:
     weight: float
     requires: frozenset[Source] | None  # None = always applicable
     check: RuleCheck
+
+    @property
+    def id(self) -> str:
+        """Compatibility alias used by D's trace/pipeline presentation layer."""
+        return self.rule_id
 
 
 # ---------------------------------------------------------------------------
@@ -563,13 +583,78 @@ def evaluate_events(events: list[Event], entity_id: UUID, as_of: datetime) -> li
     return flags
 
 
-def evaluate(entity_id: UUID, as_of: datetime) -> list[Event]:
-    """Store-backed wrapper. All reads are as_of-scoped by construction."""
-    from memory import store
+def evaluate(
+    entity_id: UUID, as_of: datetime, events: Sequence[Event] | None = None
+) -> list[Event]:
+    """Store wrapper plus the scalar rollup consumed by A/D's scoring pipeline."""
+    if events is None:
+        from memory import store
 
-    return evaluate_events(
-        store.events(entity_id=entity_id, as_of=as_of), entity_id=entity_id, as_of=as_of
+        history = store.events(entity_id=entity_id, as_of=as_of)
+    else:
+        history = list(events)
+    scoped = [
+        event
+        for event in history
+        if event.entity_id == entity_id
+        and event.observed_at <= as_of
+        and event.kind not in {EventKind.GREEN_FLAG, EventKind.INTEGRITY}
+        and not event.integrity_flags
+    ]
+    per_rule = evaluate_events(scoped, entity_id=entity_id, as_of=as_of)
+    if not scoped:
+        return per_rule
+
+    y_t, _ = observation(per_rule)
+    by_rule = {event.payload["rule_id"]: event for event in per_rule}
+    flag_rows = [
+        {
+            "id": rule.rule_id,
+            "fired": (
+                bool(by_rule[rule.rule_id].payload.get("fired"))
+                if rule.rule_id in by_rule
+                else False
+            ),
+            "weight": rule.weight,
+            "applicable": rule.rule_id in by_rule,
+        }
+        for rule in RULES
+    ]
+    fired = [row["id"] for row in flag_rows if row["applicable"] and row["fired"]]
+    anchor = max(event.observed_at for event in scoped)
+    company_ids = {event.company_id for event in scoped if event.company_id is not None}
+    if len(company_ids) > 1:
+        return per_rule
+    company_id = next(iter(company_ids), None)
+    self_consistency = sum(event.confidence for event in per_rule) / max(len(per_rule), 1)
+    source_evidence_ids = sorted(
+        {
+            str(evidence_id)
+            for event in per_rule
+            for evidence_id in event.payload.get("evidence_event_ids", [])
+        }
     )
+    rollup = Event(
+        entity_id=entity_id,
+        company_id=company_id,
+        kind=EventKind.GREEN_FLAG,
+        source=Source.MANUAL,
+        observed_at=anchor,
+        payload={
+            "value": y_t,
+            "y": y_t,
+            "flags": flag_rows,
+            "rules_fired": fired,
+            "rollup": True,
+            "self_consistency": self_consistency,
+            "observation_role": "rollup",
+            "derived_from_event_ids": [str(event.event_id) for event in per_rule],
+            "source_evidence_event_ids": source_evidence_ids,
+        },
+        evidence_span=f"{len(fired)}/{len(per_rule)} applicable green flags fired",
+        confidence=self_consistency,
+    )
+    return [*per_rule, rollup]
 
 
 def observation(flag_events: list[Event]) -> tuple[float, float]:

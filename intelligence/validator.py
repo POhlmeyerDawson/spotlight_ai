@@ -180,16 +180,18 @@ def check_claim(
     )
 
 
-def check_claims(company_id: UUID) -> list[ClaimVerdict]:
+def check_claims(company_id: UUID, as_of: datetime | None = None) -> list[ClaimVerdict]:
     """Store/search wrapper. The single as_of value scopes the entire claim read."""
     from memory import store
 
-    as_of = utcnow()
+    live_search = as_of is None
+    as_of = as_of or utcnow()
     claims = store.events(company_id=company_id, kind=EventKind.DECK_CLAIM, as_of=as_of)
     verdicts = []
     for claim in claims:
         claim_text, _ = _claim_fields(claim)
-        verdicts.append(check_claim(claim, web_search.search(claim_text)))
+        results = web_search.search(claim_text) if live_search else []
+        verdicts.append(check_claim(claim, results))
     return verdicts
 
 
