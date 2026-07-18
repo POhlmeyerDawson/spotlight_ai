@@ -31,7 +31,35 @@ app.include_router(insights.router)
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True}
+    """Liveness plus the things that degrade QUIETLY, so they can be seen before a
+    demo rather than discovered during one."""
+    from core.config import settings
+
+    out: dict = {"ok": True, "llm_provider": settings.llm_provider}
+    out["github_authenticated"] = bool(settings.github_token)
+    try:
+        import httpx
+
+        r = httpx.get(
+            "https://api.github.com/rate_limit",
+            timeout=4.0,
+            headers={"Authorization": f"Bearer {settings.github_token}"}
+            if settings.github_token
+            else {},
+        )
+        core = r.json()["resources"]["core"]
+        out["github_rate"] = {"remaining": core["remaining"], "limit": core["limit"]}
+        # Unauthenticated is 60/hour and this IP has exhausted it before. A scanner
+        # that returns nothing looks identical to a founder with no footprint.
+        if core["remaining"] == 0:
+            out["warnings"] = [
+                "GitHub rate limit exhausted — live scanning will return nothing, which "
+                "is indistinguishable from a founder having no public footprint. Set "
+                "GITHUB_TOKEN in .env to raise the limit from 60/hr to 5000/hr."
+            ]
+    except Exception:  # noqa: BLE001 - health must never be the thing that fails
+        out["github_rate"] = None
+    return out
 
 
 @app.get("/thesis")
