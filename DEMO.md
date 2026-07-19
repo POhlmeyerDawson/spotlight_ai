@@ -31,7 +31,7 @@ Open all four tabs before you start talking: `/`, `/pipeline`, `/company/intl-za
 > unrestricted — a geographic filter is the cheapest way to systematically miss the
 > founder we're about to show you."
 
-**1 · Visible builder (25s)** — Tensorpage, **rank 1**, founder **74.0**, band **5.6**.
+**1 · Visible builder (25s)** — Tensorpage, **rank 1**, founder **78.8**.
 Click into the score → trace drill-down → a quoted span with its slide ID and URL.
 > "Every number is clickable down to the text it came from. No score exists here
 > without receipts."
@@ -45,7 +45,7 @@ Show the planted constraint on the Proof Protocol panel. Then say the honest par
 > "The generator, the grader and the attestation are real. This completion is
 > pre-run — we're telling you that rather than letting you wonder."
 
-**3 · Serial founder (10s)** — Meshledger, founder **68.0**.
+**3 · Serial founder (10s)** — Meshledger, founder **64.2**.
 > "Same founder, second company. The founder score persists across the boundary; the
 > opportunity score resets. Score it from either company and you get the same number."
 
@@ -53,7 +53,7 @@ Show the planted constraint on the Proof Protocol panel. Then say the honest par
 - *Contradiction*: Arcwell vs Tallwind — **identical $40,000 ARR claims**, opposite
   outcomes. Only the ordering differs. "If we flagged the second one, we'd be
   pattern-matching on words instead of reasoning about time."
-- *Adversarial*: Synthgrid **37.8** vs the control Ferrite **42.2** — and **Ferrite's
+- *Adversarial*: Synthgrid **37.3** vs the control Ferrite **42.7** — and **Ferrite's
   burst is bigger**. "We don't false-positive fast builders, and that's measured, not
   asserted." Injection caught on slide 7 is visible in the trace.
 
@@ -64,7 +64,7 @@ Show the planted constraint on the Proof Protocol panel. Then say the honest par
 > threshold: correctly deprioritised. A backtest that only shows its winners is a
 > marketing document."
 
-**6 · Close — the equity thesis (20s)** — Zaryad Compute, **rank 2**, founder **73.2**.
+**6 · Close — the equity thesis (20s)** — Zaryad Compute, **rank 2**, founder **67.5**.
 > "Transliterated name, non-prestige institution, non-English sources. Second on the
 > list. Earlier today this founder scored at the prior with zero evidence, because a
 > transliterated name was silently disqualifying every event attached to them. That
@@ -88,9 +88,8 @@ backend dies, say so and keep going; the page still renders.
   path is real, the cohort is hand-collected.
 - Market and idea-vs-market axes are seeded; the founder axis is computed live. The
   `live` flag on each axis says which is which.
-- `access_lift` currently reports **nothing**, not a number — visibility is uniform
-  across the seeded corpus, so the metric cannot discriminate. It refuses rather than
-  reporting a confident 1.0. Don't claim it.
+- `access_lift` now reports **0.556** over a real visibility spread. It returns
+  nothing when visibility is uniform, so a number means it actually measured.
 
 ## make demo-check
 ```bash
