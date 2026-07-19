@@ -55,7 +55,24 @@ export default function IntegrityPanel({ flags }: { flags: IntegrityFlag[] }) {
             </div>
 
             <div className="px-4 py-3">
+              {/*
+                What this did to the DECISION leads the card. It is the only line here
+                that completes "this matters because…" — the forensics below are the
+                evidence for it, not the finding itself.
+              */}
+              {f.effect_on_decision && (
+                <p className="mb-2 text-[16px] leading-[1.5] font-medium text-[color:var(--figure)]">
+                  Effect on the decision: {f.effect_on_decision}
+                </p>
+              )}
+
               <p className="text-[15px] leading-[1.55] text-[color:var(--muted)]">{f.detail}</p>
+
+              {f.effect_on_score && (
+                <p className="mt-1.5 text-[14px] leading-[1.55] text-[color:var(--muted)]">
+                  Effect on the score: {f.effect_on_score}
+                </p>
+              )}
 
               {f.quoted_span && (
                 <>
@@ -72,6 +89,22 @@ export default function IntegrityPanel({ flags }: { flags: IntegrityFlag[] }) {
                 </span>
                 <p className="mt-1 text-[14px] leading-[1.55] text-[color:var(--figure)]">{f.action_taken}</p>
               </div>
+
+              {/*
+                The control comparison is a claim about the DETECTOR, not about this
+                company — "we did not false-positive a fast builder" is only credible
+                with the control beside it, so it is rendered rather than dropped.
+              */}
+              {f.control_note && (
+                <div className="mt-2 border border-dashed border-[color:var(--rule)] px-3 py-2">
+                  <span className="meta text-[color:var(--muted)]">
+                    Checked against a control
+                  </span>
+                  <p className="mt-1 text-[14px] leading-[1.55] text-[color:var(--muted)]">
+                    {f.control_note}
+                  </p>
+                </div>
+              )}
             </div>
           </li>
         );

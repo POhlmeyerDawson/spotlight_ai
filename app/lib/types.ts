@@ -157,13 +157,28 @@ export interface ClaimVerdict {
 }
 
 export interface IntegrityFlag {
-  flag: string; // "injection_stripped" | "ocr_low_conf" | "transliterated_name"
+  flag: string; // "prompt_injection_detected" | "ocr_low_conf" | "transliterated_name"
   severity: "critical" | "serious" | "warning";
   where: string; // "slide 7", "deck page 3"
   detail: string;
   /** The stripped/suspect text itself, quoted. The caught injection is a demo beat. */
   quoted_span: string | null;
   action_taken: string;
+  /**
+   * What this finding did to the DECISION, in the backend's own words ("decisive — a
+   * planted instruction is itself the strongest signal in this file"). This is the only
+   * part of an integrity flag that completes "this matters because…", so it leads the
+   * card rather than sitting under the forensics.
+   */
+  effect_on_decision?: string;
+  /** What it did to the SCORE, which is often "none — the sanitizer ran first". */
+  effect_on_score?: string;
+  /**
+   * The control comparison's conclusion. This is what turns "we flagged a big commit
+   * burst" into "we did not false-positive a fast builder, and here is the control that
+   * proves it" — a claim about the detector, not just about this company.
+   */
+  control_note?: string;
 }
 
 export interface ProofBehavior {

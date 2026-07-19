@@ -247,21 +247,66 @@ function toClaims(raw: unknown): ClaimVerdict[] {
     .filter((c): c is ClaimVerdict => c !== null);
 }
 
+/**
+ * Severity, derived from the flag name when the payload does not state one.
+ *
+ * The live payload carries no `severity` field at all, so everything defaulted to
+ * "warning" — which meant a caught prompt injection never qualified as critical and the
+ * panel that rides at the top of the page for critical findings never fired. A planted
+ * instruction is the single most decision-relevant thing the sanitizer can find; it
+ * cannot be allowed to render at the same weight as low-confidence OCR.
+ */
+const CRITICAL_FLAGS = [
+  "prompt_injection_detected",
+  "injection_stripped",
+  "fabricated_history",
+];
+const SERIOUS_FLAGS = ["keyword_stuffing", "low_substance_burst", "contradiction"];
+
+function severityOf(flag: string, stated: string | null): IntegrityFlag["severity"] {
+  if (stated === "critical" || stated === "serious" || stated === "warning") return stated;
+  if (CRITICAL_FLAGS.includes(flag)) return "critical";
+  if (SERIOUS_FLAGS.includes(flag)) return "serious";
+  return "warning";
+}
+
+/** Renders a `measure` object as one readable line rather than dropping it. */
+function measureLine(v: unknown): string | null {
+  if (!isObj(v)) return null;
+  const parts = Object.entries(v)
+    .filter(([, val]) => typeof val === "number" || typeof val === "string")
+    .map(([k, val]) => `${k.replace(/_/g, " ")} ${val}`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 function toIntegrity(raw: unknown): IntegrityFlag[] {
   return arr(raw)
     .map((f, i): IntegrityFlag | null => {
       if (!isObj(f)) return null;
       const flag = str(f.flag) ?? str(f.kind) ?? str(f.name);
       if (!flag) return null;
-      const sev = str(f.severity);
+
+      const control = isObj(f.control_comparison) ? f.control_comparison : null;
+
       return {
         flag,
-        severity:
-          sev === "critical" || sev === "serious" || sev === "warning" ? sev : "warning",
-        where: str(f.where) ?? str(f.locator) ?? `finding ${i + 1}`,
-        detail: str(f.detail) ?? str(f.note) ?? "No detail reported.",
-        quoted_span: str(f.quoted_span) ?? str(f.span),
-        action_taken: str(f.action_taken) ?? "No action reported.",
+        severity: severityOf(flag, str(f.severity)),
+        // Live calls this `location`.
+        where: str(f.where) ?? str(f.location) ?? str(f.locator) ?? `finding ${i + 1}`,
+        // No `detail` field exists live; the measurements are the detail.
+        detail:
+          str(f.detail) ??
+          str(f.note) ??
+          measureLine(f.measure) ??
+          "No detail reported.",
+        // Live calls the quoted payload `extracted_text`. Dropping it meant the caught
+        // injection — the thing worth seeing — was never rendered.
+        quoted_span: str(f.quoted_span) ?? str(f.span) ?? str(f.extracted_text),
+        // Live calls this `handling`.
+        action_taken: str(f.action_taken) ?? str(f.handling) ?? "No action reported.",
+        effect_on_decision: str(f.effect_on_decision) ?? undefined,
+        effect_on_score: str(f.effect_on_score) ?? undefined,
+        control_note: control ? str(control.conclusion) ?? undefined : undefined,
       };
     })
     .filter((f): f is IntegrityFlag => f !== null);

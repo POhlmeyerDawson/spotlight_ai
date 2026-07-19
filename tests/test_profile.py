@@ -418,6 +418,29 @@ def test_gap_finds_divergence_between_stated_and_revealed(client: TestClient):
     assert finding["provenance"]["basis"] == "survey+decisions"
 
 
+def test_gap_confidence_is_discounted_by_the_thinner_side(client: TestClient):
+    """A finding drawn from four investments must not claim the confidence of forty.
+    Every finding built on the same rows should report the same revealed-side discount."""
+    client.post(
+        "/profile/survey", json={"answers": _answers_extreme("conviction", maximise=False)}
+    )
+    _upload(
+        client,
+        "company,sector,stage,decision\n"
+        "A,ai-infra,pre-seed,invested\n"
+        "B,ai-infra,pre-seed,invested\n"
+        "C,ai-infra,pre-seed,invested\n"
+        "D,ai-infra,pre-seed,invested\n",
+    )
+    report = client.get("/profile/gap").json()
+    by_dim = {f["dimension"]: f for f in report["findings"]}
+    expected = 4 / profiles.DECISIONS_FOR_FULL_CONFIDENCE
+    for dim in ("conviction_style", "stage"):
+        assert by_dim[dim]["confidence"] <= expected + 1e-6, (
+            f"{dim} overstates confidence on a 4-investment history"
+        )
+
+
 def test_gap_reports_agreement_when_the_two_sides_match(client: TestClient):
     client.post(
         "/profile/survey", json={"answers": _answers_extreme("conviction", maximise=False)}

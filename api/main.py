@@ -27,6 +27,12 @@ app.add_middleware(
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(300\d|3010)|https://[a-z0-9-]+\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
+    # Required for the session cookie to be sent from the Next.js dev origin. In
+    # production both halves are same-origin so this never applies, which is exactly
+    # why its absence would only have shown up in local development — and only after
+    # login had been built. Safe here because the origins are an explicit regex, never
+    # a wildcard: allow_credentials with "*" is what the spec forbids.
+    allow_credentials=True,
 )
 
 app.include_router(companies.router)
