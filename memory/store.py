@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import os
 import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from schema.events import Company, Entity, Event, utcnow
+from schema.events import Company, CompanyProvenance, Entity, Event, utcnow
 
 if TYPE_CHECKING:
     from memory.pg_store import PostgresEventStore
@@ -124,15 +126,33 @@ class EventStore:
         *,
         founder_entity_ids: list[UUID] | None = None,
         archetype: int | None = None,
+        provenance: CompanyProvenance = CompanyProvenance.SOURCED,
     ) -> Company:
         company = Company(
             name=name,
             founder_entity_ids=list(founder_entity_ids or []),
             archetype=archetype,
+            provenance=provenance,
         )
         with self._lock:
             self._companies[company.company_id] = company
         return company
+
+    def set_company_provenance(self, company_id: UUID, provenance: CompanyProvenance) -> None:
+        with self._lock:
+            company = self._companies.get(company_id)
+            if company is not None:
+                self._companies[company_id] = company.model_copy(
+                    update={"provenance": provenance}
+                )
+
+    def set_company_founders(self, company_id: UUID, founder_entity_ids: list[UUID]) -> None:
+        with self._lock:
+            company = self._companies.get(company_id)
+            if company is not None:
+                self._companies[company_id] = company.model_copy(
+                    update={"founder_entity_ids": list(founder_entity_ids)}
+                )
 
     def get_company(self, company_id: UUID) -> Company | None:
         return self._companies.get(company_id)
@@ -224,6 +244,38 @@ def append(event: Event) -> UUID:
     return get_store().append(event)
 
 
+# --- request-scoped bulk prefetch -------------------------------------------------
+#
+# The ranked list asks the gate and the score for every company in turn, and each of
+# those calls `events(company_id=...)`. At 27 companies that was ~138 round trips and
+# tolerable; at 126 it is the reason `/companies` took 48-70s and the browser fell back
+# to fixtures. The queries are not slow — 25ms each — there are simply N of them, and
+# every one pays a network round trip to a hosted Postgres.
+#
+# `prefetch` loads the whole as_of-scoped log ONCE and serves the same reads from
+# memory. It is deliberately a context manager rather than a persistent cache: an
+# append-only log means a long-lived cache would go stale silently, and the one thing
+# worse than a slow list is a list that quietly serves yesterday's evidence.
+# A ContextVar, NOT a module global. `list_companies` is a sync def, so FastAPI runs it
+# on the anyio threadpool: with a plain global, two concurrent requests interleave their
+# save/restore and one request's cache leaks past the end of its own `with` block,
+# serving stale evidence indefinitely. `memory/score.py` already uses a ContextVar for
+# the same reason. A ContextVar is per-task, so the leak cannot happen.
+_prefetched: ContextVar[tuple[datetime, list[Event]] | None] = ContextVar(
+    "store_prefetched", default=None
+)
+
+
+@contextmanager
+def prefetch(as_of: datetime):
+    """Serve every `events()` read in this block from one query."""
+    token = _prefetched.set((as_of, get_store().events(as_of=as_of)))
+    try:
+        yield
+    finally:
+        _prefetched.reset(token)
+
+
 def events(
     *,
     as_of: datetime,
@@ -231,6 +283,22 @@ def events(
     company_id: UUID | None = None,
     kind: str | None = None,
 ) -> list[Event]:
+    # Only serve from the prefetch when the cutoff MATCHES. A cached read at a
+    # different as_of would be a lookahead violation (Invariant #1) — the one bug
+    # class this codebase treats as unforgivable — so a mismatch falls through to
+    # the store rather than filtering the cache down.
+    cached = _prefetched.get()
+    if cached is not None and cached[0] == as_of:
+        # Copy: callers receive a list they may sort or mutate in place, and the cache
+        # is shared across every read in the block.
+        rows = list(cached[1])
+        if entity_id is not None:
+            rows = [e for e in rows if e.entity_id == entity_id]
+        if company_id is not None:
+            rows = [e for e in rows if e.company_id == company_id]
+        if kind is not None:
+            rows = [e for e in rows if str(e.kind) == str(kind)]
+        return rows
     return get_store().events(as_of=as_of, entity_id=entity_id, company_id=company_id, kind=kind)
 
 
@@ -246,11 +314,42 @@ def upsert_entity(name: str, normalized: str) -> UUID:
     return current.entity_id if current else get_store().create_entity(name, normalized).entity_id
 
 
-def upsert_company(name: str, archetype: int | None = None) -> UUID:
+def upsert_company(
+    name: str,
+    archetype: int | None = None,
+    *,
+    provenance: CompanyProvenance,
+    founder_entity_ids: list[UUID] | None = None,
+) -> UUID:
+    """`provenance` is REQUIRED and keyword-only, deliberately.
+
+    It used to default to SOURCED, so any caller that forgot it silently claimed the
+    company's evidence was collected from the outside world. `schema/events.py` and
+    migration 007 removed the same default for the same reason: when we do not know
+    where a company came from, neither value is honest, so there is nothing safe to
+    default to. Making it required moves the claim to the call site, where whoever
+    writes it can actually be held to it.
+    """
     current = next((c for c in get_store().companies() if c.name == name), None)
     if current:
+        # Correct the provenance of a row that already exists rather than leaving it.
+        # An early return here is how a company seeded before this field existed keeps
+        # a stale `sourced` label through every subsequent reseed — a mislabelling that
+        # nothing downstream can detect, on precisely the field whose job is to stop a
+        # constructed company being read as sourced evidence.
+        if current.provenance != provenance:
+            get_store().set_company_provenance(current.company_id, provenance)
         return current.company_id
-    return get_store().create_company(name, archetype=archetype).company_id
+    # Populated at creation when the caller knows the founder. The column is described
+    # elsewhere as a denormalized convenience, but leaving it empty is not free: every
+    # reader then falls back to scanning the event log for the company's entities, which
+    # on GET /companies is one extra database round trip per company on the hot path.
+    return get_store().create_company(
+        name,
+        archetype=archetype,
+        provenance=provenance,
+        founder_entity_ids=founder_entity_ids,
+    ).company_id
 
 
 def get_entity(entity_id: UUID) -> dict | None:
