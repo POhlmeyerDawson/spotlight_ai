@@ -1,0 +1,172 @@
+{
+  "$schema_version": "1.0",
+  "description": "Trait taxonomy for VC Brain. Scoring is on TRAITS; attribution is by SOURCE. A source is a collection channel, not a quality — nobody is good 'at GitHub'. Making a source a scored variable measures where a founder happens to be visible, which is exactly the visibility term sourcing/graph.hidden_ranking subtracts and exactly the Type 6 failure mode (real substance on regional platforms, thin GitHub presence, ranked down for geography wearing a technical mask). The taxonomy below is the honest generalisation of the themes already present in intelligence/flags.py and the signal list already present in data/sources.json. It is not a fresh ontology. Prose companion: docs/TRAITS.md.",
+
+  "collapse": {
+    "note": "memory/score.py consumes ONE scalar. The v1 collapse is deliberately an IDENTITY, not a re-tuning: trait weight = the total weight mass of the flags.py rules mapped to that trait, restricted to rules that were applicable for this founder. With that choice, sum(w_t * y_t) / sum(w_t) is algebraically equal to intelligence/flags.observation()[0] for every founder. The taxonomy therefore reorganises the explanation without moving a single band.",
+    "weight_source": "sum of Rule.weight over applicable rules mapped to the trait",
+    "rationale": "Any other weighting is a re-tuning of the sensor wearing a taxonomy change as a disguise. It would shift every founder's mu and band with no calibration run behind it, at a moment when the band is one of the few genuinely honest numbers in this system. Re-weighting is a separate, deliberate, calibrated act — not a side effect of naming things.",
+    "loses": "The scalar carries no per-trait uncertainty. A founder observed on one trait across four independent channels and a founder observed on four traits from one channel can collapse to the same y_t. The per-trait corroboration and confidence survive only in the TraitProfile, which is why the profile is stored alongside the scalar rather than replaced by it."
+  },
+
+  "corroboration": {
+    "channel_definition": "An independent channel is one source of evidence. Two signals from the SAME source are NOT independent: GitHub commits and GitHub releases are the same platform, the same identity, the same person's unilateral control. A GitHub release and an HN thread are independent — the second requires strangers who cannot be co-opted. Channels are currently keyed on the schema.events.Source enum, which is coarser than data/sources.json source ids (nine registry sources collapse onto 'web'). Refining this requires the bus to carry source_id in Event.payload — SOURCES.md §7 item 3, and the single highest-value follow-up for this module.",
+    "self_attested_channels": ["deck", "manual"],
+    "self_attested_rationale": "A deck is founder-authored prose with no third party in the loop, and a MANUAL event is us. Neither corroborates anything, so neither counts toward the channel count — it can only ever be the first voice, never the second. This was found empirically, not assumed: Synthgrid (the Type 5 adversary) cleared the 2-channel gate on problem_scoping in the live corpus using deck + GitHub, because the same keyword stuffing appears in the pitch and in the repo description. Both are surfaces the founder controls unilaterally, so counting them as two witnesses is counting one person twice. Excluding self-attested channels drops the adversary back below the gate while leaving every legitimate founder's count unchanged. Note this rule is about WHO CONTROLS THE CHANNEL, not about which platform it is — GitHub is founder-controlled too, and the honest long-term fix is to distinguish founder-authored artifacts from third-party reactions WITHIN a source (a README versus a stranger's issue). That refinement needs the source_id passthrough above.",
+    "curve": {"1": 0.6, "2": 0.8, "3+": 1.0},
+    "curve_rationale": "A design judgement, argued not measured. One channel is a claim; two channels are a claim plus a witness; three is a pattern. The curve is concave because the third witness adds less than the second. It multiplies CONFIDENCE only — never the trait score — so corroboration cannot leak into the scalar and destabilise the filter.",
+    "min_channels_rationale": "Traits evidenced by keyword matches over founder-authored text (technical_depth, problem_scoping, learns_from_failure) are cheap to write and require two INDEPENDENT channels before they count as observed. technical_depth is on this list because three of its five rules are keyword matches (infra_domain_depth, benchmarks_published, explains_tradeoffs) and vocabulary is purchasable — measured on the live corpus, the Type 5 adversary scored HIGHER on technical_depth than the legitimate fast-builder control did, purely on keyword-stuffed deck copy. At min_channels 1 the adversary cleared the observed gate on it. This is the taxonomy applying its own stated rule to a trait that was initially, and wrongly, exempted from it. Traits evidenced by artifacts that cost calendar time or third-party effort (iteration_velocity, ships_to_users, responds_to_scrutiny) count at one, because the single channel already carries the cost."
+  },
+
+  "traits": [
+    {
+      "id": "ships_to_users",
+      "name": "Ships to users",
+      "definition": "Turns work into something a stranger can actually install, run, and use — and puts it in front of people who did not have to be nice about it.",
+      "investor_phrasing": "Does anything they built leave their laptop?",
+      "min_channels": 1,
+      "absence": "CONDITIONAL",
+      "absence_predicate": "The founder's own claim implies a public artifact should exist (a shipped product, a launched tool, users served). A designer or a closed-source defence founder with nothing public is UNKNOWN, not weak. An infra founder claiming a shipped distributed system with no artifact anywhere is the case this predicate exists to catch.",
+      "sources": {
+        "github": "Tagged releases; repos with outside contributors.",
+        "hn": "Show HN — a dated launch paired with strangers' unscripted reaction.",
+        "package_registries": "Published versions, and dependents (not downloads — downloads are CI robots).",
+        "hf_hub": "Published models, datasets, Spaces with real commit history.",
+        "proof_protocol": "The challenge artifact actually runs."
+      },
+      "gaming": "A release tag is free. A README claiming users is free.",
+      "gaming_cost": "Expensive at the far end: a dependent requires another human to stake their own build on yours, and an outside contributor requires someone to donate effort. Both need third parties who cannot be co-opted. This is why external_contributors and dependents carry the trait and version-tag count does not.",
+      "flag_rules": ["shipped_release", "show_hn_ship", "external_contributors", "proof_artifact_works"],
+      "registry_signals": ["shipped_artifact_public_launch", "users_actually_served"]
+    },
+    {
+      "id": "iteration_velocity",
+      "name": "Iterates on the same artifact",
+      "definition": "Returns to one piece of work and keeps improving it over calendar time, rather than starting five new things. Revisiting beats launching.",
+      "investor_phrasing": "Do they finish, or do they keep starting?",
+      "min_channels": 1,
+      "absence": "CONDITIONAL",
+      "absence_predicate": "Any public code artifact exists at all. If there is code and it was touched once, that is information. If there is no code and none was ever claimed, it is UNKNOWN.",
+      "sources": {
+        "github": "Commits, releases and bursts keyed by repo — the same repo appearing across months.",
+        "package_registries": "Patch releases landing 3, 6, 12 months after the launch spike. The clearest available separator between a demo and a product.",
+        "proof_protocol": "Iteration count within the challenge rather than a one-shot submission."
+      },
+      "gaming": "Commit count and version bumps are near-free; a script can produce thousands of commits in an afternoon.",
+      "gaming_cost": "Expensive on substance and on calendar. burst_with_substance gates the volume on measured diff substance (shared thresholds with sourcing/burst.py, so the two definitions cannot drift), and 90 days of sustained activity cannot be compressed at any price. Faking months of coherent, tested, semantically connected change to a system that compiles approaches the cost of just building it.",
+      "flag_rules": ["repeat_shipper", "sustained_activity_90d", "active_multiple_weeks", "recent_momentum", "burst_with_substance", "iterates_same_artifact", "revisits_over_new", "releases_same_repo", "proof_iterated"],
+      "registry_signals": ["sustained_commit_substance", "release_cadence", "maintenance_after_launch"]
+    },
+    {
+      "id": "engineering_rigor",
+      "name": "Engineering rigor",
+      "definition": "Does the unglamorous work that only pays off later: tests, CI, docs written for users rather than for themselves, deliberate versioning.",
+      "investor_phrasing": "Will this survive contact with a second engineer?",
+      "min_channels": 1,
+      "absence": "UNKNOWN",
+      "absence_predicate": "Mildly meaningful only where the founder claims production reliability. At prototype stage, absence says nothing — plenty of correct early code has no test suite.",
+      "sources": {
+        "github": "Test files changed alongside logic; CI workflow config; README/changelog; semver-shaped tags.",
+        "package_registries": "Deprecation notices and migration guides ahead of breaking changes."
+      },
+      "gaming": "Cheapest trait in the taxonomy to fake. A CI badge, an empty test file, and a v1.0.0 tag cost one afternoon.",
+      "gaming_cost": "Expensive only in its sustained form — a suite that actually gates CI over years, and breaking changes communicated before they land. The current rules read presence, not gating, so this trait's evidence is deliberately weighted low and it should never be the trait carrying an assessment.",
+      "flag_rules": ["tests_present", "ci_configured", "docs_written", "semver_discipline"],
+      "registry_signals": ["test_discipline", "breaking_change_communication"]
+    },
+    {
+      "id": "technical_depth",
+      "name": "Technical depth relative to the problem",
+      "definition": "Genuine command of a hard problem — measured against what they are attempting, not in the abstract. Depth is only depth if the problem is deep.",
+      "investor_phrasing": "Do they understand the hard part of their own problem?",
+      "min_channels": 2,
+      "absence": "CONDITIONAL",
+      "absence_predicate": "The founder's claim implies hard technical work (a compiler, a scheduler, a distributed system, a quantization scheme). Then no artifact anywhere is meaningful. Where the claim is a workflow product, absence is UNKNOWN.",
+      "sources": {
+        "arxiv": "Papers on the problem being attacked, with v1 submission date — never the revision date.",
+        "github": "From-scratch implementations of non-obvious things; benchmark harnesses.",
+        "technical_blog": "Design docs with stated methodology.",
+        "hn": "Trade-off explanations under questioning.",
+        "conference_talks": "Recorded talks, where response latency makes ghostwriting impractical.",
+        "hf_hub": "Original models and evals with real commit history."
+      },
+      "gaming": "LLM-generated depth-shaped prose is now cheap, and the keyword rules backing this trait are text matches. Vocabulary is purchasable.",
+      "gaming_cost": "Expensive when the claim is tied to a reproducible artifact — runnable code, a published benchmark harness, a peer-reviewed venue. research_with_artifact exists specifically to require the conjunction. This is the trait where the min_channels requirement and the artifact conjunction do the real work.",
+      "flag_rules": ["published_research", "research_with_artifact", "infra_domain_depth", "benchmarks_published", "explains_tradeoffs"],
+      "registry_signals": ["technical_depth", "problem_selection", "explains_hard_idea_simply"]
+    },
+    {
+      "id": "problem_scoping",
+      "name": "Turns ambiguity into a concrete problem",
+      "definition": "Takes a vague brief and makes it decidable: names what is in scope and what is deliberately not, states assumptions out loud, and quotes measured numbers instead of adjectives.",
+      "investor_phrasing": "Can they say no, and say why?",
+      "min_channels": 2,
+      "absence": "UNKNOWN",
+      "absence_predicate": "Not applicable. Plenty of excellent builders never write scoping prose in public; the absence of writing is the absence of writing.",
+      "sources": {
+        "github": "READMEs with non-goals; feature requests closed with a courteous stated reason.",
+        "hn": "Comments narrowing a problem under challenge.",
+        "technical_blog": "Design docs with explicit non-goals.",
+        "arxiv": "Stated limitations sections.",
+        "proof_protocol": "Asked about the planted ambiguity, or explicitly assumed it away in writing."
+      },
+      "gaming": "The cheapest gaming surface in the taxonomy. Adding a 'Non-goals' section to a README costs five minutes and every rule here is a keyword match over founder-authored text.",
+      "gaming_cost": "Expensive only in its sustained form: a two-year issue history of consistent reasoned refusals carries a real social cost the gamer will not pay. The proof-protocol rule is the game-resistant member — the ambiguity is planted by us, so surfacing it cannot be prepared for. This is why min_channels is 2.",
+      "flag_rules": ["scoped_vague_problem", "states_assumptions", "defines_non_goals", "concrete_metrics_cited", "proof_surfaced_ambiguity"],
+      "registry_signals": ["scope_discipline"]
+    },
+    {
+      "id": "learns_from_failure",
+      "name": "Learns from failure in public",
+      "definition": "Names a specific mistake at their own cost and changes course because of it. Not performative humility — a checkable admission with a rewrite or a revert attached.",
+      "investor_phrasing": "When they are wrong, do they find out, and does anything change?",
+      "min_channels": 2,
+      "absence": "UNKNOWN",
+      "absence_predicate": "Not applicable. Never having written a postmortem in public is not evidence of never having learned anything.",
+      "sources": {
+        "github": "Rewrites and reverts in commit history — the change is dated and the diff is the receipt.",
+        "hn": "Public self-correction against their own headline number.",
+        "technical_blog": "Postmortems naming the exact bug shipped or the exact benchmark where their tool loses.",
+        "arxiv": "Errata and revised claims."
+      },
+      "gaming": "'Lessons learned' is a genre. LLMs write it well and it costs nothing.",
+      "gaming_cost": "Expensive when the admission is specific, costly and falsifiable against another artifact — the exact benchmark where you lose, the exact bug you shipped, both checkable elsewhere. SOURCES.md's rule stands: require the admission to be falsifiable against another artifact, or do not count it. The current rules are keyword matches and do NOT yet enforce that conjunction; this is a stated weakness, and the reason min_channels is 2.",
+      "flag_rules": ["rewrite_evidence", "postmortem_written", "reverted_course"],
+      "registry_signals": ["intellectual_honesty"]
+    },
+    {
+      "id": "responds_to_scrutiny",
+      "name": "Conduct under scrutiny",
+      "definition": "How they behave when a stranger says they are wrong, in public, on the record: engages the substance, concedes a good argument, pushes back on a bad premise — or deflects and attacks.",
+      "investor_phrasing": "What are they like when someone tells them no?",
+      "min_channels": 1,
+      "absence": "UNKNOWN",
+      "absence_predicate": "Hard-coded UNKNOWN. Many founders have never been publicly criticised, and silence on HN says nothing about a founder. Getting this backwards turns the registry into a detector for one professional subculture.",
+      "sources": {
+        "hn": "Founder replies in their own threads; Show HN conduct under attack, normalised by thread size so one front-page day cannot dominate.",
+        "github": "Stranger-filed issues answered at all, and how; median time-to-first-response over a long window.",
+        "proof_protocol": "Pushed back on the deliberately bad constraint we planted rather than implementing it."
+      },
+      "gaming": "A founder can behave well knowing they are watched.",
+      "gaming_cost": "The most game-resistant trait available. The thread is timestamped, public, and the critic is a third party who cannot be co-opted; behaving well consistently across years of threads IS the trait rather than a performance of it. The proof-protocol member is stronger still: the bad constraint is planted by us and cannot be anticipated.",
+      "flag_rules": ["responds_to_feedback", "answers_technical_questions", "proof_pushed_back"],
+      "registry_signals": ["handles_criticism", "user_support_conduct"]
+    }
+  ],
+
+  "unmapped_rules": [
+    {
+      "rule_id": "proof_fast_start",
+      "question": "Started building within 30 minutes of receiving it?",
+      "weight": 1.0,
+      "finding": "Maps to no trait, and should not be given one. It measures reaction latency, not a quality of the builder — how fast someone can clear their calendar is a property of their calendar. SOURCES.md already bans off-hours and weekend commit activity as a signal for exactly this reason ('it is a proxy for having no caregiving responsibilities'); a 30-minute response window is the same proxy at a shorter timescale, and arguably a sharper one. Inventing a trait to house it (an 'eagerness' or 'responsiveness' trait) would be the taxonomy laundering a bias.",
+      "disposition": "Left mapped to nothing. It still fires in flags.py and still enters the scalar via the existing rule-weight mass, so this module changes no score. Recommendation for whoever owns intelligence/flags.py: drop the rule, or reframe it as time-to-first-commit measured from when the founder STARTED, not from when we sent it."
+    }
+  ],
+
+  "coverage_gaps": [
+    "Registry signals with no flags.py rule behind them, so no trait can currently be evidenced by them: users_actually_served (dependents), user_support_conduct (median time-to-first-response), hiring_and_collaborator_retention (returning outside contributors), breaking_change_communication, maintenance_after_launch (post-launch patch releases), peer_selection, coauthor_graph_edge (PPR only by design — must never bump a score).",
+    "maintenance_after_launch is the notable one: SOURCES.md calls it the best cost-to-signal ratio in the registry and the one soft signal whose ABSENCE is genuinely meaningful, and iteration_velocity currently has no rule that measures it. The abandoned-demo detector is specified and not built.",
+    "The career_history category in data/sources.json is opt-in, self-reported and inert by default. No trait maps to it and none should while the flag is off."
+  ]
+}
