@@ -178,7 +178,25 @@ _pg: PostgresEventStore | None = None
 
 
 def _backend() -> str:
-    return os.getenv("MEMORY_BACKEND", "memory").strip().lower()
+    """Which store to read. Explicit MEMORY_BACKEND wins; otherwise INFER from the
+    configured connection string.
+
+    Defaulting to "memory" when DATABASE_URL points at Postgres is a silent
+    total-blindness failure: the app reads an ephemeral in-memory store, returns
+    zero events, and reports nothing wrong — measured here with 475 rows sitting in
+    Supabase and every query coming back empty. MEMORY_BACKEND was set in neither
+    .env nor .env.example, so that was the default path, not an edge case.
+    """
+    explicit = os.getenv("MEMORY_BACKEND", "").strip().lower()
+    if explicit:
+        return explicit
+
+    from core.config import settings
+
+    url = (settings.database_url or "").strip().lower()
+    if url.startswith(("postgres://", "postgresql://")):
+        return "postgres"
+    return "memory"
 
 
 def get_store() -> EventStore | PostgresEventStore:
@@ -261,25 +279,19 @@ def all_companies() -> list[dict]:
 
 
 def clear() -> None:
-    """Drop every event. Test/demo reset — the append-only trigger blocks DELETE, so
-    this recreates the table rather than deleting rows."""
-    conn = db.connect()
-    conn.execute("drop table if exists events cascade")
-    db.reset_connections()
-    db.apply_migrations() if hasattr(db, "apply_migrations") else db.connect()
+    """Test/demo reset. Delegates to ``reset()`` so the Postgres-safety rule lives in
+    exactly one place: a reset never truncates a real database."""
+    reset()
 
 
 def count() -> int:
-    conn = db.connect()
-    row = conn.execute("select count(*) as n from events").fetchone()
-    return int(row["n"] if isinstance(row, dict) else row[0])
+    """Total events currently visible in the log."""
+    return len(events(as_of=utcnow()))
 
 
 def get_event(event_id: UUID) -> Event | None:
     """Single event by id, unscoped by as_of — callers asking for a specific event
     already know which one they want."""
-    from schema.events import utcnow
-
     for e in events(as_of=utcnow()):
         if e.event_id == event_id:
             return e

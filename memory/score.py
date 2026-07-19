@@ -179,6 +179,16 @@ def _derive_y(payload: dict) -> float | None:
             numerator += weight if bool(flag.get("fired")) else 0.0
         if denominator:
             return float(np.clip(numerator / denominator, 0.0, 1.0))
+    # A per-rule RECEIPT is not an observation. Receipts carry `rule_id` and `fired`
+    # so the trace can show which rules fired and on what evidence; the reading itself
+    # lives on the single rollup. Scoring receipts too counts a founder once per rule
+    # instead of once per evaluation — it narrows the band by the square root of the
+    # rule count and lets how MANY rules exist outweigh how well the founder did.
+    # Measured with this clause active: the adversarial burst outscored its own
+    # legitimate control, 37.0 to 17.5, inverting the beat that exists to show we do
+    # not false-positive fast builders.
+    if "rule_id" in payload:
+        return None
     if "fired" in payload:
         return 1.0 if payload["fired"] else 0.0
     return None
@@ -306,6 +316,33 @@ def _F(dt_years: float) -> np.ndarray:
     return np.array([[1.0, dt_years], [0.0, 1.0]])
 
 
+# Silence is not evidence. A trend measured from past readings must not be
+# extrapolated indefinitely: momentum decays with a 90-day half-life, which bounds
+# total drift to v0 / DECAY_RATE, and uncertainty never exceeds the no-evidence prior.
+MOMENTUM_HALFLIFE_DAYS = 90.0
+_DECAY_RATE = np.log(2.0) / (MOMENTUM_HALFLIFE_DAYS / _DAYS_PER_YEAR)
+
+
+def _propagate_through_silence(
+    x: np.ndarray, covariance: np.ndarray, dt_years: float, q: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Advance the state across a gap with no observations.
+
+    The level integrates a decaying velocity rather than a constant one, so a short
+    burst of improvement cannot compound into an unbounded forecast.
+    """
+    decay = float(np.exp(-_DECAY_RATE * dt_years))
+    velocity = float(x[1])
+    displacement = velocity * (1.0 - decay) / _DECAY_RATE
+    x = np.array([float(x[0]) + displacement, velocity * decay])
+
+    transition = _F(dt_years)
+    covariance = transition @ covariance @ transition.T + _Q(dt_years, q)
+    covariance[0, 0] = min(covariance[0, 0], P0[0])
+    covariance[1, 1] = min(covariance[1, 1], P0[1])
+    return x, covariance
+
+
 def _Q(dt_years: float, q: float) -> np.ndarray:
     dt = max(dt_years, 0.0)
     return q * np.array([[dt**3 / 3.0, dt**2 / 2.0], [dt**2 / 2.0, dt]])
@@ -335,9 +372,7 @@ def _run_filter(entity_id: UUID, as_of: datetime) -> tuple[np.ndarray, np.ndarra
     if last_t is not None:
         gap = _dt_years(as_of, last_t)
         if gap > 0:
-            transition = _F(gap)
-            x = transition @ x
-            covariance = transition @ covariance @ transition.T + _Q(gap, q)
+            x, covariance = _propagate_through_silence(x, covariance, gap, q)
     return x, covariance, contributing
 
 
@@ -362,7 +397,5 @@ def forecast(entity_id: UUID, as_of: datetime, k_days: int) -> tuple[float, floa
     q, _ = _params()
     state, covariance, _ = _run_filter(entity_id, as_of)
     dt_years = float(k_days) / _DAYS_PER_YEAR
-    transition = _F(dt_years)
-    state = transition @ state
-    covariance = transition @ covariance @ transition.T + _Q(dt_years, q)
+    state, covariance = _propagate_through_silence(state, covariance, dt_years, q)
     return float(np.clip(state[0], 0.0, 1.0)), float(np.sqrt(max(covariance[0, 0], 0.0)))

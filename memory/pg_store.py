@@ -34,6 +34,25 @@ _ALIAS_COLS = "entity_id, kind, value, source"
 _MERGE_COLS = "entity_a, entity_b, status, score, rationale, decided_at"
 
 
+def _coerce(row: dict) -> dict:
+    """Normalise a stored row before validation.
+
+    `integrity_flags` is text[] in the schema, but a database that has lived through
+    several migration runs holds rows written against a jsonb version of the column,
+    where an empty list landed as the empty OBJECT {} rather than an array. Because
+    Event.integrity_flags is a list, ONE such row raised a ValidationError that
+    aborted the entire query — the store returned nothing while the database held
+    every event. A single malformed value must never cost the whole read.
+    """
+    flags = row.get("integrity_flags")
+    if not isinstance(flags, list):
+        row["integrity_flags"] = []
+    payload = row.get("payload")
+    if not isinstance(payload, dict):
+        row["payload"] = {}
+    return row
+
+
 class PostgresEventStore:
     """Persistent event store, duck-compatible with memory.store.EventStore."""
 
@@ -75,7 +94,10 @@ class PostgresEventStore:
                     Jsonb(event.payload),
                     event.evidence_span,
                     event.confidence,
-                    event.integrity_flags,
+                    # text[] per schema/migrations/001_init.sql — psycopg adapts a
+                    # python list directly. Wrapping it in Jsonb() targets a jsonb
+                    # column that only ever existed from a superseded migration run.
+                    list(event.integrity_flags),
                 ),
             )
         return event.event_id
@@ -111,7 +133,7 @@ class PostgresEventStore:
         )
         with self._connection().cursor(row_factory=dict_row) as cur:
             cur.execute(sql, params)
-            return [Event(**row) for row in cur.fetchall()]
+            return [Event(**_coerce(row)) for row in cur.fetchall()]
 
     # -- entities -----------------------------------------------------------
 

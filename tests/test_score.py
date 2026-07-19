@@ -194,6 +194,42 @@ def test_proof_events_move_the_score_hard() -> None:
     assert after.trend > before.trend
 
 
+def test_momentum_decays_across_silence_and_drift_is_bounded() -> None:
+    """Silence is not evidence. A rising trend must not extrapolate forever: it decays
+    with a 90-day half-life, so mu converges instead of running away from the readings."""
+    entity_id = uuid4()
+    _series(entity_id, [0.20, 0.28, 0.33, 0.37], step=30)
+    last = T0 + timedelta(days=90)
+    fresh = score.founder(entity_id, last + timedelta(hours=1))
+
+    trends, mus = [], []
+    for gap in (0, 90, 180, 365, 730):
+        got = score.founder(entity_id, last + timedelta(days=gap, hours=1))
+        trends.append(got.trend)
+        mus.append(got.mu)
+
+    assert all(a > b > 0 for a, b in zip(trends, trends[1:])), trends
+    # One half-life of silence halves the momentum.
+    assert trends[1] == pytest.approx(trends[0] / 2, rel=0.05)
+    assert mus == sorted(mus)
+    # Total drift is bounded by v0 / decay_rate, never an unbounded extrapolation.
+    assert mus[-1] - fresh.mu < fresh.trend / score._DECAY_RATE + 1e-9
+    assert mus[-1] < 0.5
+
+
+def test_band_never_exceeds_the_no_evidence_prior() -> None:
+    """Staleness widens the band, but uncertainty about a founder can never exceed
+    knowing nothing at all."""
+    entity_id = uuid4()
+    _series(entity_id, [0.7] * 4, step=30)
+    prior_band = score.P0[0] ** 0.5
+    for gap in (0, 365, 730, 3650):
+        got = score.founder(entity_id, T0 + timedelta(days=90 + gap, hours=1))
+        assert got.band <= prior_band + 1e-9, (gap, got.band)
+    _, far_band = score.forecast(entity_id, T0 + timedelta(days=91), 3650)
+    assert far_band <= prior_band + 1e-9
+
+
 def test_source_noise_and_consistency_are_safe() -> None:
     deck = Event(kind=EventKind.GREEN_FLAG, source=Source.DECK, observed_at=T0)
     proof = Event(kind=EventKind.PROOF_ARTIFACT, source=Source.PROOF_PROTOCOL, observed_at=T0)

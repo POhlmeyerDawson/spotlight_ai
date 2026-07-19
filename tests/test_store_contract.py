@@ -221,9 +221,24 @@ def test_merge_persistence_and_status_filter(backend) -> None:
 # -- selector (no database) -------------------------------------------------
 
 
-def test_selector_defaults_to_memory(monkeypatch) -> None:
+def test_selector_defaults_to_memory_when_no_database_is_configured(monkeypatch) -> None:
     monkeypatch.delenv("MEMORY_BACKEND", raising=False)
+    monkeypatch.setattr("core.config.settings", SimpleNamespace(database_url=""))
     assert store.get_store() is store._default
+
+
+def test_selector_infers_postgres_from_database_url(monkeypatch) -> None:
+    """With no explicit MEMORY_BACKEND, a configured Postgres URL must select the
+    Postgres backend. Defaulting to in-memory here reads an empty ephemeral store
+    while real rows sit in the database, and reports no error."""
+    from memory.pg_store import PostgresEventStore
+
+    monkeypatch.delenv("MEMORY_BACKEND", raising=False)
+    monkeypatch.setattr(
+        "core.config.settings", SimpleNamespace(database_url="postgresql://x/y")
+    )
+    store._pg = None
+    assert isinstance(store.get_store(), PostgresEventStore)
 
 
 def test_selector_postgres_returns_pg_backend(monkeypatch) -> None:
@@ -247,6 +262,42 @@ def test_selector_unknown_backend_raises(monkeypatch) -> None:
     monkeypatch.setenv("MEMORY_BACKEND", "sqlite")
     with pytest.raises(ValueError, match="unknown MEMORY_BACKEND"):
         store.get_store()
+
+
+# -- module-level compat helpers re-exported by memory/__init__ -------------
+#
+# These are part of A's public contract but had no coverage, which is how a
+# NameError in clear()/count() survived. Exercised against the in-memory default.
+
+
+def test_clear_count_and_get_event_round_trip(monkeypatch) -> None:
+    monkeypatch.setenv("MEMORY_BACKEND", "memory")
+    store.clear()
+    assert store.count() == 0
+
+    first = _evt()
+    second = _evt(observed_at=T0 + timedelta(days=1))
+    store.append(first)
+    store.append(second)
+
+    assert store.count() == 2
+    assert store.get_event(first.event_id) == first
+    # get_event is unscoped by as_of: a future event is still retrievable by id.
+    assert store.get_event(second.event_id) == second
+    assert store.get_event(uuid4()) is None
+
+    store.clear()
+    assert store.count() == 0
+    assert store.get_event(first.event_id) is None
+
+
+def test_clear_never_truncates_a_real_database(monkeypatch) -> None:
+    """clear() must route through reset(), which refuses to touch Postgres."""
+    monkeypatch.setenv("MEMORY_BACKEND", "postgres")
+    monkeypatch.setattr(
+        store, "_get_pg_store", lambda: pytest.fail("clear() must not reach the pg backend")
+    )
+    store.clear()
 
 
 # -- Postgres-only: DB-level append-only (needs a real database) ------------

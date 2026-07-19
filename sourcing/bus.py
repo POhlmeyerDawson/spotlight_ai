@@ -1,450 +1,258 @@
 """The one funnel. Owner: B. Inbound decks and outbound scanners take the same path.
 
 normalize -> sanitize -> stamp observed_at -> emit Events. No special cases.
+
+Also holds the shared fetch/cache plumbing every scanner uses, so raw responses
+land under data/raw/<source>/ exactly once and rate limits are handled in one place.
+
+`ingest()` is pure — it returns Events, it does not write them. Callers decide
+what to persist via memory.store.append().
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import re
+import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
+
+import httpx
 
 from schema.events import Event, EventKind, RawSignal, Source
+from sourcing.sanitize import sanitize
 
-from core.llm import wrap_untrusted
-from sourcing.sanitize import sanitize as sanitize_text
+log = logging.getLogger(__name__)
+
+DATE_INFERRED = "date_inferred"
+
+# What a source emits when meta doesn't say otherwise.
+DEFAULT_KIND: dict[Source, EventKind] = {
+    Source.HN: EventKind.HN_POST,
+    Source.GITHUB: EventKind.REPO_ACTIVITY,
+    Source.ARXIV: EventKind.PAPER,
+    Source.WEB: EventKind.PROFILE_FACT,
+    Source.DECK: EventKind.DECK_CLAIM,
+    Source.PROOF_PROTOCOL: EventKind.PROOF_ARTIFACT,
+    Source.VALIDATOR: EventKind.VALIDATION_RESULT,
+    Source.MANUAL: EventKind.PROFILE_FACT,
+}
+
+# meta keys the bus consumes itself; everything else is passed through to payload.
+_RESERVED = {
+    "kind",
+    "observed_at",
+    "date_floor",
+    "evidence_span",
+    "confidence",
+    "entity_id",
+    "company_id",
+    "integrity_flags",
+}
 
 
-def _normalize_content(raw: RawSignal) -> tuple[str, dict]:
-    """Normalize raw content to text and metadata.
+@dataclass
+class Prepared:
+    """Result of the shared normalize->sanitize->stamp path, before events are shaped.
 
-    Handles both string and bytes content.
+    deck.py uses this directly: it needs sanitized per-slide text to feed the claim
+    extractor, but must not skip the funnel to get it.
     """
-    if isinstance(raw.content, bytes):
-        try:
-            text = raw.content.decode("utf-8")
-        except UnicodeDecodeError:
-            # Try other encodings
-            try:
-                text = raw.content.decode("latin-1")
-            except UnicodeDecodeError:
-                text = raw.content.decode("utf-8", errors="replace")
 
-        # Add metadata about encoding
-        meta = dict(raw.meta) if raw.meta else {}
-        meta["content_encoding"] = "utf-8"
-        return text, meta
-    elif isinstance(raw.content, str):
-        return raw.content, dict(raw.meta) if raw.meta else {}
-    else:
-        # Serialize other types to JSON
-        return json.dumps(raw.content), dict(raw.meta) if raw.meta else {}
+    clean_text: str
+    observed_at: datetime
+    integrity_flags: list[str] = field(default_factory=list)
+    integrity_events: list[Event] = field(default_factory=list)
 
 
-def _extract_observables(content: str, source: Source) -> list[dict]:
-    """Extract observables from content for entity resolution.
-
-    Looks for common patterns like GitHub usernames, HN usernames, emails.
-    """
-    import re
-
-    observables = []
-
-    # GitHub usernames: @username or github.com/username
-    github_pattern = r"(?:^|[\s@])([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})(?:$|[\s,;])"
-    for match in re.finditer(github_pattern, content):
-        username = match.group(1)
-        if len(username) > 0 and username != "-":
-            observables.append({"type": "github", "value": username.lower()})
-
-    # HN usernames: hnuser or hackernews.com/user/username
-    hn_pattern = r"\b([a-zA-Z][a-zA-Z0-9._-]{1,30})\b"
-    if source == Source.HN:
-        for match in re.finditer(hn_pattern, content):
-            username = match.group(1)
-            if not username.isdigit():  # Skip numeric IDs
-                observables.append({"type": "hn", "value": username.lower()})
-
-    # Email addresses
-    email_pattern = r"\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b"
-    for match in re.finditer(email_pattern, content):
-        email = match.group(1)
-        observables.append({"type": "email", "value": email.lower()})
-
-    # URLs
-    url_pattern = r"https?://[^\s<>)]+"
-    for match in re.finditer(url_pattern, content):
-        url = match.group(0)
-        observables.append({"type": "url", "value": url.lower()})
-
-    return observables
-
-
-def _generate_event_id(raw: RawSignal, content_hash: str, kind: EventKind) -> UUID:
-    """Generate a deterministic event ID based on source and content."""
-    # Create a unique hash for this event
-    hash_input = f"{raw.source}:{raw.source_url or ''}:{content_hash}"
-    hash_bytes = hashlib.sha256(hash_input.encode()).digest()[:16]
-    return UUID(bytes=hash_bytes)
-
-
-def _get_observed_at(raw: RawSignal, source: Source, content: str) -> datetime:
-    """Determine the observed_at timestamp from the raw signal or content.
-
-    Priority:
-    1. raw.meta["observed_at"] if present
-    2. raw.fetched_at - but this is NOT observed_at, just a fallback
-    3. Parse from content for certain sources
-    """
-    # Check if we already have observed_at in meta
-    if "observed_at" in raw.meta:
-        try:
-            dt = raw.meta["observed_at"]
-            if isinstance(dt, datetime):
-                return dt
-        except Exception:
-            pass
-
-    # For certain sources, we should always have a proper timestamp
-    # If not, we need to flag it
-    source_needs_real_timestamp = source in [Source.HN, Source.GITHUB, Source.ARXIV]
-
-    if source_needs_real_timestamp:
-        # These sources MUST have real timestamps - if we don't have one,
-        # we should return a default and flag it
-        return datetime(2020, 1, 1, tzinfo=timezone.utc)  # Fallback, will be flagged
-
-    # For web scans, we might infer from date
-    return datetime.now(timezone.utc)
+def prepare(raw: RawSignal) -> Prepared:
+    text = raw.content.decode("utf-8", "replace") if isinstance(raw.content, bytes) else raw.content
+    observed_at, flags = _stamp(raw)
+    clean, integrity = sanitize(
+        text,
+        source_url=raw.source_url,
+        source=raw.source,
+        observed_at=observed_at,
+        entity_id=_uuid(raw.meta.get("entity_id")),
+        company_id=_uuid(raw.meta.get("company_id")),
+    )
+    if integrity:
+        flags = flags + [f.integrity_flags[0] for f in integrity[:1]]
+    return Prepared(clean, observed_at, flags, integrity)
 
 
 def ingest(raw: RawSignal) -> list[Event]:
-    """Ingest a raw signal and produce normalized Events.
+    prep = prepare(raw)
+    meta = raw.meta
+    payload = {k: v for k, v in meta.items() if k not in _RESERVED}
+    payload["text"] = prep.clean_text[:4000]
 
-    Pipeline:
-    1. Normalize content (bytes -> string)
-    2. Sanitize content (strip injection attacks)
-    3. Stamp observed_at timestamp
-    4. Generate Events
+    event = Event(
+        kind=EventKind(meta["kind"]) if meta.get("kind") else DEFAULT_KIND[raw.source],
+        source=raw.source,
+        source_url=raw.source_url,
+        observed_at=prep.observed_at,
+        entity_id=_uuid(meta.get("entity_id")),
+        company_id=_uuid(meta.get("company_id")),
+        payload=payload,
+        evidence_span=meta.get("evidence_span") or prep.clean_text[:280] or None,
+        confidence=float(meta.get("confidence", 1.0)),
+        integrity_flags=prep.integrity_flags + list(meta.get("integrity_flags", [])),
+    )
+    return prep.integrity_events + [event]
 
-    Args:
-        raw: RawSignal from a scanner or deck
 
-    Returns:
-        List of Event objects ready for store.append()
+def _stamp(raw: RawSignal) -> tuple[datetime, list[str]]:
+    """observed_at comes from the source's own clock, or it is flagged. Never silently now().
+
+    Ladder: the source's real timestamp -> the earliest date we can actually defend
+    (scanner-supplied floor, e.g. a date in the URL) -> fetch time, which is the only
+    remaining defensible bound. The last two carry date_inferred, so the backtest can
+    see exactly which signals it should not trust the clock on.
     """
-    result_events = []
-
-    # Step 1: Normalize content
-    content, meta = _normalize_content(raw)
-    raw.meta.update(meta)
-
-    # Step 2: Sanitize content
-    clean_content, integrity_events = sanitize_text(content, source_url=raw.source_url)
-
-    # Collect integrity flags from the sanitize step
-    integrity_flags = []
-    integrity_flags.extend(integrity_events)
-
-    # Step 3: Determine observed_at
-    observed_at = _get_observed_at(raw, raw.source, content)
-
-    # If the observed_at is a fallback (not from actual source), flag it
-    if observed_at.year < 2024:  # Pre-2024 is a reasonable fallback threshold
-        integrity_flags.append("observed_at_inferred")
-
-    # Step 4: Generate Events based on source type
-
-    # Content hash for ID generation
-    content_hash = hashlib.sha256(clean_content.encode()).hexdigest()[:16]
-
-    if raw.source == Source.HN:
-        result_events.extend(_ingest_hn(raw, clean_content, observed_at, integrity_flags, content_hash))
-    elif raw.source == Source.GITHUB:
-        result_events.extend(_ingest_github(raw, clean_content, observed_at, integrity_flags, content_hash))
-    elif raw.source == Source.ARXIV:
-        result_events.extend(_ingest_arxiv(raw, clean_content, observed_at, integrity_flags, content_hash))
-    elif raw.source == Source.WEB:
-        result_events.extend(_ingest_web(raw, clean_content, observed_at, integrity_flags, content_hash))
-    elif raw.source == Source.DECK:
-        result_events.extend(_ingest_deck(raw, clean_content, observed_at, integrity_flags, content_hash))
-    else:
-        # Generic fallback
-        result_events.append(Event(
-            event_id=_generate_event_id(raw, content_hash, EventKind.REPO_ACTIVITY),
-            kind=EventKind.REPO_ACTIVITY,
-            source=raw.source,
-            source_url=raw.source_url,
-            observed_at=observed_at,
-            payload={"content": clean_content, **raw.meta},
-            evidence_span=None,
-            confidence=0.8,
-            integrity_flags=integrity_flags,
-        ))
-
-    # Add integrity events from sanitization
-    result_events.extend(integrity_events)
-
-    return result_events
+    real = parse_ts(raw.meta.get("observed_at"))
+    if real:
+        return real, []
+    floor = parse_ts(raw.meta.get("date_floor"))
+    if floor:
+        return floor, [DATE_INFERRED]
+    # Conservative on purpose: fetch time never grants retroactive credit in the backtest.
+    return raw.fetched_at, [DATE_INFERRED]
 
 
-def _ingest_hn(raw: RawSignal, content: str, observed_at: datetime, integrity_flags: list[str], content_hash: str) -> list[Event]:
-    """Ingest HN raw signal."""
-    result_events = []
+_DATE_FORMATS = (
+    "%Y-%m-%dT%H:%M:%S%z",
+    "%Y-%m-%dT%H:%M:%SZ",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d",
+    "%Y/%m/%d",
+    "%d %b %Y",
+    "%b %d, %Y",
+    "%B %d, %Y",
+)
 
+
+def parse_ts(value: Any) -> datetime | None:
+    """Every scanner's timestamps land here. Returns tz-aware UTC or None — never a guess."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, (int, float)):  # unix epoch
+        return datetime.fromtimestamp(value, tz=timezone.utc)
+    if not isinstance(value, str) or not value.strip():
+        return None
+    s = value.strip()
     try:
-        data = json.loads(content)
-    except json.JSONDecodeError:
-        data = {"raw": content}
-
-    object_id = data.get("object_id", "")
-    kind = EventKind.HN_POST
-
-    # Determine if this is a comment
-    is_comment = data.get("meta", {}).get("is_comment", False)
-    if is_comment:
-        kind = EventKind.HN_COMMENT
-
-    # Create main event
-    payload = {
-        "object_id": object_id,
-        "title": data.get("title", ""),
-        "author": data.get("author", ""),
-    }
-
-    result_events.append(Event(
-        event_id=_generate_event_id(raw, content_hash, kind),
-        kind=kind,
-        source=Source.HN,
-        source_url=raw.source_url,
-        observed_at=observed_at,
-        payload=payload,
-        evidence_span=None,
-        confidence=0.95,
-        integrity_flags=integrity_flags,
-    ))
-
-    # If there's a story_text or comment_text, create a profile fact event
-    text = data.get("story_text") or data.get("comment_text") or ""
-    if text:
-        result_events.append(Event(
-            event_id=uuid4(),
-            kind=EventKind.PROFILE_FACT,
-            source=Source.HN,
-            source_url=raw.source_url,
-            observed_at=observed_at,
-            payload={"text": text, "text_type": "story" if not is_comment else "comment"},
-            evidence_span=text[:200] if text else None,
-            confidence=0.9,
-            integrity_flags=integrity_flags,
-        ))
-
-    return result_events
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        pass
+    for fmt in _DATE_FORMATS:
+        try:
+            dt = datetime.strptime(s, fmt)
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
 
 
-def _ingest_github(raw: RawSignal, content: str, observed_at: datetime, integrity_flags: list[str], content_hash: str) -> list[Event]:
-    """Ingest GitHub raw signal."""
-    result_events = []
-
-    try:
-        data = json.loads(content)
-    except json.JSONDecodeError:
-        data = {"raw": content}
-
-    repo_type = data.get("type", "")
-
-    if repo_type == "user":
-        payload = {
-            "username": data.get("login", ""),
-            "name": data.get("name", ""),
-            "followers_count": data.get("followers_count", 0),
-            "repositories_contributed_to": data.get("repositories_contributed_to", 0),
-            "location": data.get("location", ""),
-            "website": data.get("website", ""),
-        }
-
-        events.append(Event(
-            event_id=_generate_event_id(raw, content_hash, EventKind.PROFILE_FACT),
-            kind=EventKind.PROFILE_FACT,
-            source=Source.GITHUB,
-            source_url=raw.source_url,
-            observed_at=observed_at,
-            payload=payload,
-            evidence_span=None,
-            confidence=0.9,
-            integrity_flags=integrity_flags,
-        ))
-
-    elif repo_type == "repo" or repo_type == "repo_search":
-        payload = {
-            "owner": data.get("owner", data.get("username", "")),
-            "name": data.get("name", ""),
-            "stargazers": data.get("stargazers", data.get("stargazerCount", 0)),
-            "forks": data.get("forks", data.get("forkCount", 0)),
-            "languages": data.get("languages", []),
-            "created_at": data.get("created_at"),
-        }
-
-        result_events.append(Event(
-            event_id=_generate_event_id(raw, content_hash, EventKind.REPO_ACTIVITY),
-            kind=EventKind.REPO_ACTIVITY,
-            source=Source.GITHUB,
-            source_url=raw.source_url,
-            observed_at=observed_at,
-            payload=payload,
-            evidence_span=None,
-            confidence=0.9,
-            integrity_flags=integrity_flags,
-        ))
-
-    elif repo_type == "commit":
-        payload = {
-            "oid": data.get("oid", ""),
-            "author_login": data.get("author_login", ""),
-            "committed_date": data.get("committed_date"),
-            "message": data.get("message", ""),
-        }
-
-        result_events.append(Event(
-            event_id=uuid4(),
-            kind=EventKind.REPO_ACTIVITY,
-            source=Source.GITHUB,
-            source_url=raw.source_url,
-            observed_at=observed_at,
-            payload=payload,
-            evidence_span=data.get("message"),
-            confidence=0.95,
-            integrity_flags=integrity_flags,
-        ))
-
-    elif repo_type == "user_contributions":
-        payload = {
-            "username": data.get("username", ""),
-            "contributions": data.get("contributions", {}),
-        }
-
-        result_events.append(Event(
-            event_id=uuid4(),
-            kind=EventKind.REPO_ACTIVITY,
-            source=Source.GITHUB,
-            source_url=raw.source_url,
-            observed_at=observed_at,
-            payload=payload,
-            evidence_span=None,
-            confidence=0.85,
-            integrity_flags=integrity_flags,
-        ))
-
-    return result_events
+def _uuid(value: Any) -> UUID | None:
+    if isinstance(value, UUID):
+        return value
+    if isinstance(value, str):
+        try:
+            return UUID(value)
+        except ValueError:
+            return None
+    return None
 
 
-def _ingest_arxiv(raw: RawSignal, content: str, observed_at: datetime, integrity_flags: list[str], content_hash: str) -> list[Event]:
-    """Ingest arXiv raw signal."""
-    result_events = []
+# ---------------------------------------------------------------------------
+# Shared HTTP + raw cache. Scanners call these; nothing here knows about Events.
+# ---------------------------------------------------------------------------
 
-    try:
-        data = json.loads(content)
-    except json.JSONDecodeError:
-        data = {"raw": content}
-
-    payload = {
-        "arxiv_id": data.get("arxiv_id", ""),
-        "title": data.get("title", ""),
-        "authors": data.get("authors", []),
-        "categories": data.get("categories", []),
-        "summary": data.get("summary", ""),
-    }
-
-    # Create paper event
-    result_events.append(Event(
-        event_id=_generate_event_id(raw, content_hash, EventKind.PAPER),
-        kind=EventKind.PAPER,
-        source=Source.ARXIV,
-        source_url=raw.source_url,
-        observed_at=observed_at,
-        payload=payload,
-        evidence_span=data.get("summary", "")[:500] if data.get("summary") else None,
-        confidence=0.95,
-        integrity_flags=integrity_flags,
-    ))
-
-    # Create profile fact events for authors
-    for author in data.get("authors", []):
-        author_name = author.get("name", "")
-        if author_name:
-            result_events.append(Event(
-                event_id=uuid4(),
-                kind=EventKind.PROFILE_FACT,
-                source=Source.ARXIV,
-                source_url=raw.source_url,
-                observed_at=observed_at,
-                payload={"author_name": author_name, "affiliation": author.get("affiliation", "")},
-                evidence_span=author_name,
-                confidence=0.9,
-                integrity_flags=integrity_flags,
-            ))
-
-    return result_events
+BACKOFF = (1.0, 3.0)  # bounded on purpose — a scanner must never hang the pipeline
+TIMEOUT = 15.0
+USER_AGENT = "vc-brain-sourcing/0.1"
 
 
-def _ingest_web(raw: RawSignal, content: str, observed_at: datetime, integrity_flags: list[str], content_hash: str) -> list[Event]:
-    """Ingest web raw signal (Tavily enrichment)."""
-    result_events = []
-
-    try:
-        data = json.loads(content)
-    except json.JSONDecodeError:
-        data = {"raw": content}
-
-    source_type = data.get("source_type", "article")
-
-    payload = {
-        "url": data.get("url", ""),
-        "title": data.get("title", ""),
-        "source_type": source_type,
-        "content_snippet": data.get("snippet", ""),
-    }
-
-    result_events.append(Event(
-        event_id=_generate_event_id(raw, content_hash, EventKind.REPO_ACTIVITY),
-        kind=EventKind.REPO_ACTIVITY,
-        source=Source.WEB,
-        source_url=raw.source_url,
-        observed_at=observed_at,
-        payload=payload,
-        evidence_span=data.get("snippet", "")[:200] if data.get("snippet") else None,
-        confidence=0.7,
-        integrity_flags=integrity_flags,
-    ))
-
-    return result_events
+class FetchError(RuntimeError):
+    def __init__(self, status: int, message: str, *, retry_after: float | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+        self.retry_after = retry_after
 
 
-def _ingest_deck(raw: RawSignal, content: str, observed_at: datetime, integrity_flags: list[str], content_hash: str) -> list[Event]:
-    """Ingest deck raw signal (PDF extraction)."""
-    result_events = []
+class RateLimited(FetchError):
+    """Raised immediately rather than slept through — resets are minutes-to-hours away."""
 
-    # For decks, content is typically extracted text with slide metadata
-    # The deck module handles slide IDs, we just pass through
 
-    payload = {
-        "content": content,
-        "slide_ids": raw.meta.get("slide_ids", []),
-    }
+def fetch_json(url: str, params: dict | None = None, *, cache_dir: Path, **kw) -> Any:
+    return json.loads(fetch_text(url, params, cache_dir=cache_dir, suffix="json", **kw))
 
-    result_events.append(Event(
-        event_id=_generate_event_id(raw, content_hash, EventKind.DECK_CLAIM),
-        kind=EventKind.DECK_CLAIM,
-        source=Source.DECK,
-        source_url=raw.source_url,
-        observed_at=observed_at,
-        payload=payload,
-        evidence_span=None,
-        confidence=0.8 if "ocr_low_conf" in integrity_flags else 0.95,
-        integrity_flags=integrity_flags,
-    ))
 
-    return result_events
+def fetch_text(
+    url: str,
+    params: dict | None = None,
+    *,
+    cache_dir: Path,
+    headers: dict | None = None,
+    suffix: str = "txt",
+    refresh: bool = False,
+) -> str:
+    cache_file = cache_dir / f"{_slug(url, params)}.{suffix}"
+    if cache_file.exists() and not refresh:
+        return cache_file.read_text()
+
+    body = _get(url, params, headers)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(body)
+    return body
+
+
+def _get(url: str, params: dict | None, headers: dict | None) -> str:
+    hdrs = {"User-Agent": USER_AGENT, **(headers or {})}
+    for attempt in range(len(BACKOFF) + 1):
+        try:
+            resp = httpx.get(
+                url, params=params, headers=hdrs, timeout=TIMEOUT, follow_redirects=True
+            )
+        except httpx.HTTPError as exc:
+            if attempt == len(BACKOFF):
+                raise FetchError(0, f"{url}: {exc}") from exc
+            time.sleep(BACKOFF[attempt])
+            continue
+
+        if _is_rate_limited(resp):
+            retry = resp.headers.get("retry-after") or resp.headers.get("x-ratelimit-reset")
+            raise RateLimited(
+                resp.status_code,
+                f"rate limited by {httpx.URL(url).host} (reset={retry}); "
+                f"set GITHUB_TOKEN or wait before re-running",
+                retry_after=float(retry) if retry and retry.isdigit() else None,
+            )
+        if resp.status_code >= 500 and attempt < len(BACKOFF):
+            time.sleep(BACKOFF[attempt])
+            continue
+        if resp.status_code >= 400:
+            raise FetchError(resp.status_code, f"{url}: HTTP {resp.status_code} {resp.text[:200]}")
+        return resp.text
+    raise FetchError(0, f"{url}: exhausted retries")
+
+
+def _is_rate_limited(resp: httpx.Response) -> bool:
+    if resp.status_code == 429:
+        return True
+    return resp.status_code == 403 and (
+        resp.headers.get("x-ratelimit-remaining") == "0" or "rate limit" in resp.text.lower()
+    )
+
+
+def _slug(url: str, params: dict | None) -> str:
+    key = hashlib.sha1(f"{url}{sorted((params or {}).items())}".encode()).hexdigest()[:12]
+    tail = re.sub(r"[^a-zA-Z0-9]+", "_", httpx.URL(url).path.strip("/"))[:48] or "root"
+    return f"{tail}_{key}"
