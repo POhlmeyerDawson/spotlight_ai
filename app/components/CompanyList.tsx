@@ -313,8 +313,12 @@ export default function CompanyList({
                     <Link
                       href={`/company/${encodeURIComponent(c.id)}`}
                       onClick={(e) => {
-                        // The row handler already navigates and records list state;
-                        // letting the link fire too would double-push the history entry.
+                        // A modified click is the reader asking for a new tab or window,
+                        // and the browser handles that correctly on its own — swallowing
+                        // it here made the only real link on the row behave like a div.
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                        // Otherwise the row handler already navigates and records list
+                        // state; letting the link fire too would double-push history.
                         e.preventDefault();
                       }}
                       className="group block"

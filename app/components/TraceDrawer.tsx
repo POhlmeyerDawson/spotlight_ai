@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { getTrace } from "@/lib/api";
 import type { AxisKey, CompanyDetail, EventTrace, EvidenceEvent } from "@/lib/types";
 import { AXIS_LABEL } from "@/lib/types";
-import { EvidenceSpan } from "./ui";
+import { EvidenceSpan, SourceRef } from "./ui";
 
 /**
  * Evidence is grouped by WHAT IT EVIDENCES, not by which source it came from.
@@ -124,17 +124,7 @@ function UnderlyingReceipts({
                 This receipt carries no quoted span.
               </p>
             )}
-            {u.source_url && (
-              <a
-                href={u.source_url}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="inline-block max-w-full truncate font-mono text-[12px] underline decoration-dotted underline-offset-4"
-                style={{ color }}
-              >
-                ↗ {u.source_url}
-              </a>
-            )}
+            {u.source_url && <SourceRef url={u.source_url} color={color} />}
           </li>
         ))}
       </ul>
@@ -305,15 +295,7 @@ function EventRow({
             <span className="font-mono">event_id {ev.event_id}</span>
           </div>
           {ev.source_url && (
-            <a
-              href={ev.source_url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-2 inline-block max-w-full truncate font-mono text-[13px] underline decoration-dotted underline-offset-4"
-              style={{ color }}
-            >
-              ↗ {ev.source_url}
-            </a>
+            <SourceRef url={ev.source_url} color={color} className="mt-2" />
           )}
         </div>
       )}

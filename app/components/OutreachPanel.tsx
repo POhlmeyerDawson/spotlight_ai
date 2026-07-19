@@ -56,7 +56,7 @@ import {
   type EligibilityVerdict,
   type OutboundDraft,
 } from "@/lib/api";
-import { Busy, EmptyState, ErrorNote, Panel } from "@/components/ui";
+import { Busy, EmptyState, ErrorNote, Panel, SourceRef } from "@/components/ui";
 
 const CHECK_LABEL: Record<string, string> = {
   not_suppressed: "Suppression list",
@@ -540,14 +540,7 @@ export default function OutreachPanel({
                     <blockquote className="evidence-span my-1.5 px-4 py-3">
                       “{cit.evidence_span}”
                     </blockquote>
-                    <a
-                      href={cit.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mono block truncate text-[12px] text-[color:var(--accent)] underline"
-                    >
-                      {cit.source_url}
-                    </a>
+                    <SourceRef url={cit.source_url} />
                   </li>
                 ))}
               </ul>

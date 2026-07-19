@@ -42,6 +42,7 @@
  * file at all; it stays rationed to contradicted claims and caught injections.
  */
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getStandout,
@@ -52,7 +53,7 @@ import {
 import type { PersonalRanking, PersonalRankRow } from "@/lib/vc";
 import { AXIS_KEYS, AXIS_INDEX, AXIS_LABEL } from "@/lib/types";
 import CompanyMark from "./CompanyMark";
-import { GateBadge } from "./ui";
+import { GateBadge, SourceRef } from "./ui";
 
 /** The backend's own threshold (intelligence/custom_council.py::DIVERGENCE_HEADLINE).
  *  Mirrored, not invented — a divergence is a headline when the ranker says it is. */
@@ -274,14 +275,7 @@ function StandoutBlock({
                           <blockquote className="evidence-span px-3 py-2">
                             “{cit.evidence_span}”
                           </blockquote>
-                          <a
-                            href={cit.source_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mono block truncate text-[11px] text-[color:var(--accent)] underline"
-                          >
-                            {cit.source_url}
-                          </a>
+                          <SourceRef url={cit.source_url} />
                         </li>
                       ))}
                     </ul>
@@ -346,8 +340,27 @@ function Card({
 
         <div className="min-w-[260px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
+            {/*
+              The whole card is the click target, which is right for a pointer and
+              useless without one: an <article onClick> is not focusable and not
+              announced as actionable. The name is therefore a real link — it carries
+              the keyboard path, the status-bar preview, and open-in-new-tab, none of
+              which the card handler can provide. The card handler stays for the
+              pointer, and the link stops the event so one click is one navigation.
+            */}
             <h3 className="font-[family-name:var(--font-instrument-serif)] text-[26px] leading-tight">
-              {c.name}
+              <Link
+                href={`/company/${encodeURIComponent(c.id)}`}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onOpen(c.id);
+                }}
+                className="hover:underline"
+              >
+                {c.name}
+              </Link>
             </h3>
             <GateBadge gate={c.gate} />
           </div>

@@ -418,3 +418,101 @@ export function EvidenceSpan({ children }: { children: ReactNode }) {
     <blockquote className="evidence-span my-2 px-4 py-3">“{children}”</blockquote>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Source references
+//
+// Every citation in this app is rendered from stored data, and a large share of that
+// data CANNOT resolve — by design. Two families:
+//
+//   *.example.invalid   the seeded corpus. `.invalid` is reserved by RFC 2606
+//                       precisely so it never resolves; the commit that introduced it
+//                       ("Nothing constructed may cite a URL that resolves") is what
+//                       stops a demo from appearing to cite real firms.
+//   deck:// proof://    internal handles for a pitch deck page and a proof-protocol
+//                       transcript turn. No browser has a handler for either.
+//
+// Rendering those as ordinary <a target="_blank"> was the bug: the interface promised
+// navigation it could not deliver, so every evidence link led to a browser error that
+// reads to a user as a 404. The URL is still shown in full — it is the receipt, and
+// hiding it would cost more than the broken link did — but it is shown as a REFERENCE,
+// with what it points at named, rather than as something to click.
+// ---------------------------------------------------------------------------
+
+/** Why a reference cannot be opened, or null when it can. */
+function unresolvable(url: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(url, "https://placeholder.invalid");
+  } catch {
+    return "not a parseable URL";
+  }
+
+  if (u.protocol === "deck:") return "page of a stored pitch deck — not a web address";
+  if (u.protocol === "proof:") return "turn in a stored proof-protocol transcript";
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    return `${u.protocol.replace(":", "")} reference — not a web address`;
+  }
+
+  const host = u.hostname.toLowerCase();
+  // RFC 2606 / RFC 6761 reserved names. Guaranteed never to resolve.
+  if (
+    host === "placeholder.invalid" ||
+    host.endsWith(".invalid") ||
+    host.endsWith(".test") ||
+    host.endsWith(".example") ||
+    host === "example.com" ||
+    host === "example.net" ||
+    host === "example.org"
+  ) {
+    return "seeded corpus — a reserved address that resolves nowhere, on purpose";
+  }
+  return null;
+}
+
+/**
+ * A cited source. Opens in a new tab when the address can actually be reached, and
+ * renders as a plainly-labelled dead reference when it cannot.
+ *
+ * `color` lets a caller carry the axis colour a trace is already using; it applies to
+ * the live form only — a reference that goes nowhere must not look like a link.
+ */
+export function SourceRef({
+  url,
+  color,
+  className = "",
+}: {
+  url: string;
+  color?: string;
+  className?: string;
+}) {
+  const why = unresolvable(url);
+
+  if (!why) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer noopener"
+        className={`inline-block max-w-full truncate font-mono text-[13px] underline decoration-dotted underline-offset-4 ${className}`}
+        style={{ color: color ?? "var(--accent)" }}
+      >
+        ↗ {url}
+      </a>
+    );
+  }
+
+  return (
+    <span className={`block max-w-full ${className}`}>
+      <span
+        className="mono block truncate text-[13px] text-[color:var(--muted)]"
+        title={url}
+      >
+        {url}
+      </span>
+      <span className="meta mt-0.5 block text-[color:var(--muted)]">
+        <span aria-hidden>⊘</span> {why}
+      </span>
+    </span>
+  );
+}

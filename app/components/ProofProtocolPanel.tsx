@@ -14,7 +14,7 @@
 import { useState } from "react";
 import { gradeProof, issueProof, TIMEOUT } from "@/lib/api";
 import type { ProofBehavior, ProofProtocol } from "@/lib/types";
-import { Busy, ErrorNote, EvidenceSpan } from "./ui";
+import { Busy, ErrorNote, EvidenceSpan, SourceRef } from "./ui";
 
 const RESULT: Record<
   ProofBehavior["result"],
@@ -314,16 +314,7 @@ export default function ProofProtocolPanel({
           </ul>
         </div>
 
-        {pp.artifact_url && (
-          <a
-            href={pp.artifact_url}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-block font-mono text-[13px] text-[var(--accent)] underline decoration-dotted underline-offset-4"
-          >
-            ↗ {pp.artifact_url}
-          </a>
-        )}
+        {pp.artifact_url && <SourceRef url={pp.artifact_url} />}
 
         <div
           className="border-l-4 px-4 py-3"

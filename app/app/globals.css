@@ -175,6 +175,29 @@ body {
     0 12px 34px rgb(0 0 0 / 0.09);
 }
 
+/*
+ * The plate SEQUENCE is one object, not a column of separate ones.
+ *
+ * Each `.sheet` carries its own margin and shadow, which is right for a page that is a
+ * single sheet and wrong for six of them stacked: consecutive plates showed a band of
+ * desk colour between them, and each plate's shadow drew a dark seam across that band.
+ * The result read as a gutter that meant nothing — the plates are a continuous run of
+ * screens and nothing separates one from the next.
+ *
+ * So the stack takes the margin and the shadow, and the plates inside it butt together.
+ * A lone sheet is untouched; it still lies on the desk as its own object.
+ */
+.plate-stack {
+  margin: var(--sheet-margin);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.06),
+    0 12px 34px rgb(0 0 0 / 0.09);
+}
+.plate-stack > .sheet {
+  margin: 0;
+  box-shadow: none;
+}
+
 /* The visual bleeds past the sheet padding; type never does (§4.1). */
 .bleed {
   position: relative;

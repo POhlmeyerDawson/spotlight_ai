@@ -63,7 +63,13 @@ import {
 interface Section {
   id: string;
   label: string;
-  /** Shown under the bar when this section is current — what the section is for. */
+  /**
+   * What the section is for. Carried on the control as a tooltip, NOT printed under the
+   * bar: every one of these restated the subtitle of the very panel it pointed at, so a
+   * reader got the same sentence twice, once as a caption on a nav control and again
+   * three inches below it as the section's own standfirst. The panel is the place that
+   * sentence belongs — it is describing the content, not the button.
+   */
   hint?: string;
 }
 
@@ -117,63 +123,62 @@ function SectionBar({
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const hint = sections.find((s) => s.id === current)?.hint;
-
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <button
+        type="button"
+        onClick={onBack}
+        className="meta border border-[color:var(--accent)] px-3 py-1.5 text-[color:var(--accent)]"
+        title="Back to the ranked list (Escape)"
+      >
+        ← PIPELINE
+      </button>
+
+      <nav
+        aria-label="Sections of this company"
+        className="flex flex-wrap items-center gap-1"
+      >
+        {sections.map((s) => {
+          const active = s.id === current;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => go(s.id)}
+              aria-current={active ? "true" : undefined}
+              title={s.hint}
+              className="meta border-b-2 px-2.5 py-1.5"
+              style={{
+                color: active ? "var(--accent)" : "var(--muted)",
+                borderBottomColor: active ? "var(--accent)" : "transparent",
+              }}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="ml-auto flex items-center gap-1">
         <button
           type="button"
-          onClick={onBack}
-          className="meta border border-[color:var(--accent)] px-3 py-1.5 text-[color:var(--accent)]"
-          title="Back to the ranked list (Escape)"
+          disabled={!prev}
+          onClick={() => prev && router.push(`/company/${encodeURIComponent(prev.id)}`)}
+          title={prev ? `Previous: ${prev.name}` : "First in the ranked order"}
+          className="meta border border-[color:var(--rule)] px-2.5 py-1.5 text-[color:var(--muted)] disabled:opacity-40"
         >
-          ← PIPELINE
+          ↑ PREV
         </button>
-
-        <nav aria-label="Sections of this company" className="flex flex-wrap items-center gap-1">
-          {sections.map((s) => {
-            const active = s.id === current;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => go(s.id)}
-                aria-current={active ? "true" : undefined}
-                className="meta border-b-2 px-2.5 py-1.5"
-                style={{
-                  color: active ? "var(--accent)" : "var(--muted)",
-                  borderBottomColor: active ? "var(--accent)" : "transparent",
-                }}
-              >
-                {s.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            disabled={!prev}
-            onClick={() => prev && router.push(`/company/${encodeURIComponent(prev.id)}`)}
-            title={prev ? `Previous: ${prev.name}` : "First in the ranked order"}
-            className="meta border border-[color:var(--rule)] px-2.5 py-1.5 text-[color:var(--muted)] disabled:opacity-40"
-          >
-            ↑ PREV
-          </button>
-          <button
-            type="button"
-            disabled={!next}
-            onClick={() => next && router.push(`/company/${encodeURIComponent(next.id)}`)}
-            title={next ? `Next: ${next.name}` : "Last in the ranked order"}
-            className="meta border border-[color:var(--rule)] px-2.5 py-1.5 text-[color:var(--muted)] disabled:opacity-40"
-          >
-            ↓ NEXT
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={!next}
+          onClick={() => next && router.push(`/company/${encodeURIComponent(next.id)}`)}
+          title={next ? `Next: ${next.name}` : "Last in the ranked order"}
+          className="meta border border-[color:var(--rule)] px-2.5 py-1.5 text-[color:var(--muted)] disabled:opacity-40"
+        >
+          ↓ NEXT
+        </button>
       </div>
-      {hint && <p className="meta text-[color:var(--muted)]">{hint}</p>}
     </div>
   );
 }

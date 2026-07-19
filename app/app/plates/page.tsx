@@ -25,6 +25,7 @@ import HeatField from "@/components/HeatField";
 import NodeField, { type SchematicNode } from "@/components/NodeField";
 import { Poster, Registration, Stub } from "@/components/Poster";
 import Reveal from "@/components/Reveal";
+import { NavRow } from "@/components/Shell";
 
 function toNodes(companies: CompanySummary[]): SchematicNode[] {
   return companies.map((c) => ({
@@ -126,7 +127,16 @@ export default function Pitch() {
   const cleared = companies?.filter((c) => c.gate === "proceed").length ?? 0;
 
   return (
-    <div>
+    <div className="plate-stack">
+      {/*
+        This page is the only route that is not wrapped in Shell — the plates own their
+        own full-bleed grounds, so a paper sheet around them would defeat the sequence.
+        It still gets the nav: shipping a page whose only exit is the browser's back
+        button breaks the frame's one rule (§ Shell), and it was the reason this route
+        read as having "no navbar" at all.
+      */}
+      <NavRow floating />
+
       {/* ================================================== PLATE 01 — paper */}
       <Poster
         ground="paper"

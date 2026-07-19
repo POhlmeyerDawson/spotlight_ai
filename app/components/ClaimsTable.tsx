@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import type { ClaimStatus, ClaimVerdict } from "@/lib/types";
-import { ClaimBadge, EvidenceSpan } from "./ui";
+import { ClaimBadge, EvidenceSpan, SourceRef } from "./ui";
 
 const ORDER: ClaimStatus[] = ["contradicted", "verified", "unverifiable", "not_attempted"];
 
@@ -107,14 +107,7 @@ function Row({ claim }: { claim: ClaimVerdict }) {
           )}
 
           {claim.corroborating_url && (
-            <a
-              href={claim.corroborating_url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-1 inline-block max-w-full truncate font-mono text-[13px] text-[var(--accent)] underline decoration-dotted underline-offset-4"
-            >
-              ↗ {claim.corroborating_url}
-            </a>
+            <SourceRef url={claim.corroborating_url} className="mt-1" />
           )}
         </div>
       )}
