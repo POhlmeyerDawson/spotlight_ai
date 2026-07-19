@@ -14,7 +14,7 @@ from sourcing.bus import ingest
 from sourcing.sanitize import sanitize, wrap_content, is_wrapped, strip_untrusted_wrapper
 from sourcing.graph import hidden_ranking, access_lift
 from sourcing.burst import burst_signature
-from sourcing.activate import draft
+from sourcing.outreach import draft, eligibility
 from sourcing.deck import extract
 
 __all__ = [
@@ -27,5 +27,6 @@ __all__ = [
     "access_lift",
     "burst_signature",
     "draft",
+    "eligibility",
     "extract",
 ]
