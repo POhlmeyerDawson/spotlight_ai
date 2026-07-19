@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from memory import db, store
-from schema.events import EventKind
+from schema.events import CompanyProvenance, EventKind
 from scripts import seed
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -91,7 +91,7 @@ def test_every_archetype_has_at_least_two_profiles() -> None:
 def test_cold_start_is_deck_claims_and_essentially_nothing_else() -> None:
     seed.load()
     for profile in _profiles(2):
-        company_id = store.upsert_company(profile["company_name"])
+        company_id = store.upsert_company(profile["company_name"], provenance=CompanyProvenance.SOURCED)
         events = store.events(as_of=END_OF_TIME, company_id=company_id)
         kinds = [e.kind for e in events]
 
@@ -230,7 +230,7 @@ def test_serial_founder_history_persists_across_companies() -> None:
         events = store.events(as_of=END_OF_TIME, entity_id=entity_id)
         company_ids = {e.company_id for e in events}
         assert len(company_ids) == 2, "prior-company events must hang off the same entity"
-        prior = store.upsert_company(profile["prior_companies"][0]["name"])
+        prior = store.upsert_company(profile["prior_companies"][0]["name"], provenance=CompanyProvenance.SOURCED)
         prior_events = [e for e in events if e.company_id == prior]
         assert prior_events
         # The prior company must be genuinely PRIOR — asserted against the new
@@ -346,3 +346,117 @@ def test_no_precomputed_scores_leak_into_the_event_fixtures() -> None:
             for event in profile["events"]:
                 keys = set(event["payload"])
                 assert not keys & {"founder_score", "score", "mu", "band", "trend", "rank"}
+
+
+# --- provenance: sourced evidence vs authored scenario ----------------------------
+#
+# The corpus deliberately mixes companies reconstructed from public record with
+# companies authored for this repo — the archetype scenarios, and the backtest's
+# matched synthetic controls. Both have to exist. What must never happen is a
+# constructed company being presentable as sourced evidence, which is what these
+# tests hold.
+
+
+def test_provenance_is_derived_from_the_fixtures_not_a_name_list() -> None:
+    """The classification must come out of the data, so a new fixture is covered too.
+
+    A hardcoded list of "the fake ones" is correct the day it is written and wrong the
+    first time somebody adds a fixture — and nothing fails when it goes wrong, the
+    ranking just quietly starts presenting an authored scenario as sourced evidence.
+    """
+    source = (SEED_DIR / "provenance.py").read_text(encoding="utf-8")
+    code = "\n".join(
+        line for line in source.splitlines() if not line.lstrip().startswith("#")
+    )
+    _, _, body = code.partition('"""')
+    _, _, body = body.partition('"""')  # drop the module docstring, which cites names
+
+    for name in _every_seeded_company_name():
+        assert name not in body, (
+            f"{name!r} is hardcoded in data/seed/provenance.py. Provenance has to be "
+            f"read out of the fixtures, or it stops being true the moment they change."
+        )
+
+
+def _every_seeded_company_name() -> set[str]:
+    names: set[str] = set()
+    for path in seed.fixture_files():
+        for profile in json.loads(path.read_text(encoding="utf-8"))["profiles"]:
+            names.add(profile["company_name"])
+            names.update(p["name"] for p in profile.get("prior_companies", []))
+    for member in _backtest_members():
+        names.add(member["company_name"])
+    return names
+
+
+def test_every_archetype_company_is_constructed() -> None:
+    """An archetype fixture is authored by definition — including its prior companies."""
+    from data.seed.provenance import provenance_for
+
+    for path in seed.fixture_files():
+        for profile in json.loads(path.read_text(encoding="utf-8"))["profiles"]:
+            for name in [profile["company_name"]] + [
+                p["name"] for p in profile.get("prior_companies", [])
+            ]:
+                assert provenance_for(name) == "constructed", (
+                    f"{name} comes from {path.name} and is therefore authored, "
+                    f"but is not labelled constructed"
+                )
+
+
+def test_synthetic_cohort_members_are_never_labelled_sourced() -> None:
+    """The load-bearing case: synthetic controls sit inside the backtest cohort.
+
+    They carry archetype NULL exactly like the real winners do, so anything inferring
+    provenance from `archetype` labels them sourced. They are matched controls for the
+    fame-vs-trajectory gate — constructed companies in the middle of the evidence set.
+    """
+    from data.seed.provenance import provenance_for
+
+    expected = {
+        "reconstructed-from-public-record": "sourced",
+        "synthetic": "constructed",
+    }
+    seen = set()
+    for member in _backtest_members():
+        want = expected[member["evidence_provenance"]]
+        seen.add(want)
+        assert provenance_for(member["company_name"]) == want, (
+            f"{member['company_name']} is {member['evidence_provenance']} in "
+            f"backtest.json but resolves to {provenance_for(member['company_name'])}"
+        )
+    assert seen == {"sourced", "constructed"}, (
+        "the cohort must contain both real and synthetic members, or the fame check "
+        "has nothing to compare against"
+    )
+
+
+def test_seeding_labels_every_company_in_the_store() -> None:
+    """After a load, no company is left without a provenance the API can surface."""
+    seed.load()
+    companies = store.all_companies()
+    assert companies
+    for company in companies:
+        assert company["provenance"] in {"sourced", "constructed"}, company
+
+    sourced = {c["name"] for c in companies if c["provenance"] == "sourced"}
+    real = {
+        m["company_name"]
+        for m in _backtest_members()
+        if m["evidence_provenance"] == "reconstructed-from-public-record"
+    }
+    assert sourced == real, (
+        "the only companies that may be labelled sourced are the ones the cohort file "
+        f"claims were reconstructed from public record; got {sorted(sourced - real)} extra"
+    )
+
+
+def test_reseeding_corrects_a_wrong_provenance_rather_than_leaving_it() -> None:
+    """A row seeded before the field existed must not keep a stale `sourced` label."""
+    from schema.events import CompanyProvenance
+
+    company_id = store.upsert_company("Tensorpage", archetype=1, provenance=CompanyProvenance.SOURCED)
+    assert store.get_company(company_id)["provenance"] == "sourced"
+
+    store.upsert_company("Tensorpage", archetype=1, provenance=CompanyProvenance.CONSTRUCTED)
+    assert store.get_company(company_id)["provenance"] == "constructed"

@@ -25,7 +25,15 @@ from intelligence import council, custom_council
 from intelligence.custom_council import CompanyView, LensKind
 from memory import profiles
 from schema.events import Axis, Event, EventKind, ScreeningResult, Source
-from schema.vc import Choice, DecisionKind, PastDecision, SurveyAnswer
+from schema.vc import (
+    AuthoredLens,
+    AuthoredLensWrite,
+    Choice,
+    DecisionKind,
+    LensOrigin,
+    PastDecision,
+    SurveyAnswer,
+)
 
 T0 = datetime(2025, 5, 6, tzinfo=timezone.utc)
 
@@ -844,3 +852,425 @@ def test_the_same_profile_and_evidence_produce_the_same_ranking(bold) -> None:
     first = custom_council.rank(views, core, bold, evidence, T0)
     second = custom_council.rank(views, core, bold, evidence, T0)
     assert [row.model_dump() for row in first.rows] == [row.model_dump() for row in second.rows]
+
+
+# ===========================================================================
+# 10. Authored lenses — the VC's own council agents
+#
+# The question every test in this section is really asking: does an agent the VC
+# typed CHANGE ANYTHING? A council builder that writes to a table nothing reads is
+# the decorative failure this whole file exists to catch, one layer up.
+# ===========================================================================
+
+
+def _authored(
+    profile_id=None, *, name: str, quality: str, weight: float, origin=LensOrigin.AUTHORED
+) -> AuthoredLens:
+    now = datetime(2025, 5, 6, tzinfo=timezone.utc)
+    return AuthoredLens(
+        lens_id=uuid4(),
+        profile_id=profile_id or uuid4(),
+        name=name,
+        quality=quality,
+        persona=f"You add score for {quality}.",
+        weight=weight,
+        origin=origin,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def test_an_authored_lens_is_never_derived_and_never_claims_a_profile_field(bold) -> None:
+    """The whole point of LensOrigin. An authored lens carries its own id as its
+    justification and says the VC typed it — it does not borrow a profile field."""
+    lens = custom_council.lens_from_authored(
+        _authored(name="Security posture", quality="security_engineering", weight=0.4)
+    )
+    assert lens.origin == LensOrigin.AUTHORED
+    assert lens.kind == LensKind.AUTHORED
+    assert lens.provenance.basis == "authored"
+    assert lens.justified_by[0].startswith(custom_council.AUTHORED_JUSTIFICATION_PREFIX)
+    assert "no profile field was consulted" in lens.justified_by[0]
+    # And it is structurally impossible to build one that claims otherwise.
+    with pytest.raises(ValueError, match="cannot carry origin 'derived'"):
+        custom_council.Lens(**{**lens.model_dump(), "origin": LensOrigin.DERIVED})
+
+
+def test_a_derived_lens_cannot_forge_an_authored_justification(bold) -> None:
+    derived, _ = custom_council.derive_lenses(bold)
+    with pytest.raises(ValueError, match="must name a profile field"):
+        custom_council.Lens(
+            **{
+                **derived[0].model_dump(),
+                "justified_by": [f"{custom_council.AUTHORED_JUSTIFICATION_PREFIX}{uuid4()}"],
+            }
+        )
+
+
+def test_derived_and_authored_lenses_coexist_and_stay_distinguishable(bold) -> None:
+    authored = [_authored(name="Security posture", quality="security_engineering", weight=0.5)]
+    composed = custom_council.compose_council(bold, authored)
+    assert composed.refusal is None
+    origins = {lens.origin for lens in composed.lenses}
+    assert LensOrigin.DERIVED in origins and LensOrigin.AUTHORED in origins
+    assert len(composed.authored) == 1
+    assert composed.authored[0].title == "Security posture"
+    # Deriving did not delete the authored one, and the authored one did not displace
+    # every derived one.
+    assert len(composed.derived) >= 1
+
+
+def test_an_authored_lens_at_weight_one_does_not_drown_the_derived_ones(bold) -> None:
+    """THE WEIGHT RULE. A slider dragged to 1.0 buys a seat share, not the council."""
+    greedy = [_authored(name="Everything", quality="security_engineering", weight=1.0)]
+    composed = custom_council.compose_council(bold, greedy)
+    seats = len(composed.lenses)
+    authored_weight = sum(lens.weight for lens in composed.authored)
+    derived_weight = sum(lens.weight for lens in composed.derived)
+
+    assert authored_weight == pytest.approx(1 / seats, abs=1e-6)
+    assert derived_weight == pytest.approx((seats - 1) / seats, abs=1e-6)
+    assert authored_weight + derived_weight == pytest.approx(1.0, abs=1e-6)
+    # The derived group still divides its own budget by the profile concentrations that
+    # justified it, rather than being flattened into equal shares.
+    assert len({round(lens.weight, 6) for lens in composed.derived}) > 1
+
+
+def test_authored_weights_split_the_authored_budget_between_themselves(bold) -> None:
+    authored = [
+        _authored(name="Security", quality="security_engineering", weight=0.75),
+        _authored(name="Distribution", quality="distribution", weight=0.25),
+    ]
+    composed = custom_council.compose_council(bold, authored)
+    seats = len(composed.lenses)
+    budget = 2 / seats
+    by_title = {lens.title: lens.weight for lens in composed.authored}
+    assert sum(by_title.values()) == pytest.approx(budget, abs=1e-6)
+    assert by_title["Security"] == pytest.approx(budget * 0.75, abs=1e-6)
+    assert by_title["Distribution"] == pytest.approx(budget * 0.25, abs=1e-6)
+
+
+def test_the_ceiling_refuses_rather_than_silently_dropping_an_authored_agent(bold) -> None:
+    """Six agents is not five agents with one quietly deleted. It is a refusal with a
+    reason, because a VC reasoning about a ranking built from five of the six things
+    they typed is worse off than one who was told."""
+    too_many = [
+        _authored(name=f"Agent {i}", quality=f"quality{i}", weight=0.2)
+        for i in range(custom_council.MAX_LENSES + 1)
+    ]
+    composed = custom_council.compose_council(bold, too_many)
+    assert composed.lenses == []
+    assert composed.refusal is not None
+    assert composed.refusal.bound == "max"
+    assert composed.refusal.authored_count == custom_council.MAX_LENSES + 1
+    assert str(custom_council.MAX_LENSES) in composed.refusal.reason
+    assert "Nothing has been dropped" in composed.refusal.reason
+
+
+def test_below_the_floor_refuses_with_a_reason_and_still_shows_what_it_has() -> None:
+    thin = _make_profile({"q01_founder_vs_market": "a"}, [])
+    composed = custom_council.compose_council(thin, [])
+    assert composed.refusal is not None
+    assert composed.refusal.bound == "min"
+    assert "renamed axis" in composed.refusal.reason
+    assert len(composed.lenses) < custom_council.MIN_LENSES
+    # A single authored agent is enough to clear the floor — it is real input.
+    lifted = custom_council.compose_council(
+        thin, [_authored(name="Security", quality="security_engineering", weight=0.5)]
+    )
+    assert lifted.refusal is None
+    assert len(lifted.lenses) >= custom_council.MIN_LENSES
+
+
+def test_an_authored_agent_displaces_a_derived_lens_by_name_not_silently(bold) -> None:
+    """Re-deriving with authored agents present cannot make a derived lens vanish
+    without a word: the displacement is reported with the reason."""
+    alone = custom_council.compose_council(bold, [])
+    authored = [
+        _authored(name=f"Agent {i}", quality=f"quality{i}", weight=0.3) for i in range(3)
+    ]
+    squeezed = custom_council.compose_council(bold, authored)
+    assert len(squeezed.derived) < len(alone.lenses)
+    displaced = [
+        item.reason for item in squeezed.not_derived if "seat(s) are held by" in item.reason
+    ]
+    assert displaced, "a displaced derived lens must say who took its seat"
+    assert "you authored" in displaced[0]
+
+
+def test_rederiving_after_a_survey_change_leaves_authored_lenses_untouched() -> None:
+    """The explicit answer to 'what happens on re-derive': nothing happens to them.
+
+    `profiles.derive` never reads the authored table, so a survey change cannot create,
+    edit, reweight or delete a council agent. What it CAN change is how many derived
+    lenses sit beside it — and therefore the authored agent's seat share, which is the
+    weight rule working as documented, not the agent being edited.
+    """
+    user = profiles.create_user(f"vc-{uuid4().hex[:12]}@example.test", "hash")
+    profiles.save_survey(
+        user.user_id,
+        [SurveyAnswer(question_id=q, choice=Choice(c)) for q, c in BOLD_ANSWERS.items()],
+    )
+    record = profiles.create_authored_lens(
+        user.user_id,
+        AuthoredLensWrite(
+            name="Security posture",
+            quality="security_engineering",
+            persona="You add score for security as an engineering discipline.",
+            weight=0.4,
+            origin=LensOrigin.AUTHORED,
+        ),
+    )
+
+    # Re-answer the survey the other way round — a full re-derivation.
+    profiles.save_survey(
+        user.user_id,
+        [SurveyAnswer(question_id=q, choice=Choice(c)) for q, c in PATIENT_ANSWERS.items()],
+    )
+    after = profiles.list_authored_lenses(user.user_id)
+    assert len(after) == 1
+    assert after[0].lens_id == record.lens_id
+    assert after[0].model_dump() == record.model_dump()
+    # And it is still in the composed council afterwards.
+    composed = custom_council.compose_council(profiles.derive(user.user_id), after)
+    assert [lens.title for lens in composed.authored] == ["Security posture"]
+
+
+# ---------------------------------------------------------------------------
+# The reading — an authored lens must MEASURE something
+# ---------------------------------------------------------------------------
+
+
+def test_an_authored_lens_reads_the_shared_evidence_graph_and_discriminates(bold) -> None:
+    cid = uuid4()
+    view = CompanyView(
+        company_id=cid,
+        name="Vaultline",
+        sector="ai-infra",
+        stage="seed",
+        axes={"founder": 0.6, "market": 0.6, "idea_vs_market": 0.6},
+        axis_confidence={"founder": 0.8, "market": 0.8, "idea_vs_market": 0.8},
+    )
+    lens = custom_council.lens_from_authored(
+        _authored(name="Security posture", quality="security_engineering", weight=0.5)
+    )
+
+    speaks = [
+        _event("published a written threat model", company_id=cid),
+        _event("the security team pinned every dependency", company_id=cid),
+        _event("security engineering review before each release", company_id=cid),
+    ]
+    silent = [_event("shipped a marketing site refresh", company_id=cid) for _ in range(3)]
+
+    loud, _ = custom_council._contribution(lens, view, speaks, bold)
+    quiet, _ = custom_council._contribution(lens, view, silent, bold)
+
+    assert loud.reading is not None and loud.reading > 0.0
+    assert quiet.reading == 0.0
+    assert quiet.abstained_reason is None, "silence with evidence present is a 0, not an abstention"
+    assert "finding about the evidence" in quiet.rationale
+    assert loud.evidence_event_ids, "a reading must carry the receipts it read"
+
+
+def test_an_authored_lens_abstains_rather_than_scoring_zero_on_an_empty_graph(bold) -> None:
+    view = CompanyView(company_id=uuid4(), name="Nothing", axes={"founder": 0.5})
+    lens = custom_council.lens_from_authored(
+        _authored(name="Security posture", quality="security_engineering", weight=0.5)
+    )
+    contribution, _ = custom_council._contribution(lens, view, [], bold)
+    assert contribution.reading is None
+    assert contribution.contribution == 0.0
+    assert "penalise a thin evidence graph" in (contribution.abstained_reason or "")
+
+
+def test_a_quality_with_no_readable_term_is_refusable_before_it_is_stored() -> None:
+    assert custom_council.quality_terms("security_engineering") == ["security", "engineering"]
+    assert custom_council.quality_terms("the of a") == []
+
+
+# ---------------------------------------------------------------------------
+# THE ONE THAT MATTERS: does it move the ranking?
+# ---------------------------------------------------------------------------
+
+
+def test_an_authored_lens_changes_the_personal_ranking(bold) -> None:
+    """An authored agent that does not move the ranking is decorative.
+
+    Half the pipeline gets receipts that speak to 'security_engineering' and half does
+    not. The core order is IDENTICAL in both runs — it is an input, not an output — so
+    every difference below is the authored agent and nothing else.
+    """
+    views = _views()
+    core = _core_order(views)
+    evidence = {}
+    for i, view in enumerate(views):
+        base = [_event(f"{view.name} shipped a release", company_id=view.company_id)] * 3
+        if i % 2 == 0:
+            base += [
+                _event("published a written threat model", company_id=view.company_id),
+                _event("security engineering review each release", company_id=view.company_id),
+                _event("the security team pinned dependencies", company_id=view.company_id),
+            ]
+        evidence[view.company_id] = base
+
+    without = custom_council.rank(views, core, bold, evidence, T0)
+    with_agent = custom_council.rank(
+        views,
+        core,
+        bold,
+        evidence,
+        T0,
+        authored=[_authored(name="Security posture", quality="security_engineering", weight=0.6)],
+    )
+
+    assert without.personalised and with_agent.personalised
+    before = [row.company_id for row in without.rows]
+    after = [row.company_id for row in with_agent.rows]
+    assert before != after, "an authored agent that reorders nothing is decorative"
+
+    # The core order is untouched by the authored lens — §0.
+    assert [row.core_rank for row in sorted(without.rows, key=lambda r: r.company_id)] == [
+        row.core_rank for row in sorted(with_agent.rows, key=lambda r: r.company_id)
+    ]
+
+    # And at least one move is explained BY the authored agent, by its own name.
+    drivers = {row.top_lens_label for row in with_agent.rows}
+    assert "Security posture" in drivers
+    named = [row for row in with_agent.rows if row.top_lens_label == "Security posture"]
+    assert any(row.top_lens_origin == LensOrigin.AUTHORED for row in named)
+    assert any("an agent you authored" in row.why for row in named)
+
+
+def test_the_authored_lens_never_touches_the_core_score(bold) -> None:
+    """§0 with an authored council in the loop: the personal layer hands back the core
+    numbers it was given, unmodified."""
+    views = _views()
+    core, evidence = _core_order(views), _evidence_for(views)
+    lenses = custom_council.compose_council(
+        bold, [_authored(name="Security", quality="security_engineering", weight=0.9)]
+    ).lenses
+    for view in views:
+        fit = custom_council.score_company(
+            view, lenses, bold, evidence[view.company_id], T0
+        )
+        assert fit.core_axes == view.axes
+
+
+def test_a_lens_that_reads_the_same_everywhere_is_reported_as_not_discriminating(
+    bold,
+) -> None:
+    """The decorative failure, caught and NAMED from the user's side.
+
+    An authored agent looking for a quality nothing in the pipeline evidences reads 0.0
+    on every company. That rescales every fit score by the same factor and reorders
+    nobody. It is not an error — the honest reading really is the same everywhere — but
+    the VC must be told, or they will believe an agent that did nothing was working.
+    """
+    views = _views()
+    core, evidence = _core_order(views), _evidence_for(views)
+    ranking = custom_council.rank(
+        views,
+        core,
+        bold,
+        evidence,
+        T0,
+        authored=[_authored(name="Nowhere", quality="cryptozoology", weight=0.5)],
+    )
+    flagged = {item.field_name: item.reason for item in ranking.lenses_without_effect}
+    assert "lens:Nowhere" in flagged
+    assert "not discriminating" in flagged["lens:Nowhere"]
+    assert "an agent you authored" in flagged["lens:Nowhere"]
+
+    # And an agent that DOES discriminate is not flagged.
+    for i, view in enumerate(views):
+        if i % 2 == 0:
+            evidence[view.company_id] = evidence[view.company_id] + [
+                _event("a written threat model", company_id=view.company_id)
+            ]
+    discriminating = custom_council.rank(
+        views,
+        core,
+        bold,
+        evidence,
+        T0,
+        authored=[_authored(name="Threat models", quality="threat_model", weight=0.5)],
+    )
+    assert "lens:Threat models" not in {
+        item.field_name for item in discriminating.lenses_without_effect
+    }
+
+
+def test_an_unscored_axis_is_omitted_from_the_view_not_defaulted(bold) -> None:
+    """`CompanyView.axes` is `dict[str, float]` and every reader here already guards on
+    `name in view.axes`, so absence is the shape this module was built for.
+
+    Passing None would fail `_bounded`'s `float(value)`; passing 0.0 would tell every
+    lens that an axis we never measured is the worst possible one — and `_weakest`
+    would then hand that fabricated 0.0 to the personal fit as the binding constraint.
+    """
+    screening = ScreeningResult(
+        company_id=uuid4(),
+        as_of=T0,
+        founder=Axis(score=0.77, trend=0.1, confidence=0.8),
+        market=Axis(score=None, trend=None, confidence=0.0, reason="no events to judge"),
+        idea_vs_market=Axis(score=0.55, trend=0.0, confidence=0.7),
+    )
+    view = custom_council.view_from_screening(screening, name="X")
+
+    assert "market" not in view.axes
+    assert view.axes == {"founder": pytest.approx(0.77), "idea_vs_market": pytest.approx(0.55)}
+    # The unscored axis does not become the weakest by being zero.
+    name, value = custom_council._weakest(view)
+    assert name == "idea_vs_market" and value == pytest.approx(0.55)
+
+    # And the whole lens pipeline still runs on the partial view rather than crashing.
+    lenses, _ = custom_council.derive_lenses(bold)
+    fit = custom_council.score_company(view, lenses, bold, [], T0)
+    assert "market" not in fit.core_axes
+
+
+def test_a_company_with_no_measurable_axis_is_not_dragged_down_by_the_evidence_bar(
+    bold,
+) -> None:
+    """Zero measurable axes must make the evidence bar ABSTAIN, never read 0.0.
+
+    THE BUG THIS PINS. `_evidence_bar_reading` ended in `min(present) if present else
+    0.0`. A company whose three axes the screen could not measure therefore got a
+    confident reading of 0.0 on a lens that is a pure function of those axes. That is
+    bad on its own, but the damage was downstream: `_driver` explains a DEMOTION by the
+    largest `weight * (1 - reading)`, and 0.0 maximises that expression. So the lens
+    with the least evidence behind it became the one the user was told had "dragged
+    down" the company — the system's single most confident statement made on its single
+    weakest ground, and the exact failure mode the module docstring says these tests
+    exist to catch.
+
+    Every other lens in the file already abstains with None. This asserts the evidence
+    bar now does too, and that an abstaining lens cannot be named as a driver.
+    """
+    screening = ScreeningResult(
+        company_id=uuid4(),
+        as_of=T0,
+        founder=Axis(score=None, trend=None, confidence=None, reason="no events to judge"),
+        market=Axis(score=None, trend=None, confidence=None, reason="judge failed"),
+        idea_vs_market=Axis(score=None, trend=None, confidence=None, reason="no receipts"),
+    )
+    view = custom_council.view_from_screening(screening, name="Unmeasured")
+    assert view.axes == {}, "nothing was measurable, so nothing is carried"
+    assert view.axis_confidence == {}, "an unmeasured confidence is omitted, not zeroed"
+
+    lenses, _ = custom_council.derive_lenses(bold)
+    fit = custom_council.score_company(view, lenses, bold, [], T0)
+
+    bar = next(c for c in fit.contributions if c.lens == LensKind.EVIDENCE_BAR)
+    assert bar.reading is None, f"the evidence bar must abstain, got {bar.reading}"
+    assert bar.abstained_reason, "an abstaining lens must say why"
+    assert bar.contribution == 0.0
+
+    # The load-bearing consequence: an abstaining lens is excluded from `scored`, so it
+    # can never be the lens blamed for a demotion.
+    scored = [item for item in fit.contributions if item.reading is not None]
+    for divergence in (-9, 9):
+        driver = custom_council._driver(scored, divergence)
+        assert driver is None or driver.lens != LensKind.EVIDENCE_BAR, (
+            "a lens that measured nothing was named as the driver"
+        )

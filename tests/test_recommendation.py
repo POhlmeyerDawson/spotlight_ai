@@ -435,3 +435,49 @@ def test_the_cheque_unlocks_only_after_the_anti_memo_is_served(client):
     # ...but the server half alone still is not enough.
     locked = client.get(f"/companies/{CID}/memo").json()
     assert locked["investment_recommendation"] is None
+
+
+def test_the_new_required_sections_do_not_leak_the_cheque_past_the_lock(monkeypatch):
+    """The structured sections were added to the memo payload; the lock nulls exactly two
+    keys. If a section ever restates the amount, the lock becomes decorative."""
+    monkeypatch.setattr(
+        memo,
+        "generate_memo",
+        lambda cid, as_of: {
+            "company_id": str(cid),
+            "structure": [{"key": "cap_table", "heading": "Cap table", "mode": "not_attempted",
+                           "populated": False}],
+            "company_snapshot": {"status": "computed", "narrative": "a company"},
+            "swot": {"status": "computed"},
+            "cap_table": {"status": "not_attempted", "attempted": False},
+            "recommendation": {"summary": "prose"},
+            "investment_recommendation": {"decision": "invest", "amount_usd": 750_000.0},
+            "gaps": [],
+        },
+    )
+    companies_router.reset_dissent_locks()
+    body = TestClient(app).get(f"/companies/{CID}/memo").json()
+    assert body["investment_recommendation"] is None and body["recommendation"] is None
+    # The structure and the honest empties are NOT locked — they carry no decision.
+    assert body["cap_table"]["status"] == "not_attempted"
+    assert "750,000" not in json.dumps(body) and "750000" not in json.dumps(body)
+
+
+def test_the_not_attempted_sections_are_never_folded_into_the_gap_count(monkeypatch):
+    """Those blocks are identical for every company. Counting them as gaps would push
+    every cheque in the portfolio to no_call for a reason about none of them."""
+    real = recommend(monkeypatch, gaps=[])["amount_usd"]
+    padded = recommend(
+        monkeypatch,
+        gaps=[{"claim": k, "status": "not_attempted"} for k in memo.NOT_ATTEMPTED_SECTIONS],
+    )["amount_usd"]
+    assert real is not None
+    assert padded != real, "sanity: gap count really does move the cheque"
+    # ...which is exactly why generate_memo keeps them out of `gaps`.
+    assert set(memo.NOT_ATTEMPTED_SECTIONS) == {
+        "market_sizing",
+        "competition",
+        "financials",
+        "cap_table",
+        "exit",
+    }

@@ -34,6 +34,7 @@ def client() -> TestClient:
 def _clean_tables():
     c = profiles.conn()
     for table in (
+        "vc_authored_lenses",
         "vc_decisions",
         "vc_survey_answers",
         "vc_profiles",
@@ -565,3 +566,170 @@ def test_derivation_is_recomputed_from_the_raw_sources_not_cached(client: TestCl
     second = client.get("/profile").json()["derived"]["sector_priors"]
     assert [p["key"] for p in first] != [p["key"] for p in second]
     assert [p["key"] for p in second] == ["climate"]
+
+
+# ---------------------------------------------------------------------------
+# §3 — authored council lenses, persisted against the account
+#
+# The gap these close: the council builder could not save. Every test here goes
+# through HTTP, because "it persisted" means a LATER REQUEST can see it, not that an
+# object survived inside one function call.
+# ---------------------------------------------------------------------------
+
+AGENT = {
+    "name": "Security posture",
+    "quality": "security_engineering",
+    "persona": "You add score for founders who treat security as an engineering discipline.",
+    "weight": 0.4,
+    "origin": "authored",
+}
+
+
+def test_a_new_account_has_no_council_agents_and_none_are_seeded(client: TestClient) -> None:
+    """The standing constraint: nothing appears that the user did not ask for. A default
+    council would be the system inventing a preference on their behalf."""
+    body = client.get("/personal/lenses").json()
+    assert body["authored"] == []
+    assert body["authored_survive_rederive"] is True
+
+
+def test_an_authored_agent_persists_across_requests(client: TestClient) -> None:
+    created = client.post("/personal/lenses", json=AGENT)
+    assert created.status_code == 201, created.text
+    lens_id = created.json()["created"]["lens_id"]
+
+    # A FRESH request, not the response body of the write.
+    stored = client.get("/personal/lenses").json()["authored"]
+    assert [a["lens_id"] for a in stored] == [lens_id]
+    assert stored[0]["name"] == "Security posture"
+    assert stored[0]["origin"] == "authored"
+
+    # Edit.
+    edited = client.put(f"/personal/lenses/{lens_id}", json={"weight": 0.9, "name": "Sec++"})
+    assert edited.status_code == 200, edited.text
+    reread = client.get("/personal/lenses").json()["authored"][0]
+    assert reread["weight"] == 0.9 and reread["name"] == "Sec++"
+    # A partial edit leaves the untouched fields alone.
+    assert reread["quality"] == "security_engineering"
+    assert reread["persona"] == AGENT["persona"]
+
+    # Delete.
+    assert client.delete(f"/personal/lenses/{lens_id}").status_code == 200
+    assert client.get("/personal/lenses").json()["authored"] == []
+    assert client.delete(f"/personal/lenses/{lens_id}").status_code == 404
+
+
+def test_authored_agents_are_scoped_to_the_owning_account(client: TestClient) -> None:
+    lens_id = client.post("/personal/lenses", json=AGENT).json()["created"]["lens_id"]
+    other = TestClient(app)
+    other.post(
+        "/auth/register",
+        json={"email": f"vc-{uuid.uuid4().hex[:12]}@fund.example", "password": PASSWORD},
+    )
+    assert other.get("/personal/lenses").json()["authored"] == []
+    assert other.put(f"/personal/lenses/{lens_id}", json={"weight": 0.9}).status_code == 404
+    assert other.delete(f"/personal/lenses/{lens_id}").status_code == 404
+
+
+def test_a_client_cannot_mint_a_lens_that_claims_the_system_derived_it(
+    client: TestClient,
+) -> None:
+    """'derived' is the system's word. A request body may only say 'authored' or
+    'template' — otherwise a typed preference could pass itself off as one read out of
+    the profile, and the stated-vs-revealed split would stop meaning anything."""
+    r = client.post("/personal/lenses", json={**AGENT, "origin": "derived"})
+    assert r.status_code == 422
+
+
+def test_a_template_the_user_accepted_is_recorded_as_a_template(client: TestClient) -> None:
+    """Real input either way — they chose it — but which basis it was is a fact about
+    the user we do not get to blur."""
+    r = client.post("/personal/lenses", json={**AGENT, "origin": "template"})
+    assert r.status_code == 201
+    assert client.get("/personal/lenses").json()["authored"][0]["origin"] == "template"
+
+
+def test_an_unreadable_quality_is_refused_at_the_keyboard(client: TestClient) -> None:
+    r = client.post("/personal/lenses", json={**AGENT, "quality": "the of a"})
+    assert r.status_code == 422
+    assert "no readable term" in str(r.json())
+
+
+def test_a_blank_or_zero_weight_agent_is_refused(client: TestClient) -> None:
+    assert client.post("/personal/lenses", json={**AGENT, "name": "   "}).status_code == 422
+    assert client.post("/personal/lenses", json={**AGENT, "weight": 0.0}).status_code == 422
+    assert client.post("/personal/lenses", json={**AGENT, "persona": ""}).status_code == 422
+
+
+def test_duplicate_agent_names_are_refused(client: TestClient) -> None:
+    assert client.post("/personal/lenses", json=AGENT).status_code == 201
+    clash = client.post("/personal/lenses", json={**AGENT, "name": "security POSTURE"})
+    assert clash.status_code == 409
+    assert "already have a council agent" in str(clash.json())
+
+
+def test_the_ceiling_refuses_the_sixth_agent_rather_than_dropping_one(
+    client: TestClient,
+) -> None:
+    from intelligence import custom_council
+
+    for i in range(custom_council.MAX_LENSES):
+        r = client.post(
+            "/personal/lenses", json={**AGENT, "name": f"Agent {i}", "quality": f"quality{i}"}
+        )
+        assert r.status_code == 201, r.text
+    overflow = client.post(
+        "/personal/lenses", json={**AGENT, "name": "Agent 6", "quality": "quality6"}
+    )
+    assert overflow.status_code == 409
+    assert "Nothing has been dropped" in str(overflow.json())
+    # And the five that WERE stored are all still there.
+    assert len(client.get("/personal/lenses").json()["authored"]) == custom_council.MAX_LENSES
+
+
+def test_the_council_payload_keeps_derived_and_authored_apart(client: TestClient) -> None:
+    """`lenses` stays the derived half — the council builder renders it under a 'derived'
+    heading — and `council` is the set that actually scores, every entry carrying its
+    origin so provenance survives to the screen."""
+    user = _user(client)
+    profiles.save_survey(
+        user.user_id,
+        [SurveyAnswer(question_id=q.id, choice=Choice.A) for q in SURVEY_QUESTIONS],
+    )
+    client.post("/personal/lenses", json=AGENT)
+
+    body = client.get("/personal/lenses").json()
+    assert all(lens["origin"] == "derived" for lens in body["lenses"])
+    origins = {lens["origin"] for lens in body["council"]}
+    assert origins == {"derived", "authored"}
+    assert body["weight_rule"]
+    assert sum(lens["weight"] for lens in body["council"]) == pytest.approx(1.0, abs=1e-5)
+
+
+def test_rederiving_after_a_survey_change_does_not_touch_authored_agents(
+    client: TestClient,
+) -> None:
+    """The explicit answer to 'what happens on re-derive'. Posting a whole new survey is
+    a full re-derivation; the agent comes back byte-identical."""
+    created = client.post("/personal/lenses", json=AGENT).json()["created"]
+
+    client.post(
+        "/profile/survey",
+        json={
+            "answers": [
+                {"question_id": q.id, "choice": "a"} for q in SURVEY_QUESTIONS
+            ]
+        },
+    )
+    after_first = client.get("/personal/lenses").json()["authored"]
+    client.post(
+        "/profile/survey",
+        json={
+            "answers": [
+                {"question_id": q.id, "choice": "b"} for q in SURVEY_QUESTIONS
+            ]
+        },
+    )
+    after_second = client.get("/personal/lenses").json()["authored"]
+
+    assert after_first == after_second == [created]

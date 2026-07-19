@@ -214,3 +214,59 @@ def test_generate_wrapper_uses_same_scoped_inputs(monkeypatch) -> None:
     assert screen_calls == [(COMPANY_ID, T0)]
     assert pure_calls == [(COMPANY_ID, T0, events, screening, judge)]
     assert memo.company_id == COMPANY_ID
+
+
+# --- the unscorable bull axis -----------------------------------------------------------
+# `screen.py` returns score=None for an axis it could not measure. A spread is
+# abs(bull - bear), so against a null bull there is NO SUCH QUANTITY. It is undefined,
+# not zero — and this file already documents what writing zero costs: axis_spreads
+# identically {0.0, 0.0, 0.0}, read by every consumer as "bull and bear agree perfectly".
+
+
+def _screening_with_unscored_market() -> ScreeningResult:
+    return ScreeningResult(
+        company_id=COMPANY_ID,
+        as_of=T0,
+        founder=Axis(score=0.8, trend=0.1, confidence=0.7),
+        market=Axis(score=None, trend=None, confidence=0.0, reason="no events to judge"),
+        idea_vs_market=Axis(score=0.6, trend=0.0, confidence=0.8),
+    )
+
+
+def test_a_spread_against_an_unscored_bull_axis_is_omitted_not_zero() -> None:
+    event = _event("included marker")
+    memo = dissent.generate_from_evidence(
+        COMPANY_ID,
+        T0,
+        [event],
+        _screening_with_unscored_market(),
+        lambda *args, **kwargs: _answer(event.event_id),
+    )
+    assert "market" not in memo.axis_spreads, (
+        "an unmeasured bull axis produced a spread — 0.0 here is the failure this "
+        "codebase already shipped once"
+    )
+    # The axes we DID measure still produce real spreads. Absence is per-axis, not a
+    # switch that blanks the whole reading.
+    assert memo.axis_spreads == {
+        "founder": pytest.approx(0.8),
+        "idea_vs_market": pytest.approx(0.2),
+    }
+
+
+def test_the_fallback_also_omits_the_unscored_axis() -> None:
+    memo = dissent.generate_from_evidence(
+        COMPANY_ID, T0, [], _screening_with_unscored_market(), lambda *a, **k: "not json"
+    )
+    assert "market" not in memo.axis_spreads
+    assert set(memo.axis_spreads) == {"founder", "idea_vs_market"}
+
+
+def test_a_missing_spread_reads_as_unknown_uncertainty_not_as_agreement() -> None:
+    """The whole point of not writing 0.0: an incomplete spread must not be able to
+    masquerade as a narrow one, which is what would let 'wide spread -> no-call' fail
+    to fire on a company we scored on nothing."""
+    memo = dissent.generate_from_evidence(
+        COMPANY_ID, T0, [], _screening_with_unscored_market(), lambda *a, **k: "not json"
+    )
+    assert dissent.uncertainty_from_spread(memo) == dissent.UNKNOWN_UNCERTAINTY

@@ -23,7 +23,7 @@ from uuid import uuid4
 import pytest
 
 from api import standout
-from schema.events import Event, EventKind
+from schema.events import CompanyProvenance, Event, EventKind
 
 
 NOW = datetime(2026, 6, 1, tzinfo=timezone.utc)
@@ -64,7 +64,7 @@ def corpus(monkeypatch, tmp_path):
         ("Middle Corp", 4, True),
         ("Deck Only Corp", 0, False),
     ):
-        cid = store.upsert_company(name, archetype=1)
+        cid = store.upsert_company(name, archetype=1, provenance=CompanyProvenance.SOURCED)
         eid = uuid4()
         if has_public:
             for i in range(n_repo):

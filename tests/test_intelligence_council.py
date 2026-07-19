@@ -390,3 +390,38 @@ def test_view_dissent_wrapper_reads_once_and_reuses_as_of(monkeypatch) -> None:
     assert result.company_id == COMPANY_ID
     assert result.decision is council.CouncilDecision.PROOF_PROTOCOL
     assert result.dissent_viewed is True
+
+
+def test_an_empty_spread_widens_by_unknown_rather_than_reading_as_agreement(
+    monkeypatch,
+) -> None:
+    """`axis_spreads` is now EMPTY when the screen could not measure any axis, because a
+    spread against an unmeasured bull is undefined rather than zero (dissent._bull_axes).
+
+    The old `max(..., default=0.0)` turned that absence into "bull and bear agree on
+    everything" — maximum certainty asserted about a company we scored on nothing, and
+    the exact shape of the axis_spreads==0.0 bug this codebase already had to fix once.
+    """
+    event = _event("included marker")
+    call_count = 0
+
+    def judge(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count <= 3:
+            return _role_answer("proof_protocol", event.event_id)
+        return _chair_answer()
+
+    monkeypatch.setattr(
+        council.dissent,
+        "generate_from_evidence",
+        lambda *args, **kwargs: AntiMemo(
+            company_id=COMPANY_ID,
+            bear_case="case",
+            weakest_evidence=["receipt"],
+            load_bearing_claim="repeat use",
+            axis_spreads={},
+        ),
+    )
+    result = council.deliberate_from_evidence(COMPANY_ID, T0, [event], _screening(), judge)
+    assert result.uncertainty_widening == pytest.approx(council.dissent.UNKNOWN_UNCERTAINTY)

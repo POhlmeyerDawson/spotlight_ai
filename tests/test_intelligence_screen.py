@@ -38,6 +38,31 @@ def _founder_score(*, mu: float = 0.72, band: float = 0.18) -> FounderScore:
     )
 
 
+
+def _assert_unscorable(axis) -> None:
+    """An axis we could not measure is NULL, not a middling number.
+
+    The old contract asserted `score == 0.5`, which is a confident claim made on no
+    evidence — and it fed `_rank_key`, so "we could not look" competed against real
+    readings. The reason is required: the four failure modes (no events, judge threw,
+    unparseable reply, no citable receipts) are different facts and the client says
+    which one it was.
+
+    CONFIDENCE IS NULL TOO. It asserted `== 0.0` until the evidence bar in
+    `custom_council` was found averaging these into an evidence-sufficiency term, where
+    a 0.0 is a MEASUREMENT — "judged, and trusted not at all" — and dragged the mean
+    down exactly as a real no-confidence reading would. The absence has to reach every
+    consumer, so it cannot stop at the score field.
+    """
+    assert axis.score is None, f"unscorable axis must not carry a score, got {axis.score}"
+    assert axis.trend is None, f"unscorable axis must not carry a trend, got {axis.trend}"
+    assert axis.confidence is None, (
+        f"unscorable axis must not carry a confidence either, got {axis.confidence}"
+    )
+    assert axis.evidence_event_ids == []
+    assert axis.reason, "an unscorable axis must say why it could not be scored"
+
+
 def test_founder_axis_is_only_a_lossless_reshape_with_clipped_confidence() -> None:
     fs = _founder_score()
     axis = screen.founder_axis(fs)
@@ -116,9 +141,7 @@ def test_judged_axis_failure_is_uninformative(axis_fn, response) -> None:
             raise response
         return response
 
-    assert axis_fn([_event()], judge=judge) == Axis(
-        score=0.5, trend=0.0, confidence=0.0, evidence_event_ids=[]
-    )
+    _assert_unscorable(axis_fn([_event()], judge=judge))
 
 
 def test_missing_required_judge_keys_fall_back() -> None:
@@ -126,7 +149,7 @@ def test_missing_required_judge_keys_fall_back() -> None:
         [_event()],
         judge=lambda *args, **kwargs: {"score": 0.9, "trend": 0.8, "confidence": 1.0},
     )
-    assert axis == Axis(score=0.5, trend=0.0, confidence=0.0, evidence_event_ids=[])
+    _assert_unscorable(axis)
 
 
 def test_all_invented_receipts_make_axis_uninformative() -> None:
@@ -140,7 +163,7 @@ def test_all_invented_receipts_make_axis_uninformative() -> None:
             "rationale": "unsupported",
         },
     )
-    assert axis == Axis(score=0.5, trend=0.0, confidence=0.0, evidence_event_ids=[])
+    _assert_unscorable(axis)
 
 
 def test_integrity_flagged_events_are_not_judged() -> None:
@@ -153,9 +176,7 @@ def test_integrity_flagged_events_are_not_judged() -> None:
         called = True
         return {}
 
-    assert screen.market_axis([event], judge=judge) == Axis(
-        score=0.5, trend=0.0, confidence=0.0, evidence_event_ids=[]
-    )
+    _assert_unscorable(screen.market_axis([event], judge=judge))
     assert called is False
 
 
@@ -164,9 +185,7 @@ def test_empty_evidence_does_not_call_judge(axis_fn) -> None:
     def judge(*args, **kwargs):
         raise AssertionError("judge must not run")
 
-    assert axis_fn([], judge=judge) == Axis(
-        score=0.5, trend=0.0, confidence=0.0, evidence_event_ids=[]
-    )
+    _assert_unscorable(axis_fn([], judge=judge))
 
 
 def test_three_axis_scopes_reads_and_uses_founder_filter(monkeypatch) -> None:
@@ -218,9 +237,7 @@ def test_three_axis_without_entity_uses_uninformative_founder(monkeypatch) -> No
         lambda events: Axis(score=0.3, trend=0, confidence=1),
     )
 
-    assert screen.three_axis(COMPANY_ID, T0).founder == Axis(
-        score=0.5, trend=0.0, confidence=0.0, evidence_event_ids=[]
-    )
+    _assert_unscorable(screen.three_axis(COMPANY_ID, T0).founder)
 
 
 def test_rank_key_is_founder_then_fit_then_market() -> None:

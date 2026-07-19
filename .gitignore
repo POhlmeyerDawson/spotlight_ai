@@ -40,3 +40,6 @@ data/backups/
 # ship a cache that is already stale.
 data/standout_cache/
 data/llm_cache_test_untrusted/
+
+# agent working files
+scratchpad/

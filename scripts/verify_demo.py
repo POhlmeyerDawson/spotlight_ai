@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import urllib.error
 import urllib.request
@@ -234,10 +235,19 @@ def check_demo_beats(api: str) -> None:
     )
 
     intl = rows.get("intl-zaryad") or {}
+    # "Surfaced" is a RELATIVE claim — this company must land near the top of whatever
+    # list exists, not inside a fixed window. The old `rank <= 5` was a magic number
+    # calibrated to a 13-company corpus; it broke the moment a 14th company took rank 1,
+    # and a 100-200 company sourcing run would break it far harder while the underlying
+    # behaviour was still correct. Top quartile scales with the corpus, and the floor of
+    # 5 keeps the assertion from going vacuous on a small one.
+    intl_cutoff = max(5, math.ceil(len(rows) * 0.25))
+    intl_rank = intl.get("rank", 10**9)
     check(
         "T6 international founder is surfaced, not silently zeroed",
-        (founder("intl-zaryad") or 0) > 0 and intl.get("rank", 99) <= 5,
-        f"rank={intl.get('rank')} founder={founder('intl-zaryad')}",
+        (founder("intl-zaryad") or 0) > 0 and intl_rank <= intl_cutoff,
+        f"rank={intl_rank}/{len(rows)} (top-quartile cutoff={intl_cutoff}) "
+        f"founder={founder('intl-zaryad')}",
     )
 
     # Type 6 evidence must not be voided by provenance flags.

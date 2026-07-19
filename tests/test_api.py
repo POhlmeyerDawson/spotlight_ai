@@ -172,11 +172,20 @@ def test_unlocks_only_after_dissent_is_served(client: TestClient) -> None:
 
 
 def test_lock_is_per_company(client: TestClient) -> None:
-    other = "33333333-3333-3333-3333-333333333333"
+    """Serving one company's dissent must not unlock a DIFFERENT company's cheque.
+
+    `other` has to be a company that actually exists. It used to be an unseeded UUID,
+    which passed for the wrong reason: an unknown company now 404s, so the assertion
+    was reading an error body rather than a locked memo, and would have kept passing
+    even if the lock leaked across every real company in the corpus.
+    """
+    other = "vb-tensorpage"
+    assert client.get(f"/companies/{other}/memo").status_code == 200, "other must exist"
     client.get(f"/companies/{CID}/dissent")
-    assert (
-        client.get(f"/companies/{other}/memo?dissent_viewed=true").json()["recommendation"] is None
-    )
+    body = client.get(f"/companies/{other}/memo?dissent_viewed=true").json()
+    assert body["recommendation"] is None, "one company's dissent unlocked another's"
+    assert body["investment_recommendation"] is None, "the cheque figure leaked"
+    assert body["recommendation_locked_reason"]
 
 
 # --- trace, memo content, query --------------------------------------------
@@ -359,6 +368,58 @@ def test_screen_axes_do_not_fabricate_a_band_or_inflate_direction() -> None:
     assert axis["trend"] == 1.0, "a directional trend was rescaled into an impossible rate"
     assert axis["trend_unit"] == TREND_UNIT_DIRECTION
     assert axis["live"] is True and axis["evidence_event_ids"] == ["abc"]
+
+
+def test_seeded_axis_serializes_an_unmeasured_axis_as_null_not_zero() -> None:
+    """An authored null must reach the client as null, on EVERY endpoint.
+
+    `score or 0.0` turned "no observable evidence — not a zero, an absence" into a
+    confident 0.0, which `_rank_key` reads as a real measurement (it tests isinstance
+    float), promoting an unmeasured company into the fully-measured tier and sorting it
+    last inside it — the inverse of the stated policy — while the UI rendered "0 ±0.0".
+    Nothing checked this, which is the only reason it shipped.
+    """
+    from api.main import _rank_key, _rescale_axis
+
+    out = _rescale_axis(
+        {"score": None, "trend": None, "band": None, "confidence": 0.0, "evidence": []}
+    )
+    assert out["score"] is None, "an absence was coalesced into a confident zero"
+    assert out["band"] is None, "a missing interval became a claim of perfect certainty"
+    assert out["trend"] is None
+
+    # The rank tier follows: an axis that did not measure must not look measured.
+    unmeasured = {"axes": {"founder": {"score": 70.0}, "market": {"score": 60.0},
+                           "idea_vs_market": out}}
+    measured = {"axes": {k: {"score": 10.0} for k in ("founder", "market", "idea_vs_market")}}
+    assert _rank_key(measured) < _rank_key(unmeasured), (
+        "an unmeasured axis was ranked as if it had been measured"
+    )
+
+
+def test_seeded_axis_trend_is_scaled_by_its_own_unit_and_always_labelled() -> None:
+    """`trend` must never be rescaled by a factor chosen from a DIFFERENT quantity.
+
+    One serializer picked x100-or-x1 by looking at whether `score` was <= 1.0 and then
+    applied it to `trend`, so one unlabelled field carried two incompatible scales and
+    `trend_unit` was dropped entirely — the consumer could not tell which it received.
+    """
+    from api.main import TREND_UNIT_DIRECTION, TREND_UNIT_SCORE_PER_30D, _rescale_axis
+
+    rate = _rescale_axis({"score": 0.77, "trend": -0.06, "band": 0.11, "confidence": 0.7})
+    assert rate["trend"] == -6.0 and rate["trend_unit"] == TREND_UNIT_SCORE_PER_30D
+
+    # A trend stays measurable even when the score beside it is not.
+    unscored = _rescale_axis({"score": None, "trend": 0.05, "confidence": 0.1})
+    assert unscored["trend"] == 5.0, "trend was scaled by a factor derived from score"
+    assert unscored["trend_unit"] == TREND_UNIT_SCORE_PER_30D
+
+    # An authored direction is a sign, not a rate, and keeps both its value and its unit.
+    direction = _rescale_axis(
+        {"score": 0.5, "trend": 1.0, "trend_unit": TREND_UNIT_DIRECTION, "confidence": 0.4}
+    )
+    assert direction["trend"] == 1.0, "a direction was inflated into an impossible rate"
+    assert direction["trend_unit"] == TREND_UNIT_DIRECTION
 
 
 def test_trace_never_presents_a_generated_summary_as_a_receipt() -> None:

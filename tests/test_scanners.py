@@ -190,7 +190,9 @@ def test_github_returns_nothing_for_an_unknown_login(gh) -> None:
 @pytest.fixture
 def tavily(monkeypatch):
     results = [SearchResult(**r) for r in _json("web_results.json")]
-    monkeypatch.setattr(web, "search", lambda q, max_results=5: results[:max_results])
+    # **kw absorbs restrict_to_registry — web.scan() now asks for open discovery
+    # explicitly rather than inheriting core.search's registry-only default.
+    monkeypatch.setattr(web, "search", lambda q, max_results=5, **kw: results[:max_results])
     return results
 
 

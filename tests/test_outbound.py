@@ -25,7 +25,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from schema.events import ClaimStatus, ClaimVerdict, Event, EventKind, GateDecision, GateOutcome
+from schema.events import CompanyProvenance, ClaimStatus, ClaimVerdict, Event, EventKind, GateDecision, GateOutcome
 from sourcing import outreach
 
 AS_OF = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -69,7 +69,7 @@ def company() -> tuple[UUID, UUID]:
     """A company with two citable build artifacts and a resolved founder."""
     from memory import store
 
-    cid = store.upsert_company("Tensorpage", archetype=1)
+    cid = store.upsert_company("Tensorpage", archetype=1, provenance=CompanyProvenance.SOURCED)
     eid = store.upsert_entity("Marisol Ferreira", "marisol ferreira")
     store.append(_event(cid, eid))
     store.append(
@@ -519,7 +519,7 @@ def test_no_citable_evidence_means_no_email(monkeypatch, passing):
     """A company we know nothing quotable about does not get a generic mail instead."""
     from memory import store
 
-    cid = store.upsert_company("Baseplate Systems")
+    cid = store.upsert_company("Baseplate Systems", provenance=CompanyProvenance.SOURCED)
     eid = store.upsert_entity("Nobody", "nobody")
     # A green flag is our inference about them, not an observation of them.
     store.append(_event(cid, eid, kind=EventKind.GREEN_FLAG, source="manual", source_url=None))

@@ -9,7 +9,7 @@ import pytest
 
 from backtest.runner import assert_no_lookahead
 from memory import queries, score, store
-from schema.events import Event, EventKind, Source
+from schema.events import CompanyProvenance, Event, EventKind, Source
 
 T1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
 T2 = T1 + timedelta(days=30)
@@ -104,8 +104,8 @@ def test_upsert_entity_and_company_helpers_are_idempotent() -> None:
     first = store.upsert_entity("Ólafur Þórðarson", "olafur thordarson")
     assert store.upsert_entity("Olafur Thordarson", "olafur thordarson") == first
     assert store.get_entity(first)["display_name"] == "Ólafur Þórðarson"
-    company = store.upsert_company("Acme", archetype=2)
-    assert store.upsert_company("Acme") == company
+    company = store.upsert_company("Acme", archetype=2, provenance=CompanyProvenance.SOURCED)
+    assert store.upsert_company("Acme", provenance=CompanyProvenance.SOURCED) == company
     assert store.get_company(company)["archetype"] == 2
     assert len(store.all_entities()) == 1
     assert len(store.all_companies()) == 1

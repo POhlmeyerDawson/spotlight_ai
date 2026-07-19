@@ -113,6 +113,15 @@ def test_evaluate_keeps_per_rule_contract_and_appends_d_rollup() -> None:
     assert [(event.payload, event.observed_at) for event in per_rule] == [
         (event.payload, event.observed_at) for event in direct
     ]
+    # Exact, not a subset check: D's presentation layer reads this payload and a key
+    # appearing without anyone noticing is how a reading starts being displayed that
+    # nothing ever verified. Extending the contract means extending this literal.
+    #
+    # The corroboration keys and `evidence_coverage` were added when scoring stopped
+    # assuming the founder's product is code: the first three say how many INDEPENDENT
+    # channels stand behind the reading (memory/score.py prices them), and the last
+    # says whether this registry can see the thesis's sectors at all, so a thin
+    # dossier can read as "we could not see them" rather than "they are weak".
     assert set(rollup.payload) == {
         "value",
         "y",
@@ -123,6 +132,10 @@ def test_evaluate_keeps_per_rule_contract_and_appends_d_rollup() -> None:
         "observation_role",
         "derived_from_event_ids",
         "source_evidence_event_ids",
+        "independent_channels",
+        "independent_channel_ids",
+        "self_published_only",
+        "evidence_coverage",
     }
     expected_y = flags.observation(per_rule)[0]
     assert rollup.payload["value"] == expected_y
@@ -337,12 +350,26 @@ def test_artifact_receipt_must_be_grounded_in_submission(monkeypatch) -> None:
 
 
 def test_missing_artifact_judgment_does_not_pass_submission(monkeypatch) -> None:
+    """A judge that returns nothing leaves the artifact UNGRADED, not failed.
+
+    CONTRACT CHANGE. This asserted `works is False`, `sound is False`, `value == 0.0` —
+    a confident three-way zero grade manufactured from an empty reply. "The judge did
+    not answer" and "the artifact does not work" are opposite findings, and the second
+    is the one that reaches the founder score. The submission still does not pass, which
+    is what this test is named for; it now fails to pass by being unmeasured rather than
+    by being condemned on evidence nobody produced.
+    """
     _install_issued_store(monkeypatch)
     monkeypatch.setattr(proof.llm, "complete", lambda *args, **kwargs: {})
     artifact = proof.grade(CHALLENGE_ID, "unverified artifact", _legacy_trace())[0]
-    assert artifact.payload["works"] is False
-    assert artifact.payload["sound"] is False
-    assert artifact.payload["value"] == 0.0
+    assert artifact.payload["works"] is None
+    assert artifact.payload["sound"] is None
+    assert artifact.payload["handled_ambiguity"] is None
+    assert artifact.payload["value"] is None
+    assert artifact.payload["y"] is None
+    assert artifact.payload["components"] is None
+    assert "artifact_ungraded" in artifact.integrity_flags
+    assert artifact.confidence == 0.0
 
 
 def test_mixed_company_history_does_not_emit_cross_company_rollup() -> None:
