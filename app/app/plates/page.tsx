@@ -31,9 +31,9 @@ function toNodes(companies: CompanySummary[]): SchematicNode[] {
     id: c.id,
     // Real: total contributing evidence events across the three axes.
     weight:
-      c.axes.founder.evidence_event_ids.length +
-      c.axes.market.evidence_event_ids.length +
-      c.axes.idea_vs_market.evidence_event_ids.length,
+      (c.axes.founder?.evidence_event_ids.length ?? 0) +
+      (c.axes.market?.evidence_event_ids.length ?? 0) +
+      (c.axes.idea_vs_market?.evidence_event_ids.length ?? 0),
     emphasis:
       c.gate === "proceed" ? "high" : c.gate === "proof_protocol" ? "mid" : "low",
     group: c.sector,

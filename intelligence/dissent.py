@@ -25,6 +25,10 @@ Judge = Callable[..., str | dict]
 SPREAD_MAX_WEIGHT = 0.65
 SPREAD_MEAN_WEIGHT = 0.35
 UNKNOWN_UNCERTAINTY = 0.5
+# The three axes a complete spread covers. `axis_spreads` may hold FEWER than these when
+# the screen could not measure one — a missing key is an undefined spread, and every
+# consumer must treat it as unknown rather than as zero.
+AXIS_NAMES = ("founder", "market", "idea_vs_market")
 
 _SYSTEM = (
     "Write the strongest evidence-grounded case against proceeding. Name one specific "
@@ -42,17 +46,37 @@ _PROMPT = (
 )
 
 
+def _bull_axes(screening: ScreeningResult) -> dict[str, float]:
+    """The bull scores, with any axis the screen could not measure OMITTED.
+
+    A spread is `abs(bull - bear)`. Against an unmeasured bull there is no such
+    quantity — it is undefined, not zero. Writing 0.0 would be the exact failure this
+    codebase already shipped once: `axis_spreads` identically {0.0, 0.0, 0.0}, which
+    made `uncertainty_from_spread` read as certainty, stopped "wide spread -> no-call"
+    from ever firing, and rendered as three empty bars a viewer reads as "bull and bear
+    agree perfectly" — the opposite of "we never scored this".
+
+    Omitting the key is what makes the absence propagate honestly: `uncertainty_from_
+    spread` already returns UNKNOWN_UNCERTAINTY when any of the three is missing, and
+    the client already drops null spreads rather than plotting them (app/lib/adapt.ts).
+    """
+    axes = {
+        "founder": screening.founder.score,
+        "market": screening.market.score,
+        "idea_vs_market": screening.idea_vs_market.score,
+    }
+    return {name: score for name, score in axes.items() if score is not None}
+
+
 def _fallback(company_id: UUID, screening: ScreeningResult) -> AntiMemo:
-    bear = {"founder": 0.5, "market": 0.5, "idea_vs_market": 0.5}
+    bear = 0.5
     return AntiMemo(
         company_id=company_id,
         bear_case="The available evidence is too thin to rule out a materially weaker case.",
         weakest_evidence=["Independent evidence is incomplete or unavailable."],
         load_bearing_claim="The central product claim works under representative conditions.",
         axis_spreads={
-            "founder": abs(screening.founder.score - bear["founder"]),
-            "market": abs(screening.market.score - bear["market"]),
-            "idea_vs_market": abs(screening.idea_vs_market.score - bear["idea_vs_market"]),
+            name: abs(score - bear) for name, score in _bull_axes(screening).items()
         },
     )
 
@@ -108,11 +132,10 @@ def generate_from_evidence(
     # empty bars — which a viewer reads as "bull and bear agree perfectly", the exact
     # opposite of the truth. The bear agent now scores the evidence independently and
     # the spread is computed here, against numbers it was never shown.
-    axes = {
-        "founder": screening.founder.score,
-        "market": screening.market.score,
-        "idea_vs_market": screening.idea_vs_market.score,
-    }
+    # Axes the screen could not measure are omitted here rather than defaulted — see
+    # `_bull_axes`. The bear still scores all three from the evidence (its reading does
+    # not depend on ours); we simply have no bull number to take a difference against.
+    axes = _bull_axes(screening)
     if not docs:
         return _fallback(company_id, screening)
     valid_ids = {doc["event_id"] for doc in docs}
@@ -141,7 +164,10 @@ def generate_from_evidence(
         ):
             raise ValueError("malformed dissent")
         clean_bear = {}
-        for axis in axes:
+        # Validated over the canonical triple, not over `axes`: the bear must still score
+        # all three from the evidence regardless of which ones WE could measure, and a
+        # reply missing one is malformed. Only the spread is restricted to `axes`.
+        for axis in AXIS_NAMES:
             value = bear_axes[axis]
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError("malformed bear axis")
@@ -178,8 +204,7 @@ def generate(company_id: UUID, as_of: datetime, judge: Judge = llm.complete) -> 
 
 def uncertainty_from_spread(anti_memo: AntiMemo) -> float:
     """Convert separate bull/bear axis gaps into bounded decision uncertainty."""
-    axes = ("founder", "market", "idea_vs_market")
-    raw = [anti_memo.axis_spreads.get(axis) for axis in axes]
+    raw = [anti_memo.axis_spreads.get(axis) for axis in AXIS_NAMES]
     if not all(
         isinstance(value, (int, float))
         and not isinstance(value, bool)

@@ -60,12 +60,36 @@ export default function AxisCard({
   governing = false,
 }: {
   axisKey: AxisKey;
-  axis: Axis;
+  /**
+   * Optional because the payload genuinely may not carry it. `RankedCompany.axes` is
+   * typed `Record<AxisKey, Axis>`, which promises all three always exist — the API
+   * does not keep that promise for live-sourced rows, and the gap between the type
+   * and the payload is what crashed the pipeline page. Accepting undefined here
+   * makes the component honest about what it can actually be handed.
+   */
+  axis: Axis | undefined;
   onOpenTrace: (a: AxisKey) => void;
   /** The weakest axis: the one min-axis ranking actually keys on. Marked, not reordered
    *  by colour — the cards are already sorted weakest-first by the page. */
   governing?: boolean;
 }) {
+  // ABSENT is a third state, distinct from both a score and a null score. The backend
+  // never computed this axis, so there is no interval, no evidence and nothing to
+  // trace — and saying "no evidence" here would assert we looked.
+  if (!axis) {
+    return (
+      <div className="border-l border-[color:var(--rule)] pl-3">
+        <div className="meta text-[color:var(--muted)]">{AXIS_LABEL[axisKey]}</div>
+        <div className="mono mt-1 text-[13px] text-[color:var(--muted)]">not computed</div>
+        <div className="hatch mt-1.5 h-[4px] w-full bg-[color:var(--ink-09)]" />
+        <p className="caption mt-1 text-[color:var(--muted)]">
+          This axis was not computed for this company. It is unmeasured, not zero, and
+          there is nothing to trace.
+        </p>
+      </div>
+    );
+  }
+
   const count = axis.evidence_event_ids.length;
   /**
    * A NULL band is "we did not compute an interval", which is NOT the same claim as a
@@ -205,7 +229,19 @@ export default function AxisCard({
       <dl className="mt-5 flex border-t border-[color:var(--rule)] pt-3">
         <div className="flex-1">
           <dt className="meta text-[color:var(--muted)]">Confidence</dt>
-          <dd className="mono mt-0.5 text-[16px]">{(axis.confidence * 100).toFixed(0)}%</dd>
+          {/*
+            Confidence is a property OF A MEASUREMENT. On an unscored axis there is no
+            measurement to be confident about, and printing "0%" inside the same card
+            whose hatch reads "AN ABSENCE, NOT A ZERO" contradicts it in the next line —
+            it reads as "we measured this and are certain of nothing" rather than "we
+            did not measure this". An absence gets the same em dash as the score.
+          */}
+          <dd
+            className={`mono mt-0.5 text-[16px]${scored ? "" : " text-[color:var(--muted)]"}`}
+            title={scored ? undefined : "Unmeasured — confidence does not apply."}
+          >
+            {scored ? `${(axis.confidence * 100).toFixed(0)}%` : "—"}
+          </dd>
         </div>
         <div className="flex-1 border-l border-[color:var(--rule)] pl-4">
           <dt className="meta text-[color:var(--muted)]">Evidence</dt>

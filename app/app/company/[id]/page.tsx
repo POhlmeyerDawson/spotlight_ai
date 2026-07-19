@@ -45,6 +45,7 @@ import AxisCard from "@/components/AxisCard";
 import DecisionPanel from "@/components/DecisionPanel";
 import ClaimsTable from "@/components/ClaimsTable";
 import IntegrityPanel from "@/components/IntegrityPanel";
+import OutreachPanel from "@/components/OutreachPanel";
 import MemoDissent from "@/components/MemoDissent";
 import ProofProtocolPanel from "@/components/ProofProtocolPanel";
 import ScoreLine from "@/components/ScoreLine";
@@ -316,8 +317,10 @@ function CompanyView({ id }: { id: string }) {
    * scored axes would understate it.
    */
   const axesWeakestFirst = [...AXIS_KEYS].sort((a, b) => {
-    const sa = c.axes[a].score;
-    const sb = c.axes[b].score;
+    // `?? null` so an axis absent from the payload sorts with the unscored ones
+    // rather than throwing — unmeasured is a stronger constraint than any low number.
+    const sa = c.axes[a]?.score ?? null;
+    const sb = c.axes[b]?.score ?? null;
     if (sa === null && sb === null) return 0;
     if (sa === null) return -1;
     if (sb === null) return 1;
@@ -373,6 +376,11 @@ function CompanyView({ id }: { id: string }) {
           },
         ]
       : []),
+    {
+      id: "outreach",
+      label: "Outbound",
+      hint: "Whether this company may be cold-contacted at all, and why. The refusal is computed, not configured, and it is shown rather than hidden.",
+    },
   ];
 
   return (
@@ -566,6 +574,15 @@ function CompanyView({ id }: { id: string }) {
             )}
           </div>
         </details>
+
+        {/*
+          Outbound sits last on purpose. It is the only thing on this page that acts on
+          the outside world, and it is only reachable after the recommendation, the
+          axes, the claims and the dissent have all been read. It is also the section
+          most likely to say no: on the seeded corpus twelve of thirteen companies are
+          blocked before a draft exists, and the panel shows which check said so.
+        */}
+        <OutreachPanel companyId={c.id} companyName={c.name} />
 
         <TraceDrawer company={c} axisKey={traceAxis} onClose={() => setTraceAxis(null)} />
       </div>

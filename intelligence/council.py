@@ -267,7 +267,14 @@ def deliberate_from_evidence(
         question = anti_memo.load_bearing_claim
         change_evidence = "A receipt-backed proof addressing the load-bearing claim."
 
-    widening = max(anti_memo.axis_spreads.values(), default=0.0)
+    # `default=` is reachable now that an axis the screen could not measure is OMITTED
+    # from axis_spreads rather than written as 0.0 (intelligence/dissent.py::_bull_axes).
+    # Defaulting to 0.0 there would say "bull and bear agree on everything" about a
+    # company we scored on nothing — the strongest possible claim on no evidence. When
+    # NO axis has a defined spread we widen by UNKNOWN_UNCERTAINTY instead. A partial
+    # spread still governs on its own max: one measured axis disagreeing is real.
+    spreads = list(anti_memo.axis_spreads.values())
+    widening = max(spreads) if spreads else dissent.UNKNOWN_UNCERTAINTY
     if len({argument.position for argument in arguments}) > 1:
         widening = max(widening, 0.25)
     widening = max(0.0, min(1.0, widening))

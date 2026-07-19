@@ -93,7 +93,18 @@ function scaleFactor(raw: Record<string, unknown>): number {
 
 function toAxis(raw: unknown, factor: number): Axis {
   if (!isObj(raw)) {
-    return { score: null, trend: null, band: null, confidence: 0, evidence_event_ids: [] };
+    // The axis is ABSENT from the payload — live-sourced rows often carry only
+    // `founder`. That is not the same as an axis that was computed and found no
+    // evidence, and the `reason` says so: without it the UI renders both as
+    // "no evidence", asserting we looked when we never did.
+    return {
+      score: null,
+      trend: null,
+      band: null,
+      confidence: 0,
+      evidence_event_ids: [],
+      reason: "not computed for this company — unmeasured, not zero",
+    };
   }
 
   const score = num(raw.score);

@@ -45,9 +45,41 @@ The artifact includes a reproducible check and documents its remaining limitatio
 """
 
 _SYSTEM = (
-    "Design a 60–90 minute technical micro-challenge from the supplied claim. "
-    "It must contain one genuine ambiguity and one subtly flawed constraint."
+    "Design a 60–90 minute micro-challenge from the supplied claim, for a founder "
+    "working in {sector}. It must contain one genuine ambiguity and one subtly "
+    "flawed constraint.\n"
+    "THE DELIVERABLE IS A REPRODUCIBLE ARTIFACT, NOT NECESSARILY CODE. Choose the "
+    "form a competent practitioner in THIS domain would actually produce and that a "
+    "stranger could check without taking the founder's word for anything: a runnable "
+    "script, a worked calculation with its inputs stated, an assay or test protocol "
+    "someone else could run, a reconciliation of a real published dataset, a "
+    "regulatory-pathway analysis citing the specific rule it turns on, a teardown or "
+    "failure analysis, an annotated design with its rejected alternatives. "
+    "REPRODUCIBLE means the reasoning is exposed and checkable, and that is the only "
+    "requirement — do not default to a coding exercise unless the claim itself is "
+    "about software."
 )
+# The literal used to be "a 60-90 minute TECHNICAL micro-challenge", which in
+# practice meant "write some code". That is a worse failure here than anywhere else
+# in this system: the Proof Protocol is the DOCUMENTED MITIGATION for founders with
+# no public artifact (data/sources.json coverage_gaps -> "founders whose work is
+# closed-source", mitigation: "ISSUE A CHALLENGE rather than infer a low score"), so
+# a code-only challenge closed the escape hatch for exactly the people it exists for.
+# A founder who cannot be read by the registry AND cannot be read by the challenge is
+# simply unscoreable, and would land at the bottom of a min-axis ranking without one
+# sentence anywhere explaining why.
+_PROOF_SECTOR_FALLBACK = "their stated field"
+
+
+def _system() -> str:
+    """The challenge system prompt, with the active thesis's sector interpolated."""
+    from intelligence.screen import _thesis_sector_phrase
+
+    try:
+        sector = _thesis_sector_phrase()
+    except Exception:  # noqa: BLE001 — a challenge is never worth failing over config
+        sector = _PROOF_SECTOR_FALLBACK
+    return _SYSTEM.format(sector=sector or _PROOF_SECTOR_FALLBACK)
 _PROMPT = (
     "Return JSON with prompt, central_claim, ambiguous_requirement, and "
     "planted_bad_constraint. Each value must be a nonempty string. Do not add facts."
@@ -117,7 +149,7 @@ def generate(company_id: UUID, judge: Judge | None = None) -> Challenge:
     try:
         raw = judge(
             _PROMPT,
-            system=_SYSTEM,
+            system=_system(),
             tier="deep",
             untrusted=json.dumps({"central_claim": central_claim}),
             json_mode=True,
@@ -200,12 +232,20 @@ def _parse_iso(value: object) -> datetime | None:
     return parsed if parsed.tzinfo is not None else None
 
 
-def _clip_score(value: object, default: float = 0.0) -> float:
+def _clip_score(value: object) -> float | None:
+    """A judge's 0..1 sub-score, or None when the judge did not supply a usable one.
+
+    Returns None rather than 0.0 for the missing case. 0.0 is a GRADE — it means the
+    judge looked and found the artifact does not work — and handing it back for a
+    missing key made an absent, malformed or timed-out reply indistinguishable from a
+    damning one. The caller refuses to publish a grade at all when any component is
+    None; see the `artifact_graded` branch.
+    """
     if isinstance(value, bool):
         return 1.0 if value else 0.0
     if isinstance(value, (int, float)) and math.isfinite(float(value)):
         return max(0.0, min(1.0, float(value)))
-    return default
+    return None
 
 
 def _weighted(components: dict[str, float], weights: dict[str, float]) -> float:
@@ -338,12 +378,21 @@ def grade(
             )
             artifact_grade = artifact_grade if isinstance(artifact_grade, dict) else {}
         except Exception:
+            # THE JUDGE NOT ANSWERING IS NOT A FAILING GRADE. This used to be `{}`,
+            # which fell straight through _clip_score's 0.0 default into the >0.5
+            # thresholds below and published works=False, sound=False,
+            # handled_ambiguity=False — a confident three-way zero manufactured from a
+            # timeout. `challenged` a few lines up already handles its own judge failure
+            # by staying None; this does the same.
             artifact_grade = {}
-        artifact_components = {
+        graded = {
             "works": _clip_score(artifact_grade.get("works")),
             "technically_sound": _clip_score(artifact_grade.get("technically_sound")),
             "ambiguity_handling": _clip_score(artifact_grade.get("ambiguity_handling")),
         }
+        # All three or none. A partial reply is an ungraded artifact, not one that scored
+        # zero on whichever fields the judge happened to omit.
+        artifact_components = None if any(v is None for v in graded.values()) else graded
         proposed_receipt = artifact_grade.get("evidence_span")
         grounded_receipt = (
             proposed_receipt.strip()
@@ -353,9 +402,12 @@ def grade(
             else artifact
         )
         artifact_receipt = grounded_receipt[:240]
-        handled_ambiguity = artifact_components["ambiguity_handling"] >= 0.5
-        works = artifact_components["works"] > 0.5
-        sound = artifact_components["technically_sound"] > 0.5
+        if artifact_components is None:
+            handled_ambiguity = works = sound = None
+        else:
+            handled_ambiguity = artifact_components["ambiguity_handling"] >= 0.5
+            works = artifact_components["works"] > 0.5
+            sound = artifact_components["technically_sound"] > 0.5
         first_commit = (commit_times[0] - started_at).total_seconds() / 60 if commit_times else None
         behavior_receipt = json.dumps(
             {"questions_asked": questions, "commits": commits}, sort_keys=True
@@ -415,7 +467,12 @@ def grade(
         "clarification": 1.0 if clarified else 0.0,
         "latency_regularity": _regularity_score(commit_times),
     }
-    artifact_value = _weighted(artifact_components, ARTIFACT_WEIGHTS)
+    # None when the judge never returned a usable grade. `_weighted` over a stand-in
+    # would emit a number, and `value`/`y` are what the founder score consumes — an
+    # ungraded artifact must not reach it as a low one.
+    artifact_value = (
+        None if artifact_components is None else _weighted(artifact_components, ARTIFACT_WEIGHTS)
+    )
     behavior_value = _weighted(behavior_components, BEHAVIOR_WEIGHTS)
     submission_digest = hashlib.sha256(
         json.dumps(
@@ -441,6 +498,10 @@ def grade(
     )
     if unattested_fields:
         integrity_flags.append("unattested_trace")
+    if artifact_components is None:
+        # Say so on the record rather than letting a null value be read as a shrug.
+        artifact_confidence = 0.0
+        integrity_flags.append("artifact_ungraded")
     if seeded:
         artifact_confidence = 0.0
         behavior_confidence = 0.0

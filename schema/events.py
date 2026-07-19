@@ -63,7 +63,18 @@ class Event(BaseModel):
     source_url: Optional[str] = None
 
     observed_at: datetime  # WHEN THE WORLD PRODUCED IT — the only field scoring may filter on
-    ingested_at: datetime = Field(default_factory=utcnow)  # when we saw it. NEVER used in scoring.
+    # When WE saw it. NEVER used in scoring, ranking, or any axis — "when we happened to
+    # look" is not evidence about a founder, and a founder cannot act on it.
+    #
+    # Two uses are permitted and neither is scoring:
+    #   1. a deterministic sort tiebreaker after observed_at (memory/store.py, pg_store).
+    #   2. `sourcing/intake._events_recorded_before` — the arrival panel's "did we find
+    #      them before they applied", which is a question ABOUT OUR OWN CLOCK and the
+    #      only question this column can honestly answer. See that function's docstring
+    #      for why observed_at would answer a different question and always say yes.
+    # Anything else reading this field for a decision is a bug. Add to that list only
+    # with an argument, not with a call site.
+    ingested_at: datetime = Field(default_factory=utcnow)
 
     payload: dict = Field(default_factory=dict)
     evidence_span: Optional[str] = None  # exact quoted text / commit sha / slide id backing this
@@ -117,11 +128,50 @@ class Entity(BaseModel):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class CompanyProvenance(StrEnum):
+    """Where a company's evidence came from. Not a quality judgement — a factual one.
+
+    SOURCED means every event under this company was collected from the outside world:
+    a scanner read it, an applicant submitted it, or it was reconstructed from public
+    record that a reader can go and check.
+
+    CONSTRUCTED means the evidence was AUTHORED for this repository — the archetype
+    scenarios and the backtest's synthetic controls. Those exist for good reasons (a
+    cohort of winners alone proves nothing, and a detector with no control is a claim
+    rather than a test), but a constructed company must never be presentable as
+    sourced evidence, which is what this field exists to make impossible.
+
+    There is deliberately no third 'unknown' member. A company whose provenance nobody
+    can state is one nobody should be reading evidence off, and a nullable field here
+    would let that case pass silently through every consumer.
+    """
+
+    SOURCED = "sourced"
+    CONSTRUCTED = "constructed"
+
+
 class Company(BaseModel):
     company_id: UUID = Field(default_factory=uuid4)
     name: str
     founder_entity_ids: list[UUID] = Field(default_factory=list)
     archetype: int | None = None  # 1..6, seed data only
+    # NO DEFAULT, ON PURPOSE. This used to default to SOURCED, reasoning that every
+    # runtime writer is reading the real world. The reasoning was about the writers; the
+    # field is read as a CLAIM about the evidence. Those come apart exactly when a write
+    # half-succeeds, and a default that silently asserts "evidence-backed" is only ever
+    # wrong in the direction that overclaims.
+    #
+    # It is not inverted to CONSTRUCTED either, which would be a different false claim —
+    # 'constructed' means "authored for this repository", and stamping it on a real
+    # scraped company would poison the fame-vs-fitness gate that reads this column. When
+    # we do not know, neither value is honest, so there is nothing safe to default TO and
+    # the write has to say. Both store backends already pass it explicitly.
+    #
+    # Measured cost of the old default: 8 companies in the live store carry
+    # provenance='sourced' with zero events under them — real Show HN companies from a
+    # discover run whose evidence fan-out returned nothing. The column asserted
+    # evidence-backing for all 8; nothing downstream could tell.
+    provenance: CompanyProvenance
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -159,10 +209,32 @@ class FounderScore(BaseModel):
 
 
 class Axis(BaseModel):
-    score: float
-    trend: float
-    confidence: float
+    """One screening axis.
+
+    `score` and `trend` are OPTIONAL, and that is the whole point. An axis we could
+    not score — no events, a judge that failed, a malformed reply, no citable
+    receipts — must return None, not a middling number. The previous fallback
+    returned 0.5 in all four of those cases, which fed `rank_key` and let "we could
+    not look" compete against real readings as though it were a measurement. A
+    confident 0.5 on no evidence is the strongest claim the system can make on the
+    weakest grounds.
+
+    `reason` carries WHY it is None so the client can say which of the four it was.
+
+    `confidence` is OPTIONAL for the same reason `score` is. A 0.0 here used to be the
+    unscorable case's stand-in, which made "the judge never ran" arithmetically
+    identical to "the judge ran and trusts its answer not at all". Downstream that
+    difference is the whole ballgame: `custom_council._evidence_bar_reading` averages
+    these into an evidence-sufficiency term, and a fabricated 0.0 drags the mean down
+    exactly as a measured no-confidence would. None means NOT MEASURED and every
+    consumer must skip it rather than average it in.
+    """
+
+    score: float | None = None
+    trend: float | None = None
+    confidence: float | None = None
     evidence_event_ids: list[UUID] = Field(default_factory=list)
+    reason: str | None = None
 
 
 class ScreeningResult(BaseModel):

@@ -60,15 +60,37 @@ const rank = (v: number | null) => (v === null ? -Infinity : v);
 function AxisCell({ k, c }: { k: AxisKey; c: CompanySummary }) {
   const a = c.axes[k];
 
-  if (a.score === null) {
+  // An axis absent from the payload was never computed. Rendering it as "no
+  // evidence" would claim we looked and found nothing; it also crashed the row
+  // outright when the API served a founder-only summary.
+  if (!a) {
     return (
       <td className="border-l border-[color:var(--rule)] px-3 py-3 align-middle">
-        <span className="mono text-[13px] text-[color:var(--muted)]">no evidence</span>
+        <span className="mono text-[13px] text-[color:var(--muted)]">not computed</span>
         <div className="hatch mt-1.5 h-[4px] w-full min-w-[104px] bg-[color:var(--ink-09)]" />
       </td>
     );
   }
 
+  if (a.score === null) {
+    return (
+      <td className="border-l border-[color:var(--rule)] px-3 py-3 align-middle">
+        <span className="mono text-[13px] text-[color:var(--muted)]">
+          {a.reason?.startsWith("not computed") ? "not computed" : "no evidence"}
+        </span>
+        <div className="hatch mt-1.5 h-[4px] w-full min-w-[104px] bg-[color:var(--ink-09)]" />
+      </td>
+    );
+  }
+
+  /**
+   * A NULL band is "we did not compute an interval", NOT an interval of zero. `?? 0`
+   * printed "±0.0" — a claim of PERFECT CERTAINTY — and drew a zero-width bar, which is
+   * the strongest possible claim made on the weakest possible grounds. AxisCard already
+   * draws these two states apart; this cell never got the same treatment. No band means
+   * no ± figure and no interval overlay, the same absence language used above.
+   */
+  const hasBand = a.band !== null;
   const band = a.band ?? 0;
   const lo = Math.max(0, a.score - band);
   const hi = Math.min(100, a.score + band);
@@ -78,16 +100,21 @@ function AxisCell({ k, c }: { k: AxisKey; c: CompanySummary }) {
         <span className="font-[family-name:var(--font-instrument-serif)] text-[28px] leading-none">
           {a.score.toFixed(0)}
         </span>
-        <span className="mono text-[11px] text-[color:var(--muted)]">
-          ±{band.toFixed(1)}
+        <span
+          className="mono text-[11px] text-[color:var(--muted)]"
+          title={hasBand ? undefined : "No interval was computed for this axis."}
+        >
+          {hasBand ? `±${band.toFixed(1)}` : "± —"}
         </span>
         {a.trend !== null && <Trend value={a.trend} className="!text-[11px]" />}
       </div>
       <div className="relative mt-1.5 h-[4px] w-full min-w-[104px] bg-[color:var(--ink-09)]">
-        <span
-          className="absolute top-0 h-[4px] bg-[color:var(--accent)] opacity-30"
-          style={{ left: `${lo}%`, width: `${Math.max(1, hi - lo)}%` }}
-        />
+        {hasBand && (
+          <span
+            className="absolute top-0 h-[4px] bg-[color:var(--accent)] opacity-30"
+            style={{ left: `${lo}%`, width: `${Math.max(1, hi - lo)}%` }}
+          />
+        )}
         <span
           className="absolute top-[-2px] h-[8px] w-[2px] bg-[color:var(--accent)]"
           style={{ left: `calc(${a.score}% - 1px)` }}
@@ -125,15 +152,17 @@ export default function CompanyList({
       [...companies].sort((a, b) => {
         const g = GATE_RANK[a.gate] - GATE_RANK[b.gate];
         if (g !== 0) return g;
+        // An absent axis is unrankable on that axis, exactly like a null score —
+        // `rank` already sends it last rather than letting it win as a zero.
         if (sort === "momentum")
-          return rank(b.axes.founder.trend) - rank(a.axes.founder.trend);
+          return rank(b.axes.founder?.trend ?? null) - rank(a.axes.founder?.trend ?? null);
         if (sort === "certainty") {
           // Narrowest band first, so a missing band sorts last rather than first.
-          const ab = a.axes.founder.band ?? Infinity;
-          const bb = b.axes.founder.band ?? Infinity;
+          const ab = a.axes.founder?.band ?? Infinity;
+          const bb = b.axes.founder?.band ?? Infinity;
           return ab - bb;
         }
-        return rank(b.axes[sort].score) - rank(a.axes[sort].score);
+        return rank(b.axes[sort]?.score ?? null) - rank(a.axes[sort]?.score ?? null);
       }),
     [companies, sort],
   );

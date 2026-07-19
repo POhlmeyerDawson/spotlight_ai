@@ -347,7 +347,11 @@ export default function TraceDrawer({
 
   if (!axisKey) return null;
 
+  // An axis the backend never sent has no trace to open. Returning null keeps the
+  // drawer shut rather than rendering an empty trace, which would read as "we looked
+  // and found no evidence" for an axis we never computed.
   const axis = company.axes[axisKey];
+  if (!axis) return null;
   const color = "var(--accent)";
   const events = axis.evidence_event_ids
     .map((id) => company.events.find((e) => e.event_id === id))

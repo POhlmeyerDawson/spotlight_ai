@@ -24,12 +24,49 @@ produced and `lenses_not_derived` says which were skipped and why. A lens that c
 read a company (an unknown sector against a sector prior) ABSTAINS visibly and its
 weight is redistributed — it never contributes a silent 0.0, which would be a penalty
 dressed up as a measurement.
+
+THE FOURTH RULE, added when the council became authorable: a council has TWO kinds of
+member and they are never confused for one another.
+
+    A DERIVED lens is an inference. The system read it out of the survey answers or the
+    uploaded decision history, and it must name the profile field that justified it.
+
+    An AUTHORED lens is an instruction. The VC typed it. There is no profile field
+    behind it because there was never an inference, and inventing one to satisfy
+    `justified_by` would merge the two sides of the profile into a blob and delete the
+    stated-vs-revealed gap. So `LensOrigin` is a first-class field and `justified_by`
+    carries the lens's own id and the words "typed by the VC".
+
+Authored lenses are REAL input — a VC stating their own council is data, not an
+assumption — but they are never created implicitly, defaulted or seeded. A template the
+user knowingly accepted is fine and is recorded as `origin="template"`; a lens that
+appears without them asking is not, and no code path here can produce one.
+
+THE WEIGHT RULE, in one line:
+
+    A lens's weight is its share of its OWN GROUP's budget, and each group's budget is
+    that group's share of the council BY HEADCOUNT.
+
+One authored agent sitting beside four derived ones takes 1/5 of the council no matter
+where the VC dragged the slider; the slider decides the split *among authored agents*
+only, and the derived weights keep dividing the derived budget in proportion to the
+profile concentrations that justified them. Every weight in the returned council sums
+to 1.0. Without this rule an authored lens at weight 1.0 would drown five derived ones
+and the personal ranking would become a single typed sentence with a council painted
+around it.
+
+RE-DERIVATION AND AUTHORED LENSES, decided rather than left incidental: re-deriving
+after a survey change NEVER creates, edits, reweights or removes an authored lens.
+`memory.profiles.derive` does not read the authored table at all, so the guarantee holds
+by construction. What re-deriving can change is how many derived lenses fit under the
+ceiling beside the authored ones — and every derived lens displaced that way is named in
+`not_derived` with the reason, so a council that shrank says so.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
@@ -39,7 +76,7 @@ from pydantic import BaseModel, Field, model_validator
 from core import llm
 from intelligence import council, flags
 from schema.events import AntiMemo, Event, EventKind, ScreeningResult
-from schema.vc import DerivedProfile, NotInferred, Provenance
+from schema.vc import AuthoredLens, DerivedProfile, LensOrigin, NotInferred, Provenance
 
 Judge = Callable[..., str | dict]
 
@@ -56,6 +93,14 @@ MAX_LENSES = 5
 #: Used only by the evidence-bar lens, which is the one lens that reads volume at all.
 EVIDENCE_SATURATION = 12
 
+#: Independent receipts naming an authored lens's quality at which that lens reads 1.0.
+#: Three separate observations of the thing is a pattern; one is a mention. Deliberately
+#: low, because the quality a VC types ("security_engineering", "distribution") is
+#: specific and a company's filtered graph rarely carries a dozen receipts about any one
+#: of them — saturating at twelve would make every authored lens read near zero and the
+#: agent would be decorative by arithmetic.
+AUTHORED_QUALITY_SATURATION = 3
+
 #: How far personal rank must move from core rank before the divergence is a headline
 #: rather than noise. Three places on a thirteen-company list is a different shortlist.
 DIVERGENCE_HEADLINE = 3
@@ -69,6 +114,17 @@ class LensKind(StrEnum):
     SECTOR_PATTERN = "sector_pattern"
     STAGE_PATTERN = "stage_pattern"
     RED_LINE_AUDITOR = "red_line_auditor"
+
+    #: The one kind the system never derives. An authored lens's argument is whatever
+    #: the VC typed, so there is no fixed persona for it in `_PERSONAS` and no entry in
+    #: `_MISSING_REASONS` — there is no profile field whose absence could explain it
+    #: away. It exists exactly when the VC created one, and not otherwise.
+    AUTHORED = "authored"
+
+
+#: The kinds `derive_lenses` may produce. AUTHORED is excluded by construction, which is
+#: what makes "the system never invents a council agent" a property rather than a habit.
+DERIVABLE_KINDS = tuple(kind for kind in LensKind if kind != LensKind.AUTHORED)
 
 
 #: Each persona is the system prompt the lens argues under when narration is on. They
@@ -120,12 +176,26 @@ _NARRATION_PROMPT = (
 # ---------------------------------------------------------------------------
 
 
-class Lens(BaseModel):
-    """One council persona, its weight, and the profile fields that justified it.
+#: The prefix an authored lens's `justified_by` carries instead of a profile field path.
+#: Structural rather than cosmetic: the validator below refuses a DERIVED lens that
+#: claims it and refuses an AUTHORED lens that does not, so provenance cannot be forged
+#: in either direction by a caller building a Lens by hand.
+AUTHORED_JUSTIFICATION_PREFIX = "authored_lens:"
 
-    `justified_by` is not decoration. A lens that cannot name the profile field it came
-    from is a preference we invented on the user's behalf, and §3's whole claim is that
-    every personal adjustment shows its lens and its weight.
+
+class Lens(BaseModel):
+    """One council persona, its weight, and what justified it.
+
+    `justified_by` is not decoration. §3's whole claim is that every personal adjustment
+    shows its lens and its weight, so a lens must always say where it came from — but
+    what counts as "where" depends on the origin:
+
+    DERIVED — the profile field the system read it out of ("sector_priors[0]=fintech").
+    A derived lens that cannot name one is a preference we invented on the user's behalf.
+
+    AUTHORED / TEMPLATE — the lens's own id and the fact that the VC typed it. There is
+    no profile field, and manufacturing one would be a lie about the basis of the whole
+    council. `title` and `quality` carry what a derived lens carries in `kind`.
     """
 
     kind: LensKind
@@ -135,11 +205,60 @@ class Lens(BaseModel):
     provenance: Provenance
     confidence: float = Field(ge=0.0, le=1.0)
 
+    #: How this lens came to exist. Defaults to DERIVED so every existing construction
+    #: site keeps meaning exactly what it meant before authored lenses existed.
+    origin: LensOrigin = LensOrigin.DERIVED
+    #: Set only for authored lenses — the row in `vc_authored_lenses` this came from.
+    lens_id: UUID | None = None
+    #: The VC's name for an authored agent. Derived lenses are named by their kind.
+    title: str = ""
+    #: The quality an authored agent adds score for, read against the evidence graph.
+    quality: str = ""
+
     @model_validator(mode="after")
     def _justified(self) -> Lens:
         if not all(field.strip() for field in self.justified_by):
-            raise ValueError("a lens must name the profile field that justified it")
+            raise ValueError("a lens must name what justified it")
+
+        authored_claim = any(
+            field.startswith(AUTHORED_JUSTIFICATION_PREFIX) for field in self.justified_by
+        )
+        if self.origin == LensOrigin.DERIVED:
+            if self.kind == LensKind.AUTHORED:
+                raise ValueError(
+                    "kind 'authored' cannot carry origin 'derived' — the system does not "
+                    "derive authored lenses, and a lens that claimed both would let a typed "
+                    "preference present itself as one read out of the profile"
+                )
+            if authored_claim:
+                raise ValueError(
+                    "a derived lens must name a profile field, not an authored lens id"
+                )
+            return self
+
+        # AUTHORED / TEMPLATE.
+        if self.kind != LensKind.AUTHORED:
+            raise ValueError("an authored lens must carry kind 'authored'")
+        if self.lens_id is None:
+            raise ValueError("an authored lens must carry the id of the record it came from")
+        if not authored_claim:
+            raise ValueError(
+                "an authored lens must be justified by the fact that the VC typed it, never "
+                "by a profile field it did not come from"
+            )
+        if not self.title.strip() or not self.quality.strip():
+            raise ValueError("an authored lens must carry the name and quality the VC gave it")
         return self
+
+    @property
+    def label(self) -> str:
+        """What to call this lens in an explanation the user reads.
+
+        Two authored agents share `kind == AUTHORED`, so naming a ranking move by kind
+        alone would report "authored" for both and the VC could not tell which of their
+        agents moved the company — the decorative failure in a new costume.
+        """
+        return self.title.strip() if self.origin != LensOrigin.DERIVED else self.kind.value
 
 
 class LensContribution(BaseModel):
@@ -159,6 +278,12 @@ class LensContribution(BaseModel):
     company_facts_used: list[str] = Field(default_factory=list)
     provenance: Provenance
     abstained_reason: str | None = None
+
+    #: `lens` alone cannot identify an authored contribution — every authored agent
+    #: carries kind AUTHORED. These two say which one, and whether the VC wrote it.
+    lens_label: str = ""
+    lens_origin: LensOrigin = LensOrigin.DERIVED
+    lens_id: UUID | None = None
 
     @model_validator(mode="after")
     def _abstention_is_explicit(self) -> LensContribution:
@@ -264,6 +389,10 @@ class PersonalRankRow(BaseModel):
     #: Positive means the personal layer PROMOTED the company relative to core.
     divergence: int
     top_lens: LensKind | None = None
+    #: The lens's user-facing name. For an authored agent this is the VC's own title —
+    #: `top_lens` would read "authored" for every one of them.
+    top_lens_label: str = ""
+    top_lens_origin: LensOrigin | None = None
     why: str
 
 
@@ -289,6 +418,13 @@ class PersonalRanking(BaseModel):
     reason: str
     lenses: list[Lens] = Field(default_factory=list)
     lenses_not_derived: list[NotInferred] = Field(default_factory=list)
+    #: Lenses that were in the council and changed NOTHING about the ordering, named
+    #: with the reason. A lens that abstains everywhere, or reads the identical value on
+    #: every company, rescales all the fit scores by the same factor and therefore moves
+    #: nobody — it is decorative, and the VC is entitled to know which of their agents
+    #: is. This is the one output that catches "the council builder is a form that
+    #: writes to a table nothing reads" from the user's side of the screen.
+    lenses_without_effect: list[NotInferred] = Field(default_factory=list)
     rows: list[PersonalRankRow] = Field(default_factory=list)
     disagreements: list[Disagreement] = Field(default_factory=list)
     agreements: list[str] = Field(default_factory=list)
@@ -447,18 +583,19 @@ _MISSING_REASONS: dict[LensKind, tuple[str, str]] = {
 }
 
 
-def derive_lenses(profile: DerivedProfile) -> tuple[list[Lens], list[NotInferred]]:
-    """3-5 personas derived from the profile, plus the ones we refused to invent.
+def _candidates(
+    profile: DerivedProfile,
+) -> tuple[list[tuple[float, Lens]], list[tuple[float, Lens]], list[NotInferred]]:
+    """(pinned, rest, not_derived) — every derivable lens at its RAW justification weight.
+
+    Split out from `derive_lenses` so `compose_council` can do seat allocation against
+    raw weights. Normalising before selection would mean renormalising a renormalisation,
+    and the group-budget rule needs the untouched justifications.
 
     Every candidate lens is gated on a specific profile field. There is no default lens
     and no filler: if the profile supports two, two come back and the other five are
     listed in `not_derived` with the field they would have needed. That is the same
     discipline `memory/profiles.py` applies to `axis_weights_revealed`.
-
-    Weights are the RAW justifications (an axis share, a conviction magnitude, a sector
-    concentration) normalised over whichever lenses survived selection — so two profiles
-    with different survey answers get genuinely different weight vectors rather than
-    three equal thirds.
     """
     candidates: list[tuple[float, Lens | None, LensKind]] = [
         (*_axis_lens(LensKind.FOUNDER_BET, "founder", profile), LensKind.FOUNDER_BET),
@@ -491,6 +628,9 @@ def derive_lenses(profile: DerivedProfile) -> tuple[list[Lens], list[NotInferred
     # crypto companies, ever" was served a crypto company with no veto and no mention of
     # one. A revealed_candidate is NOT pinned — the user has not confirmed it, and we do
     # not get to promote a pass streak into a rule they hold.
+    #
+    # The pin also survives an authored council: an agent the VC typed takes a seat ahead
+    # of a sector concentration, but not ahead of a red line they typed themselves.
     pinned = [
         item
         for item in derivable
@@ -498,24 +638,228 @@ def derive_lenses(profile: DerivedProfile) -> tuple[list[Lens], list[NotInferred
         and any(line.source == "stated" for line in profile.red_lines)
     ]
     rest = [item for item in derivable if item not in pinned]
-    kept = pinned + rest[: max(0, MAX_LENSES - len(pinned))]
-    dropped = rest[max(0, MAX_LENSES - len(pinned)) :]
-    for raw, lens in dropped:
+    return pinned, rest, not_derived
+
+
+def lens_from_authored(record: AuthoredLens) -> Lens:
+    """One stored council agent as a scoring lens.
+
+    `confidence` is 1.0, and that is not a shortcut. Confidence on a derived lens
+    measures how well-evidenced the INFERENCE is — a sector prior from four rows is a
+    weaker reading of this VC than one from forty. An authored lens is not an inference
+    about the VC; it is the VC's own statement of what they want their council to argue.
+    There is nothing to be uncertain about in the statement itself. The uncertainty that
+    remains lives where it belongs, in the READING: `_authored_reading` abstains when the
+    evidence cannot support an answer, and says so.
+    """
+    return Lens(
+        kind=LensKind.AUTHORED,
+        persona=record.persona,
+        # Replaced by `compose_council`; the record's own weight is the VC's share
+        # request within the authored group, not a council weight.
+        weight=min(1.0, max(0.0, record.weight)),
+        justified_by=[
+            f"{AUTHORED_JUSTIFICATION_PREFIX}{record.lens_id} — {record.name!r}, "
+            f"{'typed by the VC' if record.origin == LensOrigin.AUTHORED else 'a template the VC knowingly accepted'}; "
+            f"no profile field was consulted"
+        ],
+        provenance=Provenance(
+            basis="authored",
+            method=(
+                "created directly by the VC in the council builder. This is an instruction, "
+                "not an inference: no survey answer or decision row produced it, and "
+                "re-deriving the profile does not change it."
+            ),
+            n=1,
+        ),
+        confidence=1.0,
+        origin=record.origin,
+        lens_id=record.lens_id,
+        title=record.name,
+        quality=record.quality,
+    )
+
+
+class CouncilRefusal(BaseModel):
+    """Why no council could be composed. A refusal, never a clamp.
+
+    Below MIN_LENSES a council is a renamed axis; above MAX_LENSES the ceiling would have
+    to silently drop something the VC asked for by name. Both are reported with the
+    numbers behind them so the user can act on it, rather than being quietly truncated
+    into a council they did not build.
+    """
+
+    bound: str  # "min" | "max"
+    reason: str
+    derived_count: int
+    authored_count: int
+    min_lenses: int = MIN_LENSES
+    max_lenses: int = MAX_LENSES
+
+
+#: Stated once and served over the API, because a weight the user cannot predict is a
+#: weight they cannot argue with.
+WEIGHT_RULE = (
+    "Each lens's weight is its share of its own group's budget, and each group's budget "
+    f"is that group's share of the council by headcount. With {MAX_LENSES} lenses of "
+    "which 1 is authored, the authored agent holds 1/5 of the council no matter what "
+    "weight you set — your weight decides the split among your own agents, and the "
+    "derived weights keep dividing the derived budget in proportion to the profile "
+    "concentrations that justified them. All weights sum to 1.0."
+)
+
+
+class Council(BaseModel):
+    """The composed council: derived lenses and authored ones, weighted together."""
+
+    lenses: list[Lens] = Field(default_factory=list)
+    not_derived: list[NotInferred] = Field(default_factory=list)
+    refusal: CouncilRefusal | None = None
+    weight_rule: str = WEIGHT_RULE
+
+    @property
+    def derived(self) -> list[Lens]:
+        return [lens for lens in self.lenses if lens.origin == LensOrigin.DERIVED]
+
+    @property
+    def authored(self) -> list[Lens]:
+        return [lens for lens in self.lenses if lens.origin != LensOrigin.DERIVED]
+
+
+def compose_council(
+    profile: DerivedProfile, authored: Sequence[AuthoredLens] = ()
+) -> Council:
+    """The council this VC actually has: what the profile justified, plus what they wrote.
+
+    SEATING. There are at most MAX_LENSES seats. A stated red line is pinned first — it
+    is a veto and cannot lose a seat to anything. Then every authored agent, because the
+    VC asked for each one by name and the system does not get to overrule that by
+    dropping one. Derived lenses fill whatever is left, strongest justification first,
+    and any that no longer fit are named in `not_derived` with the reason — including
+    when the reason is "an agent you wrote took the seat".
+
+    REFUSAL, NOT CLAMPING. If the pinned red line plus the authored agents overflow the
+    ceiling, no council is composed and the refusal says exactly which numbers collided.
+    Silently dropping the sixth agent would hand back a council the VC did not build and
+    let them reason about a ranking produced by five of the six things they typed.
+
+    WEIGHTS. See WEIGHT_RULE. Group budgets by headcount, then proportional within each
+    group. An authored lens at weight 1.0 beside four derived ones gets 0.2, not 1.0.
+    """
+    pinned, rest, not_derived = _candidates(profile)
+    authored_lenses = [lens_from_authored(record) for record in authored]
+
+    reserved = len(pinned) + len(authored_lenses)
+    if reserved > MAX_LENSES:
+        return Council(
+            not_derived=not_derived,
+            refusal=CouncilRefusal(
+                bound="max",
+                reason=(
+                    f"this council would need {reserved} seats and the ceiling is "
+                    f"{MAX_LENSES}: {len(authored_lenses)} agent(s) you authored plus "
+                    f"{len(pinned)} pinned red-line auditor. Nothing has been dropped — "
+                    "delete an authored agent (or clear the stated red line that pins the "
+                    "auditor) and the council will compose. The core objective ranking is "
+                    "unaffected and continues to work."
+                ),
+                derived_count=len(pinned) + len(rest),
+                authored_count=len(authored_lenses),
+            ),
+        )
+
+    room = MAX_LENSES - reserved
+    kept_derived = pinned + rest[:room]
+    for raw, lens in rest[room:]:
         not_derived.append(
             NotInferred(
                 field_name=f"lens:{lens.kind.value}",
                 reason=(
                     f"derivable (raw weight {round(raw, 4)}) but outside the {MAX_LENSES}-lens "
-                    "ceiling; the profile justified stronger lenses"
+                    + (
+                        f"ceiling; {len(authored_lenses)} seat(s) are held by council agents "
+                        "you authored, which take precedence over a derived lens because you "
+                        "asked for them by name"
+                        if authored_lenses
+                        else "ceiling; the profile justified stronger lenses"
+                    )
                 ),
             )
         )
 
-    total = sum(raw for raw, _ in kept)
-    if total <= 0.0:
-        return [], not_derived
-    lenses = [lens.model_copy(update={"weight": round(raw / total, 6)}) for raw, lens in kept]
-    return lenses, not_derived
+    total_seats = len(kept_derived) + len(authored_lenses)
+    if total_seats == 0:
+        return Council(not_derived=not_derived, refusal=_min_refusal(0, 0))
+
+    # THE WEIGHT RULE. Budgets by headcount first, proportions within a group second.
+    derived_budget = len(kept_derived) / total_seats
+    authored_budget = len(authored_lenses) / total_seats
+    derived_total = sum(raw for raw, _ in kept_derived)
+    authored_total = sum(lens.weight for lens in authored_lenses)
+
+    lenses: list[Lens] = []
+    if derived_total > 0.0:
+        lenses += [
+            lens.model_copy(update={"weight": round(derived_budget * raw / derived_total, 6)})
+            for raw, lens in kept_derived
+        ]
+    elif kept_derived:
+        # Every surviving derived lens justified a raw weight of zero, which `_candidates`
+        # already excludes — but if it ever happened, an equal split inside the group is
+        # the only non-arbitrary answer and it never leaks weight out of the group.
+        lenses += [
+            lens.model_copy(update={"weight": round(derived_budget / len(kept_derived), 6)})
+            for _, lens in kept_derived
+        ]
+    if authored_total > 0.0:
+        lenses += [
+            lens.model_copy(
+                update={"weight": round(authored_budget * lens.weight / authored_total, 6)}
+            )
+            for lens in authored_lenses
+        ]
+
+    # A sub-minimum council is REPORTED, not hidden: the lenses that did exist are still
+    # served so the user can see how close they are and what they are missing. The
+    # refusal is what stops them being scored with.
+    return Council(
+        lenses=lenses,
+        not_derived=not_derived,
+        refusal=(
+            None
+            if total_seats >= MIN_LENSES
+            else _min_refusal(len(kept_derived), len(authored_lenses))
+        ),
+    )
+
+
+def _min_refusal(derived_count: int, authored_count: int) -> CouncilRefusal:
+    total = derived_count + authored_count
+    return CouncilRefusal(
+        bound="min",
+        reason=(
+            f"only {total} council lens could be assembled ({derived_count} derived, "
+            f"{authored_count} authored) and {MIN_LENSES} are required; a single lens is a "
+            "renamed axis, not a council. Answer more of the survey, upload more decisions, "
+            "or author another agent. The core objective ranking is unaffected and "
+            "continues to work."
+        ),
+        derived_count=derived_count,
+        authored_count=authored_count,
+    )
+
+
+def derive_lenses(profile: DerivedProfile) -> tuple[list[Lens], list[NotInferred]]:
+    """The DERIVED half of the council only — 2-5 personas read out of the profile.
+
+    Kept as its own entry point because "what did the system infer about this VC" is a
+    question worth being able to ask without an authored council in the way, and because
+    the gap analysis compares inferred sides. With no authored lenses the group-budget
+    rule collapses to a single group at budget 1.0, so this returns exactly what it
+    always returned.
+    """
+    composed = compose_council(profile, ())
+    return composed.lenses, composed.not_derived
 
 
 # ---------------------------------------------------------------------------
@@ -534,7 +878,7 @@ def _weakest(view: CompanyView) -> tuple[str, float]:
 
 def _evidence_bar_reading(
     view: CompanyView, evidence: list[Event], profile: DerivedProfile
-) -> tuple[float, str]:
+) -> tuple[float | None, str, str | None]:
     """Where this fund's evidence bar puts the company, on a line between two readings.
 
     An evidence-heavy investor is bounded by the WEAKEST axis and discounts it by how
@@ -543,28 +887,56 @@ def _evidence_bar_reading(
     between those two by the conviction score is what makes this lens read the same
     company differently for two different funds, which is the entire point of the
     feature: the number moves because the VC moved, not because the founder did.
+
+    ABSTAINS WHEN THERE IS NO AXIS TO BAR. This lens is a function OF the axes; with
+    none of them measured there is no weakest and no strongest, and the `or 0.0` that
+    used to stand in for them was the worst possible answer in the most literal sense.
+    `_driver` explains a demotion by the largest `weight * (1 - reading)`, so a
+    fabricated 0.0 MAXIMISED the shortfall and this lens was reported to the user as
+    the thing that "dragged down" a company — citing evidence that was never gathered.
+    Returning None routes it through `_renormalise` like every other abstaining lens:
+    its weight moves to the lenses that actually read something, and it names itself as
+    silent instead of as damning.
     """
     style = profile.conviction_style_stated or profile.conviction_style_revealed
     position = 0.5 if style is None else (float(style.score) + 1.0) / 2.0
 
     present = [view.axes[name] for name in AXES if name in view.axes]
-    weakest = min(present) if present else 0.0
-    strongest = max(present) if present else 0.0
+    if not present:
+        return None, (
+            "The core screen measured none of the three axes for this company, so there "
+            "is no weakest or strongest axis for an evidence bar to sit against."
+        ), "no core axis was measured, so there is no evidence bar to read"
+    weakest = min(present)
+    strongest = max(present)
 
     density = min(1.0, len(evidence) / EVIDENCE_SATURATION)
-    confidences = [view.axis_confidence.get(name) for name in AXES]
-    known = [float(value) for value in confidences if isinstance(value, (int, float))]
-    mean_confidence = sum(known) / len(known) if known else 0.0
-    sufficiency = 0.5 * density + 0.5 * mean_confidence
+    # Only MEASURED confidences average. An axis the screen could not score reports
+    # `confidence=None` and is skipped here rather than counted as a 0.0 — see the note
+    # on `schema.events.Axis.confidence`.
+    known = [
+        float(view.axis_confidence[name])
+        for name in AXES
+        if isinstance(view.axis_confidence.get(name), (int, float))
+    ]
+    mean_confidence = sum(known) / len(known) if known else None
+    # With no measured confidence anywhere, sufficiency is carried by density alone
+    # rather than by a stand-in number pretending the axes were judged worthless.
+    sufficiency = 0.5 * density + (0.5 * mean_confidence if mean_confidence is not None else 0.0)
 
     reading = (1.0 - position) * (weakest * sufficiency) + position * strongest
     label = "conviction-heavy" if position > 0.5 else "evidence-heavy"
+    conf_text = (
+        f"mean axis confidence {round(mean_confidence, 2)}"
+        if mean_confidence is not None
+        else "no axis reported a confidence"
+    )
     return max(0.0, min(1.0, reading)), (
         f"Read at a {label} bar (conviction position {round(position, 2)}): weakest axis "
         f"{round(weakest, 3)} discounted by evidence sufficiency {round(sufficiency, 3)} "
-        f"({len(evidence)} usable receipts, mean axis confidence "
-        f"{round(mean_confidence, 2)}), strongest axis {round(strongest, 3)}."
-    )
+        f"({len(evidence)} usable receipts, {conf_text}), strongest axis "
+        f"{round(strongest, 3)}."
+    ), None
 
 
 def _prior_reading(
@@ -615,25 +987,7 @@ def _red_line_reading(
     pattern the user has not confirmed, so it is surfaced as a hit at its own confidence
     and weighted by it rather than treated as a rule this VC holds.
     """
-    haystack = " ".join(
-        [
-            (view.sector or ""),
-            (view.stage or ""),
-            *[
-                " ".join(
-                    [event.evidence_span or ""]
-                    + [
-                        value
-                        for key in ("claim", "title", "text", "body", "description")
-                        for value in [event.payload.get(key)]
-                        if isinstance(value, str)
-                    ]
-                )
-                for event in evidence
-            ],
-        ]
-    ).lower()
-    words = set(_tokens(haystack))
+    words = _metadata_words(view).union(*(_event_words(e) for e in evidence)) if evidence else _metadata_words(view)
 
     hits: list[RedLineHit] = []
     for line in profile.red_lines:
@@ -669,6 +1023,118 @@ def _red_line_reading(
 
 def _tokens(text: str) -> list[str]:
     return [chunk for chunk in "".join(c if c.isalnum() else " " for c in text).split() if chunk]
+
+
+def _event_words(event: Event) -> set[str]:
+    """The whole-word vocabulary of one event.
+
+    Shared by the red-line auditor and the authored lenses so the two read the SAME text
+    off the SAME filtered graph. Two term-matchers with drifting field lists would mean a
+    red line and an authored agent disagreeing about what a receipt says.
+    """
+    text = " ".join(
+        [event.evidence_span or ""]
+        + [
+            value
+            for key in ("claim", "title", "text", "body", "description")
+            for value in [event.payload.get(key)]
+            if isinstance(value, str)
+        ]
+    )
+    return set(_tokens(text.lower()))
+
+
+def _metadata_words(view: CompanyView) -> set[str]:
+    return set(_tokens(f"{view.sector or ''} {view.stage or ''}".lower()))
+
+
+def quality_terms(quality: str) -> list[str]:
+    """The readable terms in an authored lens's quality.
+
+    `security_engineering` becomes ["security", "engineering"]; stopwords and single
+    characters are dropped. Exposed rather than private because the write route uses it
+    to REFUSE a quality that carries no readable term — an agent whose quality is "the
+    of a" could never match anything, would read 0.0 on every company forever, and would
+    be a seat in the council that measures nothing. That is the decorative failure this
+    module is written against, and it is cheaper to refuse it at the keyboard.
+    """
+    return list(
+        dict.fromkeys(
+            term
+            for term in _tokens((quality or "").lower())
+            if term not in _STOPWORDS and len(term) > 1
+        )
+    )
+
+
+def _authored_reading(
+    lens: Lens, view: CompanyView, evidence: list[Event]
+) -> tuple[float | None, str, str | None, list[UUID]]:
+    """What one authored agent reads off the shared evidence graph.
+
+    The reading is HOW OFTEN this company's filtered evidence actually speaks to the
+    quality the VC named, saturating at AUTHORED_QUALITY_SATURATION receipts. It is
+    computed, not asked of a model, for the same reason every other reading here is: a
+    confident undiscriminating float at the centre of the feature is the failure this
+    codebase has already shipped more than once.
+
+    Two distinct zeroes, kept distinct:
+
+      ABSTAIN — there is nothing to read. No usable evidence and no sector or stage.
+      Scoring 0 would penalise a thin graph rather than measure the quality, and the
+      lens's weight is redistributed to the lenses that could read.
+
+      READING 0.0 — there IS evidence and it never mentions the quality. That is a real
+      finding about this company against this VC's stated interest, and it is exactly
+      the movement an authored agent exists to produce.
+    """
+    terms = set(quality_terms(lens.quality))
+    metadata = _metadata_words(view)
+    if not terms:
+        return (
+            None,
+            f"Your agent {lens.title!r} names a quality with no readable term in it, so it "
+            f"has nothing to look for.",
+            f"the authored quality {lens.quality!r} carries no readable term",
+            [],
+        )
+    if not evidence and not metadata:
+        return (
+            None,
+            f"Your agent {lens.title!r} looks for {lens.quality!r}, but this company has no "
+            f"usable evidence and no recorded sector or stage to read it against.",
+            "no usable evidence and no company metadata; scoring 0 would penalise a thin "
+            "evidence graph rather than measure the quality this agent looks for",
+            [],
+        )
+
+    matched_events = [event for event in evidence if terms & _event_words(event)]
+    in_metadata = bool(terms & metadata)
+    mentions = len(matched_events) + (1 if in_metadata else 0)
+    reading = min(1.0, mentions / AUTHORED_QUALITY_SATURATION)
+    receipts = [event.event_id for event in matched_events[:5]]
+
+    if mentions == 0:
+        return (
+            0.0,
+            f"Your agent {lens.title!r} looks for {lens.quality!r} "
+            f"(terms: {', '.join(sorted(terms))}). None of the {len(evidence)} usable "
+            f"receipt(s) on this company, nor its sector or stage, mention it. That is a "
+            f"finding about the evidence, not a defect in the company — and it is your "
+            f"stated interest, not the core screen, that makes it count.",
+            None,
+            [],
+        )
+    return (
+        reading,
+        f"Your agent {lens.title!r} looks for {lens.quality!r} "
+        f"(terms: {', '.join(sorted(terms))}). {mentions} mention(s) across "
+        f"{len(evidence)} usable receipt(s)"
+        + (" plus the company's sector/stage" if in_metadata else "")
+        + f", saturating at {AUTHORED_QUALITY_SATURATION} — reading {round(reading, 3)}.",
+        None,
+        receipts,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -748,7 +1214,7 @@ def _contribution(
             receipts = list(view.axis_evidence.get(axis, []))
 
     elif lens.kind == LensKind.EVIDENCE_BAR:
-        reading, rationale = _evidence_bar_reading(view, evidence, profile)
+        reading, rationale, abstained = _evidence_bar_reading(view, evidence, profile)
         receipts = [event.event_id for event in evidence[:5]]
 
     elif lens.kind == LensKind.SECTOR_PATTERN:
@@ -758,6 +1224,10 @@ def _contribution(
     elif lens.kind == LensKind.STAGE_PATTERN:
         reading, rationale, abstained = _prior_reading(profile.stage_priors, view.stage, "stage")
         facts = ["stage"]
+
+    elif lens.kind == LensKind.AUTHORED:
+        reading, rationale, abstained, receipts = _authored_reading(lens, view, evidence)
+        facts = ["sector", "stage", "evidence_text"]
 
     else:  # RED_LINE_AUDITOR
         reading, rationale, hits = _red_line_reading(profile, view, evidence)
@@ -776,6 +1246,9 @@ def _contribution(
             company_facts_used=facts,
             provenance=lens.provenance,
             abstained_reason=abstained,
+            lens_label=lens.label,
+            lens_origin=lens.origin,
+            lens_id=lens.lens_id,
         ),
         hits,
     )
@@ -822,7 +1295,7 @@ def _founder_market_fit(
     presenting an unconditioned founder score as a fit assessment.
     """
     base = view.axes.get("founder")
-    read_through = [f"lens:{lens.kind.value}" for lens in lenses]
+    read_through = [f"lens:{lens.label}" for lens in lenses]
     caveats: list[str] = []
 
     if base is None:
@@ -862,7 +1335,7 @@ def _founder_market_fit(
     heaviest = max(lenses, key=lambda lens: lens.weight) if lenses else None
     assessment = (
         f"Founder axis {round(base, 3)} {sector_note}. This fund's heaviest lens is "
-        f"{heaviest.kind.value if heaviest else 'none'} at "
+        f"{heaviest.label if heaviest else 'none'} at "
         f"{round(heaviest.weight, 3) if heaviest else 0.0}, so the fit is read primarily "
         f"through {heaviest.justified_by[0] if heaviest else 'no derivable preference'}."
     )
@@ -988,6 +1461,7 @@ def rank(
     profile: DerivedProfile,
     evidence_by_company: dict[UUID, list[Event]],
     as_of: datetime,
+    authored: Sequence[AuthoredLens] = (),
 ) -> PersonalRanking:
     """Re-rank an ALREADY-COMPUTED core order. The core order is an input, not an output.
 
@@ -1007,16 +1481,16 @@ def rank(
             or "personalisation is off for this profile; the core ranking is unaffected",
         )
 
-    lenses, not_derived = derive_lenses(profile)
-    if len(lenses) < MIN_LENSES:
+    composed = compose_council(profile, authored)
+    lenses, not_derived = composed.lenses, composed.not_derived
+    if composed.refusal is not None:
+        # REFUSED, not clamped. Both bounds land here with their own reason, and the
+        # lenses that did exist are still served so the client can show the user how far
+        # off they are rather than an empty panel.
         return PersonalRanking(
             as_of=as_of,
             personalised=False,
-            reason=(
-                f"only {len(lenses)} council lens could be derived from this profile and "
-                f"{MIN_LENSES} are required; a single lens is a renamed axis, not a council. "
-                "The core objective ranking is unaffected and continues to work."
-            ),
+            reason=composed.refusal.reason,
             lenses=lenses,
             lenses_not_derived=not_derived,
         )
@@ -1038,6 +1512,8 @@ def rank(
     # the lenses genuinely say something. A random tiebreak would manufacture divergence.
     ordered = sorted(core_rank, key=lambda cid: (-fits[cid].fit_score, core_rank[cid]))
 
+    without_effect = _lenses_without_effect(lenses, fits)
+
     rows: list[PersonalRankRow] = []
     disagreements: list[Disagreement] = []
     agreements: list[str] = []
@@ -1058,9 +1534,17 @@ def rank(
                 core_weakest_score=fit.core_weakest_score,
                 divergence=divergence,
                 top_lens=driver.lens if driver else None,
+                top_lens_label=(driver.lens_label or driver.lens.value) if driver else "",
+                top_lens_origin=driver.lens_origin if driver else None,
                 why=(
                     f"fit {fit.fit_score:.3f}; {_driver_label(divergence)} "
-                    f"{driver.lens.value} ({driver.contribution:.3f} = weight "
+                    f"{driver.lens_label or driver.lens.value}"
+                    + (
+                        " (an agent you authored)"
+                        if driver.lens_origin != LensOrigin.DERIVED
+                        else ""
+                    )
+                    + f" ({driver.contribution:.3f} = weight "
                     f"{driver.weight:.3f} x reading {driver.reading:.3f})"
                     if driver
                     else f"fit {fit.fit_score:.3f}; every lens abstained on this company"
@@ -1090,12 +1574,72 @@ def rank(
         reason=profile.personalisation_reason,
         lenses=lenses,
         lenses_not_derived=not_derived,
+        lenses_without_effect=without_effect,
         rows=rows,
         # The headline. §3: the disagreements are the value, agreement is just
         # confirmation — so they are sorted by how hard the two layers disagree.
         disagreements=sorted(disagreements, key=lambda item: (-abs(item.divergence), item.name)),
         agreements=agreements,
     )
+
+
+def _lenses_without_effect(
+    lenses: list[Lens], fits: dict[UUID, PersonalFit]
+) -> list[NotInferred]:
+    """Name every lens that changed no ordering, and say why.
+
+    A lens whose reading is IDENTICAL on every company scales all the fit scores by the
+    same factor. The numbers move; the order does not. That is the decorative failure
+    this module was written against, and it is exactly what an authored agent looking
+    for a quality nothing in the pipeline evidences will do — read 0.0 across the board
+    and reorder nobody.
+
+    It would be wrong to treat that as an error: if no company's evidence speaks to the
+    quality, the honest reading IS the same everywhere. What is wrong is leaving the VC
+    to guess why the agent they wrote did nothing. So it is reported by name, with the
+    distinction between "nothing to read" and "read, and found the same thing every
+    time" preserved.
+    """
+    if len(fits) < 2:
+        return []
+    out: list[NotInferred] = []
+    for index, lens in enumerate(lenses):
+        readings = [
+            fit.contributions[index].reading
+            for fit in fits.values()
+            if index < len(fit.contributions)
+        ]
+        live = [value for value in readings if value is not None]
+        authored_note = (
+            " This is an agent you authored — if you expected it to matter here, the "
+            "quality it looks for is the thing to change."
+            if lens.origin != LensOrigin.DERIVED
+            else ""
+        )
+        if not live:
+            out.append(
+                NotInferred(
+                    field_name=f"lens:{lens.label}",
+                    reason=(
+                        f"abstained on all {len(readings)} companies, so it changed no "
+                        f"ordering; its weight was redistributed to the lenses that could "
+                        f"read.{authored_note}"
+                    ),
+                )
+            )
+        elif len(live) == len(readings) and len({round(value, 6) for value in live}) == 1:
+            out.append(
+                NotInferred(
+                    field_name=f"lens:{lens.label}",
+                    reason=(
+                        f"read exactly {round(live[0], 3)} on all {len(readings)} companies. "
+                        "A lens that reads the same value everywhere rescales every fit score "
+                        "by the same factor and therefore promotes and demotes nobody — it is "
+                        f"in the council but it is not discriminating.{authored_note}"
+                    ),
+                )
+            )
+    return out
 
 
 def _driver(scored: list[LensContribution], divergence: int) -> LensContribution | None:
@@ -1115,8 +1659,8 @@ def _driver(scored: list[LensContribution], divergence: int) -> LensContribution
     if not scored:
         return None
     if divergence >= 0:
-        return max(scored, key=lambda item: (item.contribution, item.lens.value))
-    return max(scored, key=lambda item: (item.weight * (1.0 - (item.reading or 0.0)), item.lens.value))
+        return max(scored, key=lambda item: (item.contribution, item.lens_label or item.lens.value))
+    return max(scored, key=lambda item: (item.weight * (1.0 - (item.reading or 0.0)), item.lens_label or item.lens.value))
 
 
 def _driver_label(divergence: int) -> str:
@@ -1137,7 +1681,13 @@ def _explain(divergence: int, fit: PersonalFit, top: LensContribution | None) ->
         )
     direction = "promotes" if divergence > 0 else "demotes"
     driver = (
-        f"{top.lens.value} at weight {top.weight:.3f} reading {top.reading:.3f}"
+        f"{top.lens_label or top.lens.value}"
+        + (
+            " — an agent you authored, not something read out of your profile"
+            if top.lens_origin != LensOrigin.DERIVED
+            else ""
+        )
+        + f" at weight {top.weight:.3f} reading {top.reading:.3f}"
         f"{' — this fund has no history here' if top.reading == 0.0 else ''}"
         if top
         else "no lens produced a reading"
@@ -1167,8 +1717,26 @@ def view_from_screening(
         name=name,
         sector=sector,
         stage=stage,
-        axes={name_: getattr(screening, name_).score for name_ in AXES},
-        axis_confidence={name_: getattr(screening, name_).confidence for name_ in AXES},
+        # An axis the screen could not measure is OMITTED, not defaulted. `CompanyView.
+        # axes` is `dict[str, float]` and every reader here already guards on `name in
+        # view.axes` (`_weakest`, `_evidence_bar_reading`, the lens readings), so absence
+        # is the shape this module was built to handle. Passing None would fail the
+        # `_bounded` validator's `float(value)`; passing 0.0 would tell every lens that
+        # an unmeasured axis is the worst possible one.
+        axes={
+            name_: getattr(screening, name_).score
+            for name_ in AXES
+            if getattr(screening, name_).score is not None
+        },
+        # Confidence is OMITTED on the same terms as the score above, and for the same
+        # reason: an axis the screen could not measure reports `confidence=None`, and
+        # carrying that through as a 0.0 would tell the evidence bar the axis was judged
+        # and found worthless. Absence stays absence on both fields or on neither.
+        axis_confidence={
+            name_: getattr(screening, name_).confidence
+            for name_ in AXES
+            if getattr(screening, name_).confidence is not None
+        },
         axis_evidence={name_: list(getattr(screening, name_).evidence_event_ids) for name_ in AXES},
     )
 
@@ -1183,6 +1751,7 @@ def personal_fit(
     name: str = "",
     dissent_served: bool = False,
     judge: Judge = llm.complete,
+    authored: Sequence[AuthoredLens] = (),
 ) -> PersonalFit:
     """Store-backed single-company fit, with the council actually deliberating.
 
@@ -1197,7 +1766,7 @@ def personal_fit(
     screening = screen.three_axis(company_id, as_of)
     evidence = usable_evidence(company_id, as_of, events)
 
-    lenses, _ = derive_lenses(profile)
+    lenses = compose_council(profile, authored).lenses
     result = council.deliberate_from_evidence(company_id, as_of, events, screening, judge=judge)
     return score_company(
         view_from_screening(screening, name=name, sector=sector, stage=stage),
