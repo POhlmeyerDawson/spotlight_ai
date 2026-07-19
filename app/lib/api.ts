@@ -595,8 +595,15 @@ export async function getTrace(
 }
 
 export function getBacktest(): Promise<Result<Backtest>> {
-  return withFallback("/backtest", fx.BACKTEST, (v) =>
-    isObj(v) && Array.isArray(v.trajectories) ? (v as unknown as Backtest) : null,
+  // The LLM budget, not the read budget: the replay scores every cohort member
+  // through the live scorer and answers in ~40s against the deployed backend.
+  // At TIMEOUT.read this page could NEVER render live data — the fetch was
+  // aborted at 8s and the fixture shown, indistinguishable from a dead API.
+  return withFallback(
+    "/backtest",
+    fx.BACKTEST,
+    (v) => (isObj(v) && Array.isArray(v.trajectories) ? (v as unknown as Backtest) : null),
+    TIMEOUT.llm,
   );
 }
 
