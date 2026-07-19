@@ -358,14 +358,33 @@ export interface EventTrace {
   chain: { step: string; detail: string }[];
 }
 
+/**
+ * The standing thesis, in the flat shape this UI edits.
+ *
+ * `core/thesis.py` consumes a NESTED shape (`sectors:[{id,label,weight,include}]`,
+ * `stage:{include,exclude}`, `geo:{...}`, `check_size:{min,target,max}`,
+ * `risk_appetite:{value:0..1}`). The translation lives in `lib/api.ts`
+ * (`thesisFromApi` / `thesisToApi`) so exactly one place knows both shapes.
+ *
+ * This used to be written to the backend verbatim, which meant `stages`, `geos` and
+ * `check_size_min` were keys NOTHING read: the panel looked like it configured the
+ * fund and configured nothing.
+ */
 export interface Thesis {
   sectors: string[];
   stages: string[];
   geos: string[];
   check_size_min: number;
   check_size_max: number;
-  risk_appetite: number; // 0..100
+  risk_appetite: number; // 0..100 here, 0..1 on the wire
   notes: string;
+  /**
+   * The untouched document as served. Carried so a save can merge rather than
+   * replace: the config has fields this UI does not model (`clearing_score`,
+   * `ranking_policy`, `hard_filters`) and writing back only what we understand
+   * would delete another process's work.
+   */
+  raw?: Record<string, unknown>;
 }
 
 export interface Trajectory {
@@ -414,4 +433,12 @@ export interface QueryResult {
   count: number;
   /** The structured filter the server actually executed. Rendered as the receipt. */
   filter?: Record<string, unknown> | null;
+  /**
+   * Where the answer is weaker than it looks: a clause naming an industry nothing in
+   * the list mentions, a clause the records carry no data for, or a clause that could
+   * not be executed at all. These must be rendered — a query box that drops half a
+   * sentence without saying so is worse than a form, because the user reads the
+   * result as an answer to the question they actually asked.
+   */
+  warnings?: string[];
 }

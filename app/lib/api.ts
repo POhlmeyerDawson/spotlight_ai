@@ -1,10 +1,31 @@
 /**
  * Typed API client for the VC Brain backend.
  *
- * Every call is fallback-first: if the backend is down, slow, or returns a shape we
- * cannot use, we serve something renderable and mark the response `live: false`.
- * A blank screen during a 2.5-minute live demo is fatal — this module exists so that
- * cannot happen.
+ * Every call degrades rather than blanking: if the backend is down, slow, or returns a
+ * shape we cannot use, we render an honest empty state and say so. A blank screen during
+ * a 2.5-minute live demo is fatal — this module exists so that cannot happen.
+ *
+ * A FALLBACK MAY DEGRADE. IT MUST NEVER FABRICATE.
+ *
+ * When a call fails this module serves `lib/fixtures.ts`. The page-level banner says
+ * "FIXTURE DATA", which sounds like enough, and was not. One layer down, those records
+ * used to carry citations shaped exactly like real ones: `vcbrain.local/proof/...` links
+ * that went nowhere, and `arxiv.org/abs/2401.09417`,
+ * `news.ycombinator.com/item?id=38911204` links that went SOMEWHERE — to real, unrelated
+ * papers and threads. A reviewer who accepted "this is fixture data", then clicked a
+ * citation to check it, landed on a real arXiv paper about something else entirely. The
+ * banner was true and the receipts still lied.
+ *
+ * Every citation in `fixtures.ts` is therefore now visibly non-real ON INSPECTION —
+ * the reserved `example.invalid` TLD (RFC 2606, never delegated) or the non-web `deck://`
+ * and `proof://` schemes, the same convention the seed corpus uses and
+ * `tests/test_constructed_citations.py` enforces. Nothing a fixture cites can resolve to
+ * a real page, so the banner and the receipts now agree.
+ *
+ * REPLACING THESE FIXTURES WITH HONEST EMPTY STATES IS STILL THE RIGHT END STATE, and
+ * `lib/vc.ts` documents why it refused fixtures outright for the personalisation client.
+ * That change rewrites the `Result<T>` / `source` contract across every page that renders
+ * a `SourceChip`, so it wants a moment when those files are not being edited concurrently.
  *
  * NO FUNCTION IN THIS MODULE MAY REJECT. Every promise here resolves to a `Result`,
  * because the failure mode that actually shipped was a rejected promise leaving a
@@ -59,12 +80,16 @@ export const TIMEOUT = {
   /**
    * Reads that back the page.
    *
-   * Measured against the live backend, `/companies` answers in ~1.5s. A 2.5s budget
-   * therefore sat inside the noise: under parallel load the list intermittently timed
-   * out and the page silently dropped from 13 live companies to 6 fixture ones, which
-   * is a far worse failure on stage than waiting another second. 8s clears the measured
-   * latency by a wide margin and is still short enough that a genuinely dead backend
-   * falls back before anyone in the room notices.
+   * Measured against the live backend, `/companies` answers in ~1.5s. 8s clears that
+   * by a wide margin and is still short enough that a genuinely dead backend falls
+   * back before anyone in the room notices.
+   *
+   * This was briefly raised to 30s when the corpus grew to 126 companies and the list
+   * took 48-70s. That was the wrong fix and it is recorded here so nobody repeats it:
+   * the endpoint was issuing one database round trip PER COMPANY, and the timeout was
+   * hiding an N+1, not absorbing honest latency. `store.prefetch` now loads the log in
+   * one query and the list is back to ~1.5s at 126 companies. If this endpoint gets
+   * slow again, find the query — do not raise this number.
    */
   read: 8000,
   /** The compound query. Long enough to survive a cold Python import, then it errors. */
@@ -88,6 +113,23 @@ export interface Result<T> {
   failed?: boolean;
 }
 
+/**
+ * A non-2xx answer, carrying the status so callers can tell WHY the call failed.
+ *
+ * This exists because "the server refused" and "there is nothing there" are different
+ * claims, and collapsing them is how a 503 came to be rendered as "no dissent exists for
+ * this company" — a statement about the COMPANY that the server never made. A status code
+ * is the difference between reporting our own outage and inventing a finding.
+ */
+export class HttpError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "HttpError";
+    this.status = status;
+  }
+}
+
 /** Thrown-free fetch. Distinguishes a timeout from every other failure, because the
  *  user-facing sentence is different: "took longer than Ns" invites a retry. */
 async function get<T>(path: string, timeoutMs: number): Promise<T> {
@@ -103,7 +145,17 @@ async function get<T>(path: string, timeoutMs: number): Promise<T> {
       cache: "no-store",
       headers: { accept: "application/json" },
     });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      // FastAPI puts the human-readable cause in `detail`; showing it beats "503".
+      const body: unknown = await res.json().catch(() => null);
+      const detail = ad.isObj(body) ? body.detail : undefined;
+      throw new HttpError(
+        res.status,
+        typeof detail === "string" && detail.trim()
+          ? detail
+          : `${res.status} ${res.statusText}`,
+      );
+    }
     return (await res.json()) as T;
   } catch (e) {
     // Rounding 2500ms to "3s" makes the message disagree with the configured budget,
@@ -158,36 +210,187 @@ const isObj = ad.isObj;
 // Routes
 // ---------------------------------------------------------------------------
 
-export function getThesis(): Promise<Result<Thesis>> {
-  return withFallback("/thesis", fx.THESIS, (v) =>
-    isObj(v) && Array.isArray(v.sectors) && typeof v.risk_appetite === "number"
-      ? (v as unknown as Thesis)
-      : null,
-  );
+/**
+ * The thesis is served NESTED and edited FLAT. These two functions are the only place
+ * that knows both shapes.
+ *
+ * The old code did neither translation: it validated on `Array.isArray(v.sectors) &&
+ * typeof v.risk_appetite === "number"`, which the real document never satisfies
+ * (`sectors` is a list of objects, `risk_appetite` is `{value}`), so /thesis silently
+ * failed validation on EVERY load and the page rendered the fixture while the backend
+ * was up. The panel then wrote its flat shape straight back, producing `stages`,
+ * `geos` and `check_size_min` keys that nothing on the server has ever read.
+ */
+function thesisFromApi(v: unknown): Thesis | null {
+  if (!isObj(v)) return null;
+
+  const sectors = Array.isArray(v.sectors)
+    ? v.sectors
+        .filter((s) => !isObj(s) || s.include !== false)
+        .map((s) => (isObj(s) ? String(s.label ?? s.id ?? "") : String(s)))
+        .filter(Boolean)
+    : [];
+
+  const stage = isObj(v.stage) ? v.stage : {};
+  const geo = isObj(v.geo) ? v.geo : {};
+  const check = isObj(v.check_size) ? v.check_size : {};
+  const risk = isObj(v.risk_appetite) ? v.risk_appetite : { value: v.risk_appetite };
+  const asNum = (x: unknown, dflt: number) => (typeof x === "number" ? x : dflt);
+  const asList = (x: unknown) => (Array.isArray(x) ? x.map(String).filter(Boolean) : []);
+
+  return {
+    sectors,
+    stages: asList(stage.include),
+    geos: asList(geo.include),
+    check_size_min: asNum(check.min, 250_000),
+    check_size_max: asNum(check.max, 2_000_000),
+    risk_appetite: Math.round(asNum(risk.value, 0.5) * 100),
+    // `notes` is a top-level key of its own. Deriving it from stage.note/geo.note
+    // would have made it read-only in practice: the save had nowhere to put an edit
+    // back, so every word typed here would vanish on the next load.
+    notes: typeof v.notes === "string" ? v.notes : "",
+    raw: v,
+  };
 }
 
 /**
- * `api/main.py` exposes GET /thesis only. POST is attempted anyway (the thesis panel
- * is meant to write) and the edit is kept in local state either way, so the demo's
- * opening beat works whether or not the write endpoint exists yet.
+ * Flat UI shape back onto the document `core/thesis.py` actually reads.
+ *
+ * Spreads `raw` first so every field this UI does not model — clearing_score,
+ * ranking_policy, hard_filters — survives the round trip. The server merges on top of
+ * the file's current contents as well; both halves matter, because a client that
+ * posts only what it understands destroys the rest of the config by omission.
  */
+function thesisToApi(t: Thesis): Record<string, unknown> {
+  const priorSectors = Array.isArray(t.raw?.sectors) ? t.raw.sectors : [];
+  const priorFor = (label: string) =>
+    priorSectors.find(
+      (s) =>
+        isObj(s) &&
+        [s.label, s.id].some(
+          (x) => typeof x === "string" && x.toLowerCase() === label.toLowerCase(),
+        ),
+    );
+
+  const slug = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const weight = t.sectors.length ? Number((1 / t.sectors.length).toFixed(3)) : 0;
+
+  const included = t.sectors.map((label) => {
+    const prev = priorFor(label);
+    return {
+      ...(isObj(prev) ? prev : {}),
+      id: isObj(prev) ? prev.id : slug(label),
+      label,
+      weight: isObj(prev) && typeof prev.weight === "number" ? prev.weight : weight,
+      include: true,
+    };
+  });
+
+  /**
+   * Sectors explicitly marked `include: false` are carried through untouched.
+   *
+   * The panel only renders included sectors, so writing back just what it holds
+   * silently DELETED entries like `{id:"fintech", include:false}` — an author's
+   * deliberate "we have considered fintech and we do not do it" annotation, erased by
+   * a UI that never showed it. Functionally `included_sectors()` ignores them either
+   * way; that is not a licence to destroy the record.
+   */
+  const excluded = priorSectors.filter(
+    (s) =>
+      isObj(s) &&
+      s.include === false &&
+      !included.some((k) => String(k.label).toLowerCase() === String(s.label).toLowerCase()),
+  );
+
+  return {
+    ...(t.raw ?? {}),
+    sectors: [...included, ...excluded],
+    stage: { ...(isObj(t.raw?.stage) ? t.raw.stage : {}), include: t.stages },
+    geo: { ...(isObj(t.raw?.geo) ? t.raw.geo : {}), include: t.geos },
+    check_size: {
+      ...(isObj(t.raw?.check_size) ? t.raw.check_size : { currency: "USD" }),
+      min: t.check_size_min,
+      max: t.check_size_max,
+      target: Math.round((t.check_size_min + t.check_size_max) / 2),
+    },
+    risk_appetite: {
+      ...(isObj(t.raw?.risk_appetite) ? t.raw.risk_appetite : {}),
+      value: Number((t.risk_appetite / 100).toFixed(2)),
+    },
+    notes: t.notes,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function getThesis(): Promise<Result<Thesis>> {
+  return withFallback("/thesis", fx.THESIS, thesisFromApi);
+}
+
+/** PUT, because `api/main.py` exposes `@app.put("/thesis")`. The panel POSTed, got a
+ *  405 on every save, and reported "kept locally (API down)" while the API was fine. */
 export async function putThesis(t: Thesis): Promise<Result<Thesis>> {
   try {
     const res = await fetch(`${API_BASE}/thesis`, {
-      method: "POST",
+      method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(t),
+      body: JSON.stringify(thesisToApi(t)),
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    return { data: t, source: "live" };
+    return { data: thesisFromApi(await res.json()) ?? t, source: "live" };
   } catch (e) {
     return {
       data: t,
       source: "fixture",
-      note: `POST /thesis: ${reason(e)} — kept locally`,
+      note: `PUT /thesis: ${reason(e)} — kept locally`,
       failed: true,
     };
   }
+}
+
+/**
+ * Promote a parsed query filter into the STANDING thesis.
+ *
+ * Deliberately a separate, explicit action. Typing in the query box narrows the view;
+ * it must never rewrite the fund's thesis as a side effect, because the two do
+ * genuinely different things — the thesis EXCLUDES companies from the pipeline
+ * (`core/thesis.in_scope`), while a query only dims rows that are already screened in.
+ *
+ * Returns the fields that would change, so the caller can show them before writing.
+ */
+export function thesisDiffFromFilter(
+  t: Thesis,
+  filter: Record<string, unknown> | null | undefined,
+): { next: Thesis; changes: string[] } {
+  const list = (v: unknown) => (Array.isArray(v) ? v.map(String).filter(Boolean) : []);
+  const next = { ...t };
+  const changes: string[] = [];
+
+  const sectors = list(filter?.sectors);
+  if (sectors.length) {
+    next.sectors = sectors;
+    changes.push(`sectors → ${sectors.join(", ")}`);
+  }
+  const stages = list(filter?.stages);
+  if (stages.length) {
+    next.stages = stages;
+    changes.push(`stage.include → ${stages.join(", ")}`);
+  }
+  const geos = list(filter?.geos);
+  if (geos.length) {
+    next.geos = geos;
+    changes.push(`geo.include → ${geos.join(", ")}`);
+  }
+  const lo = filter?.check_size_min_usd;
+  const hi = filter?.check_size_max_usd;
+  if (typeof lo === "number") {
+    next.check_size_min = lo;
+    changes.push(`check_size.min → ${lo.toLocaleString()}`);
+  }
+  if (typeof hi === "number") {
+    next.check_size_max = hi;
+    changes.push(`check_size.max → ${hi.toLocaleString()}`);
+  }
+  return { next, changes };
 }
 
 export function getCompanies(): Promise<Result<CompanySummary[]>> {
@@ -294,7 +497,24 @@ export async function getMemo(id: string, dissentViewed: boolean): Promise<Resul
   }
 }
 
-export async function getDissent(id: string): Promise<Result<Dissent> | null> {
+/**
+ * Why a dissent could not be shown, when it could not be shown.
+ *
+ * `absent` is a claim about the COMPANY (the server answered, and there is no bear case
+ * on file). `unavailable` is a claim about US (the council needs a model and did not run,
+ * or the call failed in transit) — it says nothing about the company at all.
+ *
+ * These were one `null` return, and the UI reported both as "no dissent exists for this
+ * company". A 503 from a backend with no model credentials therefore rendered as a
+ * finding about the founder. That is the exact inversion this codebase exists to refuse.
+ */
+export type DissentMiss =
+  | { kind: "absent" }
+  | { kind: "unavailable"; reason: string; status?: number; needsModel: boolean };
+
+export async function getDissent(
+  id: string,
+): Promise<Result<Dissent> | DissentMiss> {
   const fixture = fx.dissent(id);
   const path = `/companies/${encodeURIComponent(id)}/dissent`;
   try {
@@ -308,13 +528,32 @@ export async function getDissent(id: string): Promise<Result<Dissent> | null> {
     // genuine half-scale disagreements from rendering as three empty bars.
     const adapted = ad.toDissent(live);
     if (adapted) return { data: adapted, source: "live" };
-    return fixture
-      ? { data: fixture, source: "fixture", note: `${path} returned an unreadable dissent` }
-      : null;
+    if (fixture) {
+      return { data: fixture, source: "fixture", note: `${path} returned an unreadable dissent` };
+    }
+    // The server answered and we could not read a dissent out of it. That is an
+    // unreadable ANSWER, not a company with no bear case — so it is still `unavailable`.
+    return {
+      kind: "unavailable",
+      reason: "the dissent came back in a shape this page cannot read",
+      needsModel: false,
+    };
   } catch (e) {
-    return fixture
-      ? { data: fixture, source: "fixture", note: `${path}: ${reason(e)}`, failed: true }
-      : null;
+    if (fixture) {
+      return { data: fixture, source: "fixture", note: `${path}: ${reason(e)}`, failed: true };
+    }
+    // 404 is the only answer that means "this company genuinely has no dissent". Every
+    // other failure — 503 with no model configured, a timeout, a dead backend — is our
+    // outage, and must not be reported as a fact about the company.
+    const status = e instanceof HttpError ? e.status : undefined;
+    if (status === 404) return { kind: "absent" };
+    return {
+      kind: "unavailable",
+      reason: reason(e),
+      status,
+      // 503 is what the backend returns when the council has no model credentials.
+      needsModel: status === 503,
+    };
   }
 }
 
@@ -419,110 +658,186 @@ export async function gradeProof(
 /**
  * Local interpreter for the compound query, used when GET /query is unavailable.
  *
- * Deliberately shallow — it recognises the demo's vocabulary and reports back the
+ * Deliberately shallow — it recognises structural clauses and reports back the
  * predicates it actually applied, so nothing on screen claims more than it did.
  *
- * It resolves ids ONLY against the company list it was handed, and it never
- * dereferences a detail record it does not have. Claim-level predicates are simply
- * SKIPPED when no detail is available for a company, and the skip is named in the
- * readback. The old version assumed every id in the list had a fixture behind it; with
- * live ids it did not, and the resulting failure took the whole button down with it.
+ * A FALLBACK MAY DEGRADE; IT MAY NEVER FABRICATE. It filters only the live company
+ * list it was handed, and it no longer reads claim-level evidence at all. It used to
+ * dereference hand-authored fixture detail records: where a live id happened to
+ * collide with a fixture id, "has a contradicted claim" was answered from an INVENTED
+ * claim record and presented as a finding about a real founder — an outage rendered
+ * as evidence. Claim predicates are now named and declined rather than guessed.
  */
-export function interpretQuery(
-  q: string,
-  companies: CompanySummary[],
-  details: (id: string) => CompanyDetail | null,
-): QueryResult {
+export function interpretQuery(q: string, companies: CompanySummary[]): QueryResult {
   const s = q.toLowerCase().trim();
   const preds: string[] = [];
+  const warnings: string[] = [];
   let out = companies;
 
-  /** Claim predicates need a detail record. Count how often we could not get one. */
-  let unresolvable = 0;
-  const byClaim = (
-    label: string,
-    test: (c: CompanyDetail) => boolean,
-  ) => {
-    out = out.filter((c) => {
-      const d = details(c.id);
-      if (!d) {
-        unresolvable += 1;
-        return false;
-      }
-      return test(d);
-    });
-    preds.push(label);
+  /**
+   * What is left of the sentence after every recognised clause has been consumed.
+   * Whatever survives is read as the SECTOR PHRASE — which is how the vocabulary
+   * became open. The previous version knew three sectors (infra, data, ai) and an
+   * investor asking for logistics or defense got the entire list back under the
+   * heading "no predicate recognised — showing all".
+   */
+  let residual = ` ${s.replace(/[^a-z0-9]+/g, " ").trim()} `;
+  const eat = (re: RegExp) => {
+    const had = re.test(residual);
+    residual = residual.replace(new RegExp(re.source, "g"), " ");
+    return had;
   };
 
-  const sector = (needle: string, label: string) => {
-    if (s.includes(needle)) {
-      out = out.filter((c) => c.sector.toLowerCase().includes(label));
-      preds.push(`sector ~ "${label}"`);
-    }
+  /**
+   * A clause about claim-level evidence. The claim record lives on the company DETAIL
+   * endpoint, which is exactly what is unreachable when this interpreter is running,
+   * so the clause is declared un-runnable and the rows are left un-narrowed by it.
+   * Under-filtering and saying so is the only honest option; the alternative is
+   * answering an evidence question from a file.
+   */
+  const declineClaim = (label: string) => {
+    warnings.push(
+      `"${label}" was NOT applied — claim-level evidence lives on the company detail endpoint, which is unreachable right now. The rows below were not narrowed by it. Retry for a live answer.`,
+    );
   };
-  sector("infra", "infra");
-  sector("data", "data");
-  if (/\bai\b|llm|model/.test(s)) {
-    out = out.filter((c) => c.sector.toLowerCase().includes("ai"));
-    preds.push('sector ~ "ai"');
+
+  // --- structural clauses, consumed so they cannot also read as a sector ----
+  const STAGES: [string, RegExp][] = [
+    ["pre-seed", /pre\s?seed/],
+    ["series-a", /series a\b/],
+    ["series-b", /series b\b/],
+    ["growth", /growth stage/],
+    ["seed", /\bseed\b/],
+  ];
+  const stages = STAGES.filter(([, re]) => eat(re)).map(([name]) => name);
+  eat(/\bstage\b/);
+  if (stages.length) {
+    const known = companies.filter((c) => c.stage);
+    out = out.filter((c) => !c.stage || stages.some((st) => c.stage.toLowerCase().includes(st)));
+    preds.push(`stage in ${stages.join(", ")}`);
+    if (known.length < companies.length) {
+      warnings.push(
+        `stage was not applied to ${companies.length - known.length} of ${companies.length} records — they carry no stage, and absent metadata is not treated as disqualifying`,
+      );
+    }
   }
 
-  if (/rising|rise|positive trend|momentum|improving/.test(s)) {
-    out = out.filter((c) => (c.axes.founder.trend ?? 0) > 0);
+  const GEOS = [
+    "north america", "south america", "latin america", "latam", "europe", "emea", "apac",
+    "southeast asia", "asia", "middle east", "africa", "oceania", "united states", "usa",
+    "canada", "mexico", "brazil", "united kingdom", "uk", "ireland", "france", "germany",
+    "spain", "italy", "netherlands", "sweden", "norway", "denmark", "poland", "estonia",
+    "switzerland", "israel", "india", "china", "japan", "korea", "singapore", "indonesia",
+    "vietnam", "australia", "new zealand", "nigeria", "kenya", "egypt", "south africa",
+  ];
+  const geos = GEOS.filter((g) => eat(new RegExp(`\\b${g}\\b`)));
+  if (geos.length) {
+    const known = companies.filter((c) => c.geo);
+    out = out.filter((c) => !c.geo || geos.some((g) => c.geo.toLowerCase().includes(g)));
+    preds.push(`geo in ${geos.join(", ")}`);
+    if (known.length < companies.length) {
+      warnings.push(
+        `geography was not applied to ${companies.length - known.length} of ${companies.length} records — they carry no geography`,
+      );
+    }
+  }
+
+  // Cheque size is a property of YOUR FUND, not of a company, and no company record
+  // carries one. Naming it and declining to filter on it is the honest move.
+  const money = s.match(/\$\s*\d+(?:\.\d+)?\s*[kmb]?/g);
+  if (money) {
+    eat(/\b(cheque|check|ticket|size|raising|between|under|below|over|above|up to|at least|at most|less than|more than)\b/);
+    eat(/\b\d+(\s+\d+)*\s*[kmb]?\b/);
+    preds.push(`cheque ${money.join("–")}`);
+    warnings.push(
+      `cheque size did not narrow anything — no round size is recorded on any company. It is a property of your fund; set it on the standing thesis, where it governs the recommendation`,
+    );
+  }
+
+  // `?? 0` on an ABSENT axis would silently exclude the company from both the rising
+  // and falling filters, which is right: an uncomputed trend cannot be asserted either way.
+  if (eat(/rising|\brise\b|positive trend|momentum|improving/)) {
+    out = out.filter((c) => (c.axes.founder?.trend ?? 0) > 0);
     preds.push("founder.trend > 0");
   }
-  if (/falling|declin|negative trend|deterior/.test(s)) {
-    out = out.filter((c) => (c.axes.founder.trend ?? 0) < 0);
+  if (eat(/falling|declin\w*|negative trend|deterior\w*/)) {
+    out = out.filter((c) => (c.axes.founder?.trend ?? 0) < 0);
     preds.push("founder.trend < 0");
   }
-  if (/unverified|unverifiable|not attempted|no verification/.test(s)) {
-    byClaim("has claim in {UNVERIFIABLE, NOT_ATTEMPTED}", (d) =>
-      d.claims.some((cl) => cl.status === "unverifiable" || cl.status === "not_attempted"),
-    );
+  eat(/\btrend\b/);
+  if (eat(/unverified|unverifiable|not attempted|no verification/)) {
+    declineClaim("has claim in {UNVERIFIABLE, NOT_ATTEMPTED}");
   }
-  if (/contradict/.test(s)) {
-    byClaim("has claim = CONTRADICTED", (d) =>
-      d.claims.some((cl) => cl.status === "contradicted"),
-    );
+  if (eat(/contradict\w*/)) {
+    declineClaim("has claim = CONTRADICTED");
   }
-  if (/revenue|arr|traction/.test(s)) {
-    byClaim('claim_text ~ "revenue|arr|pilot|customer|partner|traction"', (d) =>
-      d.claims.some((cl) =>
-        /revenue|arr|pilot|customer|partner|traction/i.test(cl.claim_text),
-      ),
-    );
+  eat(/\bclaims?\b/);
+  if (eat(/revenue|\barr\b|traction/)) {
+    declineClaim('claim_text ~ "revenue|arr|pilot|customer|partner|traction"');
   }
-  if (/cold start|no public|no footprint|invisible/.test(s)) {
+  if (eat(/cold start|no public|no footprint|invisible/)) {
     out = out.filter(
       (c) => c.gate === "proof_protocol" || /cold|invisible/i.test(c.archetype),
     );
     preds.push("gate = PROOF_PROTOCOL or archetype ~ cold/invisible");
   }
-  if (/injection|adversarial|integrity|flag/.test(s)) {
+  if (eat(/injection|adversarial|integrity|flagged|flags?/)) {
     out = out.filter((c) => c.flag_count > 0);
     preds.push("flag_count > 0");
   }
-  if (/proceed/.test(s)) {
+  if (eat(/proof protocol/)) {
+    out = out.filter((c) => c.gate === "proof_protocol");
+    preds.push("gate = PROOF_PROTOCOL");
+  }
+  if (eat(/proceed/)) {
     out = out.filter((c) => c.gate === "proceed");
     preds.push("gate = PROCEED");
   }
-  if (/no call|no_call|pass\b|reject/.test(s)) {
+  if (eat(/no call|no_call|\bpass\b|reject\w*/)) {
     out = out.filter((c) => c.gate === "no_call");
     preds.push("gate = NO_CALL");
   }
+  eat(/\brouted to\b|\bgate\b/);
 
-  const parsed = preds.length ? preds.join(" · ") : "no predicate recognised — showing all";
-  return {
-    q,
-    parsed:
-      unresolvable > 0
-        ? `${parsed} — offline reading; ${unresolvable} ${
-            unresolvable === 1 ? "company has" : "companies have"
-          } no local claim record and could not be tested`
-        : parsed,
-    company_ids: out.map((c) => c.id),
-    count: out.length,
-  };
+  // --- whatever is left is the sector, whatever industry it names ----------
+  const STOP = new Set(
+    "a an and or the of for in into on at to with without that which who show me find list all any some companies company startups startup founders founder teams team businesses round rounds based headquartered hq located doing building build built working work works space sector sectors industry industries market markets please still only just more most less than up new early late is are was were be been has have had do does did not no yes but so if then when where what how".split(
+      " ",
+    ),
+  );
+  const leftover = residual
+    .split(/\s+/)
+    .filter((w) => w.length > 1 && !STOP.has(w));
+
+  if (leftover.length) {
+    const phrase = leftover.join(" ");
+    const taxonomy = (c: CompanySummary) =>
+      ` ${`${c.sector} ${c.archetype}`.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
+    const prose = (c: CompanySummary) =>
+      ` ${`${c.sector} ${c.archetype} ${c.name} ${c.one_liner}`.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
+
+    // One token is enough against the taxonomy (so "data tooling" finds data-infra);
+    // the whole phrase is required against free prose (so "consumer social" does not
+    // match a GPU company whose one-liner happens to contain the word "consumer").
+    const hit = (c: CompanySummary) =>
+      prose(c).includes(` ${phrase} `) || leftover.some((t) => taxonomy(c).includes(` ${t} `));
+
+    const before = out;
+    out = out.filter(hit);
+    preds.push(`sector ~ "${phrase}"`);
+    if (!companies.some(hit)) {
+      warnings.push(
+        `no screened record mentions "${phrase}" — this system has never sourced that industry, so the zero result is about our coverage, not about the query`,
+      );
+    } else if (before.length && !out.length) {
+      warnings.push(`"${phrase}" exists in the list, but not together with the other clauses`);
+    }
+  }
+
+  const parsed = preds.length
+    ? preds.join(" · ")
+    : "nothing in this query could be turned into a filter — every record is shown, unfiltered";
+  return { q, parsed, warnings, company_ids: out.map((c) => c.id), count: out.length };
 }
 
 /**
@@ -541,7 +856,7 @@ export async function runQuery(
   q: string,
   companies: CompanySummary[],
 ): Promise<Result<QueryResult>> {
-  const local = interpretQuery(q, companies, (id) => fx.companyDetail(id));
+  const local = interpretQuery(q, companies);
   const path = `/query?q=${encodeURIComponent(q)}`;
 
   try {
@@ -553,6 +868,12 @@ export async function runQuery(
         source: "fixture",
         note: `${path} returned no company_ids — read locally instead`,
       };
+    }
+
+    // `warnings` is carried here rather than in ad.toQueryResult so the honest-failure
+    // channel survives even if the adapter is unaware of it.
+    if (isObj(live) && Array.isArray(live.warnings)) {
+      adapted.warnings = live.warnings.map(String).filter(Boolean);
     }
 
     const known = new Set(companies.map((c) => c.id));
@@ -648,9 +969,13 @@ export interface EligibleResponse {
   rule: string;
 }
 
-/** A resolved receipt. The URL is attached by the backend from a stored event —
- *  the model that wrote the prose was never shown one. */
-export interface DraftCitation {
+/**
+ * A resolved receipt. The URL is attached by the backend from a stored event — the
+ * model that wrote the prose was never shown one, so a fabricated link has no path
+ * into the output. The shape is identical on outbound drafts and on standout
+ * summaries because both resolve the same server-side `Ref`; one type, deliberately.
+ */
+export interface Citation {
   n: number;
   ref_id: string;
   event_id: string;
@@ -671,7 +996,7 @@ export interface OutboundDraft {
   status: DraftStatus;
   subject: string | null;
   body: string | null;
-  citations: DraftCitation[] | null;
+  citations: Citation[] | null;
   eligibility: EligibilityVerdict | null;
   rejection_reason: string | null;
   as_of: string;
@@ -718,8 +1043,7 @@ async function outbound<T>(
         ok: false,
         status: res.status,
         unverifiable: res.status === 422,
-        error:
-          typeof detail === "string" ? detail : `${res.status} ${res.statusText}`,
+        error: typeof detail === "string" ? detail : `${res.status} ${res.statusText}`,
       };
     }
     return { ok: true, data: body as T };
@@ -789,5 +1113,103 @@ export function decideDraft(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ by, note: note?.trim() || null }),
     },
+  );
+}
+
+// ===========================================================================
+// RANKED-LIST EXTRAS AND THE STANDOUT SUMMARY.  [outreach workstream]
+//
+// `GET /companies` returns more than `CompanySummary` declares. Those extra fields
+// are typed here rather than widened into `lib/types.ts`, which several workstreams
+// share — TypeScript ignores unknown keys, so the wire has always carried them.
+//
+// THE STANDOUT SUMMARY IS THE BACKEND'S (api/standout.py). This client does not
+// write one and must never call a model to. The distinctiveness is computed in
+// Python over the whole corpus — a rare green-flag rule, a trait far off the corpus
+// median, an evidence footprint at the edge of the distribution — and the model is
+// only ever allowed to turn those computed findings into a sentence, against spans
+// it must quote. `summary_source` says which happened, and it is rendered, because
+// a card that hides whether a model wrote its prose is the ungrounded text this
+// whole endpoint exists to replace.
+//
+// A row that has not been computed yet carries `status: "not_generated"` and a NULL
+// summary. That is rendered as "not yet generated", never as an empty line — an
+// empty line reads as a finding of nothing, which is a different claim.
+// ===========================================================================
+
+/** One computed difference between this company and the rest of the corpus. */
+export interface Distinctive {
+  kind: string;
+  key: string;
+  detail: string;
+  /** How this company sits against the corpus — the comparison, in words. */
+  comparison: string;
+  direction: string;
+  /** 0..1. How far from the field this is. */
+  strength: number;
+  citable: boolean;
+  evidence_event_ids: string[];
+}
+
+export interface Standout {
+  company_id: string;
+  /** Null when nothing has been computed yet, or when nothing is distinctive. */
+  summary: string | null;
+  /** "model" — a model wrote the sentence from our findings. "computed" — Python did. */
+  summary_source?: "model" | "computed";
+  status?: "not_generated";
+  citations?: Citation[];
+  distinctives?: Distinctive[];
+  distinctive_count?: number;
+  /** Sentences the verifier deleted. Recorded, not hidden — a drop is the mechanism working. */
+  dropped_sentences?: string[];
+  reason?: string | null;
+  generated_at?: string;
+  cached?: boolean;
+  hint?: string;
+}
+
+/** Extra fields `GET /companies` serves beyond the `CompanySummary` contract. */
+export interface RankExtras {
+  /** The backend's own core position, 1-based. */
+  rank?: number;
+  /** Integrity flag names, e.g. ["transliterated_name", "non_english_source"]. */
+  flags?: string[];
+  unverified_claims?: number;
+  gate_rationale?: string;
+  /** The UUID. The list's `id` is the slug. */
+  company_id?: string;
+  standout?: Standout;
+}
+
+export type RankedCompany = CompanySummary & RankExtras;
+
+/**
+ * There is NO logo field on any company route, and this is the only place one could
+ * enter. It returns null for every company today, on purpose, so the absence is one
+ * auditable line rather than thirteen silent ones.
+ *
+ * Do not make it guess a domain from the company name and hit a favicon service. It
+ * would succeed often enough to look like it works and fail silently by attaching a
+ * stranger's brand to a company in an investor's shortlist — a fabrication wearing
+ * someone else's trademark, and exactly the class of error the rest of this system
+ * refuses. `CompanyMark` renders a typographic monogram when this returns null.
+ */
+export function logoUrl(_c: RankedCompany): string | null {
+  void _c;
+  return null;
+}
+
+/**
+ * Compute (or re-read) the standout summary for one company.
+ *
+ * Not called for the whole list on page load: the comparison plus its one model call
+ * runs to roughly a second per company, and thirteen of them would hold the ranked
+ * list hostage. The list renders what is already cached and offers this per row.
+ */
+export function getStandout(companyId: string, refresh = false) {
+  return outbound<Standout>(
+    `/companies/${encodeURIComponent(companyId)}/standout${refresh ? "?refresh=true" : ""}`,
+    { timeoutMs: TIMEOUT.llm },
   );
 }

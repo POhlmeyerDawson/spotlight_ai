@@ -26,6 +26,7 @@ const NAV = [
   { href: "/", label: "Account", hint: "sign in — personalisation only" },
   { href: "/plates", label: "Plates", hint: "the poster sequence" },
   { href: "/pipeline", label: "Pipeline", hint: "core rank + compound query" },
+  { href: "/thesis", label: "Thesis", hint: "standing mandate — excludes from the pipeline" },
   { href: "/profile", label: "Profile", hint: "survey, decision history, the gap" },
   { href: "/council", label: "Council", hint: "derived + authored council agents" },
   { href: "/personal", label: "Your rank", hint: "personal rank beside core rank" },

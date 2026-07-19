@@ -64,9 +64,16 @@ export function useMemoDissent(companyId: string): MemoDissentState {
     setError(null);
     try {
       const d = await getDissent(companyId);
-      if (!d) {
+      if ("kind" in d) {
+        // Two different sentences, because they are two different claims. Saying "no
+        // dissent exists" when the council simply could not run states something about
+        // the company that no part of the system ever concluded.
         setError(
-          "No dissent exists for this company, so the recommendation cannot be unlocked. The lock is the server's, and this page does not work around it.",
+          d.kind === "absent"
+            ? "No dissent exists for this company, so the recommendation cannot be unlocked. The lock is the server's, and this page does not work around it."
+            : d.needsModel
+              ? `The council could not run, so no dissent was produced: ${d.reason}. This is a gap in what we could compute, not a finding about this company — the recommendation stays locked and the axes above are unaffected.`
+              : `The dissent could not be loaded: ${d.reason}. Nothing is being claimed about this company either way — the recommendation stays locked until the bear case can actually be served.`,
         );
         return;
       }

@@ -15,6 +15,10 @@ data/llm_cache/*
 data/raw/*
 !data/raw/.gitkeep
 
+# uploaded decks: founder-supplied binaries, never committed
+data/decks/*
+!data/decks/.gitkeep
+
 .DS_Store
 
 # local event store (regenerate with scripts/seed.py)
@@ -23,3 +27,16 @@ data/*.db-journal
 
 # agent worktrees from other sessions — never part of this repo
 .claude/worktrees/
+
+# pre-purge database dumps. These are full-table snapshots and include the users,
+# sessions and login_attempts tables — i.e. argon2 password hashes and session token
+# hashes. They exist so a destructive corpus edit is recoverable; they must never be
+# committed. Keep them locally, or move them somewhere with the same access posture
+# as the database itself.
+data/backups/
+
+# computed caches — recomputed on demand, and the standout frame key does not
+# survive a process restart anyway (see scripts/warm.py), so committing it would
+# ship a cache that is already stale.
+data/standout_cache/
+data/llm_cache_test_untrusted/
