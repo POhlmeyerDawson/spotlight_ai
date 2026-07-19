@@ -12,7 +12,7 @@ from datetime import datetime
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import auth, companies, insights, profile
+from api.routers import auth, companies, insights, personal, profile
 from api.routers.deps import degrade, pick, resolve_as_of, seed, seed_or
 
 app = FastAPI(title="VC Brain", version="0.1.0")
@@ -41,6 +41,7 @@ app.include_router(insights.router)
 # a broken login must degrade to the objective product, never to a blank page.
 app.include_router(auth.router)
 app.include_router(profile.router)
+app.include_router(personal.router)
 
 
 @app.get("/health")

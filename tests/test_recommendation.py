@@ -331,12 +331,35 @@ def test_check_size_comes_from_the_thesis_fixture(monkeypatch):
     assert cs["min"] == 250_000 and cs["max"] == 2_000_000
 
 
-def test_a_malformed_thesis_check_size_falls_back_and_says_so(tmp_path, monkeypatch):
+def test_a_bare_check_size_is_honoured_but_the_inference_is_disclosed(tmp_path, monkeypatch):
+    """CONTRACT CHANGE, made deliberately when two config readers were collapsed into one.
+
+    A bare number used to be reported as malformed, which meant one ambiguous-but-usable
+    field disabled every recommendation in the system. It is now read as the target with
+    a range derived around it — but the source string SAYS the range was derived, so an
+    inferred range can never pass for a stated one. Same rule as the axes' `live` flag
+    and the memo's gap list: use what you have, disclose what you inferred.
+    """
     seed_dir = tmp_path / "s"
     seed_dir.mkdir()
-    # The shape an older fixture uses: a bare number, not a range.
     (seed_dir / "thesis.json").write_text(json.dumps({"check_size": 250000}))
     monkeypatch.setenv("VCBRAIN_SEED_DIR", str(seed_dir))
+
+    cs, source = memo._check_size()
+    assert cs["target"] == 250000
+    assert cs["min"] < cs["target"] < cs["max"], "a usable range must be derived"
+    assert "derived" in source, "an inferred range must never be presented as a stated one"
+
+
+def test_a_genuinely_malformed_check_size_still_falls_back(tmp_path, monkeypatch):
+    """Unordered bounds are not ambiguous, they are wrong — and must not be repaired."""
+    seed_dir = tmp_path / "s"
+    seed_dir.mkdir()
+    (seed_dir / "thesis.json").write_text(
+        json.dumps({"check_size": {"min": 900, "target": 100, "max": 50}})
+    )
+    monkeypatch.setenv("VCBRAIN_SEED_DIR", str(seed_dir))
+
     cs, source = memo._check_size()
     assert cs == memo.CHECK_SIZE_FALLBACK
     assert source.startswith("fallback")

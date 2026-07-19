@@ -66,7 +66,11 @@ export default function IntegrityPanel({ flags }: { flags: IntegrityFlag[] }) {
                 </p>
               )}
 
-              <p className="text-[15px] leading-[1.55] text-[color:var(--muted)]">{f.detail}</p>
+              {f.detail && (
+                <p className="text-[15px] leading-[1.55] text-[color:var(--muted)]">
+                  {f.detail}
+                </p>
+              )}
 
               {f.effect_on_score && (
                 <p className="mt-1.5 text-[14px] leading-[1.55] text-[color:var(--muted)]">

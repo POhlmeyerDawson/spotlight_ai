@@ -36,7 +36,17 @@ import json
 from pathlib import Path
 from typing import Any
 
-SEED = Path("data/seed/thesis.json")
+def seed_path() -> Path:
+    """Where the thesis lives.
+
+    Honours VCBRAIN_SEED_DIR, the same override api/routers/deps.py uses. Hardcoding
+    the path made this module read the production config even under test isolation —
+    so a test pointing at a tmp fixture silently asserted against the real file, and
+    any deployment with a relocated seed dir would have been ignored without a word.
+    """
+    import os
+
+    return Path(os.getenv("VCBRAIN_SEED_DIR", "data/seed")) / "thesis.json"
 
 # Applied when the file is missing or a field is absent. Permissive by design: a
 # missing thesis must not silently filter the pipeline to nothing.
@@ -51,7 +61,7 @@ DEFAULTS: dict[str, Any] = {
 
 
 def load(path: Path | None = None) -> dict:
-    p = path or SEED
+    p = path or seed_path()
     if not p.exists():
         return dict(DEFAULTS)
     blob = json.loads(p.read_text())

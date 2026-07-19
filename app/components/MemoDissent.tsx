@@ -14,23 +14,50 @@ import { AXIS_KEYS, AXIS_LABEL, type AxisKey } from "@/lib/types";
 import type { MemoDissentState } from "@/lib/useMemoDissent";
 import { Busy, EmptyState, ErrorNote, Loading } from "./ui";
 
-/** Renders [e-xx-01] citations as monospace chips so every claim visibly carries its id. */
+/**
+ * Renders inline citations as monospace chips so every claim visibly carries its id.
+ *
+ * Two citation dialects arrive here. Fixtures use short human ids (`[e-hx-01]`) which
+ * are readable inline and are chipped as-is. The live council emits raw UUID lists
+ * (`[evidence: df924ecc-f045-…,20e0d58d-…,3fc86b06-…]`) which ran to ~200 characters and
+ * swallowed the sentence they were attached to — three lines of hex in the middle of the
+ * one paragraph that states the bear case.
+ *
+ * A UUID is not information a reader uses, but dropping it would cost the traceability
+ * claim. So a UUID block collapses to a count, with the full ids kept in the title for
+ * anyone who needs them: the citation is still there, it just stops shouting.
+ */
+const UUID_RE =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
 function Cited({ text }: { text: string }) {
   const parts = text.split(/(\[[^\]]+\])/g);
   return (
     <>
-      {parts.map((p, i) =>
-        /^\[.+\]$/.test(p) ? (
+      {parts.map((p, i) => {
+        if (!/^\[.+\]$/.test(p)) return <span key={i}>{p}</span>;
+
+        const ids = p.match(UUID_RE);
+        if (ids) {
+          return (
+            <code
+              key={i}
+              title={ids.join("\n")}
+              className="mx-0.5 cursor-help bg-[color:var(--ink-09)] px-1.5 py-0.5 font-mono text-[12px] text-[var(--accent)]"
+            >
+              ▸ {ids.length} {ids.length === 1 ? "event" : "events"}
+            </code>
+          );
+        }
+        return (
           <code
             key={i}
             className="mx-0.5 bg-[color:var(--ink-09)] px-1.5 py-0.5 font-mono text-[12px] text-[var(--accent)]"
           >
             {p}
           </code>
-        ) : (
-          <span key={i}>{p}</span>
-        ),
-      )}
+        );
+      })}
     </>
   );
 }
@@ -271,7 +298,7 @@ export default function MemoDissent({ state }: { state: MemoDissentState }) {
                   ◂ Load-bearing claim — if this is false, the thesis fails
                 </h4>
                 <p className="mt-1.5 text-[16px] leading-[1.5] font-medium text-[color:var(--figure)]">
-                  {dissent.data.load_bearing_claim}
+                  <Cited text={dissent.data.load_bearing_claim} />
                 </p>
                 <p className="mt-1.5 text-[13px] text-[color:var(--muted)]">
                   Named, not hedged. This is the one thing to go and check.
@@ -281,7 +308,7 @@ export default function MemoDissent({ state }: { state: MemoDissentState }) {
               <div>
                 <h4 className="meta text-[color:var(--muted)]">Bear case</h4>
                 <p className="mt-1.5 text-[15px] leading-[1.55] text-[color:var(--muted)]">
-                  {dissent.data.bear_case}
+                  <Cited text={dissent.data.bear_case} />
                 </p>
               </div>
 
@@ -294,7 +321,7 @@ export default function MemoDissent({ state }: { state: MemoDissentState }) {
                         key={i}
                         className="border border-[color:var(--rule)] bg-[color:var(--ink-09)] px-3 py-2 text-[14px] leading-snug text-[color:var(--muted)]"
                       >
-                        {w}
+                        <Cited text={w} />
                       </li>
                     ))}
                   </ul>

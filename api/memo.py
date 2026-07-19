@@ -289,30 +289,37 @@ CHECK_SIZE_FALLBACK = {"currency": "USD", "min": 250_000, "target": 750_000, "ma
 
 
 def _check_size() -> tuple[dict, str]:
-    """The thesis check_size range, read straight from the seed fixture.
+    """The thesis check_size range, via the single config reader in core/thesis.py.
 
-    FOLLOW-UP, deliberately not done here: `core/thesis.py::check_size()` landed while
-    this was being written and normalizes the same field, so there are now two readers of
-    one config. This one stays direct because that module is another workstream's and was
-    still moving; collapsing them is a one-line delegation once it settles. The behaviours
-    differ on one input — a bare number, which that loader reads as a target and derives a
-    range around, and this one reports as malformed rather than inventing a min and a max.
+    There were briefly two readers of one config, interpreting it differently — which
+    is how a config silently drifts from what its consumers believe it says. Collapsed
+    to one, and the disagreement resolved deliberately rather than by whoever ran last:
+
+    a BARE NUMBER is now honoured as the target with a range derived around it, rather
+    than reported as malformed. Refusing it meant one ambiguous-but-usable field
+    disabled every recommendation in the system. But the inference is DISCLOSED in the
+    source string, so a derived range never passes for a stated one — the same rule the
+    axes follow with their `live` flag, and the memo with its gap list.
     """
-    from api.routers.deps import seed_or
+    from core import thesis as thesis_mod
 
-    raw = (seed_or("thesis", {}) or {}).get("check_size")
-    if isinstance(raw, dict):
-        try:
-            lo, target, hi = float(raw["min"]), float(raw["target"]), float(raw["max"])
-        except (KeyError, TypeError, ValueError):
-            return CHECK_SIZE_FALLBACK, "fallback: thesis check_size is malformed"
-        if 0 < lo <= target <= hi:
-            return (
-                {"currency": str(raw.get("currency", "USD")), "min": lo, "target": target, "max": hi},
-                "thesis",
-            )
+    raw = (thesis_mod.load() or {}).get("check_size")
+    cs = thesis_mod.check_size()
+
+    try:
+        lo, target, hi = float(cs["min"]), float(cs["target"]), float(cs["max"])
+    except (KeyError, TypeError, ValueError):
+        return CHECK_SIZE_FALLBACK, "fallback: thesis check_size is malformed"
+
+    if not (0 < lo <= target <= hi):
         return CHECK_SIZE_FALLBACK, "fallback: thesis check_size is not an ordered min<=target<=max"
-    return CHECK_SIZE_FALLBACK, "fallback: thesis defines no check_size range"
+
+    band = {"currency": str(cs.get("currency", "USD")), "min": lo, "target": target, "max": hi}
+    if isinstance(raw, dict):
+        return band, "thesis"
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return band, f"thesis: range derived around a stated target of {target:,.0f}"
+    return band, "fallback: thesis defines no check_size range"
 
 
 def _screening(cid: UUID, as_of: datetime):

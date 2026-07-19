@@ -293,12 +293,11 @@ function toIntegrity(raw: unknown): IntegrityFlag[] {
         severity: severityOf(flag, str(f.severity)),
         // Live calls this `location`.
         where: str(f.where) ?? str(f.location) ?? str(f.locator) ?? `finding ${i + 1}`,
-        // No `detail` field exists live; the measurements are the detail.
-        detail:
-          str(f.detail) ??
-          str(f.note) ??
-          measureLine(f.measure) ??
-          "No detail reported.",
+        // No `detail` field exists live; the measurements are the detail. Empty when
+        // there is genuinely nothing — a card carrying the effect, the quoted payload
+        // and the action taken does not need a line announcing that a fourth field was
+        // absent. "No detail reported." was pure placeholder noise.
+        detail: str(f.detail) ?? str(f.note) ?? measureLine(f.measure) ?? "",
         // Live calls the quoted payload `extracted_text`. Dropping it meant the caught
         // injection — the thing worth seeing — was never rendered.
         quoted_span: str(f.quoted_span) ?? str(f.span) ?? str(f.extracted_text),
