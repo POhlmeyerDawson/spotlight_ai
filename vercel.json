@@ -8,7 +8,8 @@
     "api/index.py": {
       "runtime": "@vercel/python@4.3.0",
       "maxDuration": 60,
-      "memory": 1024
+      "memory": 1024,
+      "includeFiles": "{api,core,schema,memory,sourcing,intelligence,backtest,data/seed,data/llm_cache}/**"
     }
   },
   "rewrites": [
