@@ -23,11 +23,11 @@
   },
   "recommendation": "PROCEED to a first conversation, at the top of this week's list. Strongest technical evidence in the current set, visibility percentile 0.07. Lead with the commercial question.",
   "citations": [
-    {"ref": "intl-zaryad#0", "span": "commit c81b204 \"blocksparse: tile so the working set fits 8GB; the point is the cheap card\"", "url": "https://github.com/kmorozova-dev/sparsekern/commits/main"},
-    {"ref": "intl-zaryad#1", "span": "\"Мы показываем снижение потребления памяти на 61% при потере качества менее 1% на последовательностях до 32k токенов.\"", "span_translated": "\"We show a 61% memory reduction with under 1% quality loss at sequence lengths up to 32k.\"", "url": "https://cyberleninka.ru/article/n/blochno-razrezhennoe-vnimanie-na-potrebitelskih-gpu", "language": "ru"},
-    {"ref": "intl-zaryad#3", "span": "v0.3.0 — \"32k context on a 3060. Benchmarks reproduce with one script and no cluster.\"", "url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.3.0"},
-    {"ref": "intl-zaryad#4", "span": "\"Два года я поддерживаю эту библиотеку одна.\"", "span_translated": "\"I have maintained this library alone for two years.\"", "url": "https://habr.com/ru/articles/812934/", "language": "ru"},
-    {"ref": "intl-zaryad#6", "span": "v0.5.0 — \"int8 KV path stable. 63 dependent repos, most of them in languages I do not read.\"", "url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.5.0"}
+    {"ref": "intl-zaryad#0", "span": "commit c81b204 \"blocksparse: tile so the working set fits 8GB; the point is the cheap card\"", "url": "https://github.example.invalid/kmorozova-dev/sparsekern/commits/main"},
+    {"ref": "intl-zaryad#1", "span": "\"Мы показываем снижение потребления памяти на 61% при потере качества менее 1% на последовательностях до 32k токенов.\"", "span_translated": "\"We show a 61% memory reduction with under 1% quality loss at sequence lengths up to 32k.\"", "url": "https://cyberleninka.example.invalid/article/n/blochno-razrezhennoe-vnimanie-na-potrebitelskih-gpu", "language": "ru"},
+    {"ref": "intl-zaryad#3", "span": "v0.3.0 — \"32k context on a 3060. Benchmarks reproduce with one script and no cluster.\"", "url": "https://github.example.invalid/kmorozova-dev/sparsekern/releases/tag/v0.3.0"},
+    {"ref": "intl-zaryad#4", "span": "\"Два года я поддерживаю эту библиотеку одна.\"", "span_translated": "\"I have maintained this library alone for two years.\"", "url": "https://habr.example.invalid/ru/articles/812934/", "language": "ru"},
+    {"ref": "intl-zaryad#6", "span": "v0.5.0 — \"int8 KV path stable. 63 dependent repos, most of them in languages I do not read.\"", "url": "https://github.example.invalid/kmorozova-dev/sparsekern/releases/tag/v0.5.0"}
   ],
   "entity_resolution_notes": [
     "Four name forms - Ксения Морозова, Ksenia Morozova, Kseniia Morozova, Xenia Morozova - merged into one entity on a shared repository URL, confidence 0.88. If this merge is wrong, the founder score is overstated and should be recomputed per fragment."

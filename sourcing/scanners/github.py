@@ -11,6 +11,7 @@ clear error rather than a hang or a stack trace.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from core.config import settings
@@ -26,9 +27,57 @@ MAX_REPOS = 3  # 60 req/hr unauthenticated: 2 + 4*MAX_REPOS keeps a full scan af
 MAX_COMMITS = 30
 
 
+_REPO_URL_RE = re.compile(r"^(?:https?://)?(?:www\.)?github\.com/(?P<slug>[^/]+/[^/#?]+)")
+
+
+def repo_slug(ref: str) -> str | None:
+    """`owner/name` from a repo URL or a bare `owner/name`. None when it is neither.
+
+    `scan()` takes a LOGIN, and a caller handing it a repo URL produced
+    `GET /users/https://github.com/karpathy/nanochat` -> 404 -> silently no signals.
+    Parsing is separated from fetching so that mistake is a None here, not a 404 there.
+    """
+    s = (ref or "").strip().rstrip("/")
+    if not s:
+        return None
+    if m := _REPO_URL_RE.match(s):
+        s = m.group("slug")
+    elif s.startswith(("http://", "https://")):
+        return None  # some other host entirely
+    s = s.removesuffix(".git")
+    parts = [p for p in s.split("/") if p]
+    return f"{parts[0]}/{parts[1]}" if len(parts) == 2 else None
+
+
+def scan_repo(ref: str, limit: int = MAX_COMMITS) -> list[RawSignal]:
+    """Commits of ONE repository, addressed by URL or `owner/name`.
+
+    Unlike `scan()` this RAISES — bus.FetchError(404) for a repo that does not exist,
+    ValueError for a reference that was never a repo. api/attest.py has to tell those
+    apart: "the repo 404s" is evidence about the submission, "we asked wrong" is a bug,
+    and collapsing both into None is what hid this for the whole project.
+
+    One request. Attestation must not spend the hourly GitHub budget on fan-out.
+    """
+    full = repo_slug(ref)
+    if full is None:
+        raise ValueError(f"not a github repository reference: {ref!r}")
+    commits = bus.fetch_json(
+        f"{API}/repos/{full}/commits",
+        {"per_page": min(limit, MAX_COMMITS)},
+        cache_dir=CACHE,
+        headers=_headers(),
+    )
+    return [_commit(c, full) for c in commits or []][:limit]
+
+
 def scan(query: str, limit: int = 50) -> list[RawSignal]:
     """query is a GitHub login. Partial results beat no results — see _get."""
     login = query.strip().lstrip("@")
+    if "/" in login or login.startswith(("http://", "https://")):
+        # Loud, because the silent version was a 404 that read as "this founder has no
+        # GitHub footprint" for every attestation the system ever produced.
+        raise ValueError(f"scan() takes a login, not a repo reference: {query!r} — use scan_repo()")
     signals: list[RawSignal] = []
 
     user = _get(f"/users/{login}")

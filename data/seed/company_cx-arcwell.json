@@ -18,9 +18,9 @@
       "band": 0.12,
       "evidence_count": 6,
       "evidence": [
-        {"event_ref": "cx-arcwell#0", "kind": "repo_activity", "source": "github", "observed_at": "2024-06-18T09:00:00+00:00", "span": "commit 2f81ba0 \"as-of joins: never leak a feature value observed after the label\"", "url": "https://github.com/arcwell-data/arcwell/commits/main"},
-        {"event_ref": "cx-arcwell#1", "kind": "release", "source": "github", "observed_at": "2024-11-07T12:00:00+00:00", "span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"", "url": "https://github.com/arcwell-data/arcwell/releases/tag/v0.2.0"},
-        {"event_ref": "cx-arcwell#4", "kind": "hn_comment", "source": "hn", "observed_at": "2025-05-02T17:45:00+00:00", "span": "\"We are still pre-revenue. Everyone on Arcwell today is on a free design-partner agreement and we have not turned billing on.\"", "url": "https://news.ycombinator.com/item?id=43790112", "weight": "negative"}
+        {"event_ref": "cx-arcwell#0", "kind": "repo_activity", "source": "github", "observed_at": "2024-06-18T09:00:00+00:00", "span": "commit 2f81ba0 \"as-of joins: never leak a feature value observed after the label\"", "url": "https://github.example.invalid/arcwell-data/arcwell/commits/main"},
+        {"event_ref": "cx-arcwell#1", "kind": "release", "source": "github", "observed_at": "2024-11-07T12:00:00+00:00", "span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"", "url": "https://github.example.invalid/arcwell-data/arcwell/releases/tag/v0.2.0"},
+        {"event_ref": "cx-arcwell#4", "kind": "hn_comment", "source": "hn", "observed_at": "2025-05-02T17:45:00+00:00", "span": "\"We are still pre-revenue. Everyone on Arcwell today is on a free design-partner agreement and we have not turned billing on.\"", "url": "https://hn.example.invalid/item?id=43790112", "weight": "negative"}
       ]
     },
     "market": {
@@ -30,7 +30,7 @@
       "band": 0.16,
       "evidence_count": 2,
       "evidence": [
-        {"event_ref": "cx-arcwell#1", "kind": "release", "source": "github", "observed_at": "2024-11-07T12:00:00+00:00", "span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"", "url": "https://github.com/arcwell-data/arcwell/releases/tag/v0.2.0"}
+        {"event_ref": "cx-arcwell#1", "kind": "release", "source": "github", "observed_at": "2024-11-07T12:00:00+00:00", "span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"", "url": "https://github.example.invalid/arcwell-data/arcwell/releases/tag/v0.2.0"}
       ]
     },
     "idea_vs_market": {
@@ -40,7 +40,7 @@
       "band": 0.14,
       "evidence_count": 3,
       "evidence": [
-        {"event_ref": "cx-arcwell#5", "kind": "hn_comment", "source": "hn", "observed_at": "2025-05-02T19:10:00+00:00", "span": "\"To be precise: six design partners, zero invoices sent. Pricing page goes up when the usage metering is trustworthy.\"", "url": "https://news.ycombinator.com/item?id=43790450", "weight": "negative"}
+        {"event_ref": "cx-arcwell#5", "kind": "hn_comment", "source": "hn", "observed_at": "2025-05-02T19:10:00+00:00", "span": "\"To be precise: six design partners, zero invoices sent. Pricing page goes up when the usage metering is trustworthy.\"", "url": "https://hn.example.invalid/item?id=43790450", "weight": "negative"}
       ]
     }
   },
@@ -59,7 +59,7 @@
       "self_published": true,
       "claim_asserted_at": "2025-03-12T00:00:00+00:00",
       "counter_evidence_at": "2025-05-02T17:45:00+00:00",
-      "corroborating_url": "https://news.ycombinator.com/item?id=43790112",
+      "corroborating_url": "https://hn.example.invalid/item?id=43790112",
       "corroborating_span": "\"We are still pre-revenue. Everyone on Arcwell today is on a free design-partner agreement and we have not turned billing on.\"",
       "timeline_verdict": "counter-evidence is 51 days NEWER than the claim. A company cannot grow into being pre-revenue.",
       "note": "Compare cx-tallwind, where the identical pair of statements appears in the opposite order and is scored as growth."

@@ -3,7 +3,8 @@
   "collection_rule": "No source observed after a member's `collection_cutoff` was collected. The cutoff is that member's breakout date, so every event in this file predates the moment the founder became widely known. The replay applies a second, independent cut at read time via as_of.",
   "provenance": {
     "reconstructed-from-public-record": "Winners are real companies. Their events are reconstructed from public GitHub history, release tags, Hacker News archives and arXiv listings from the stated dates. Payload counts (commit volumes, star counts, contributor counts) are approximations of the public record, not exact API captures — we did not have archival API access to those years. The SHAPE of the history is faithful; individual integers are estimates.",
-    "synthetic": "Controls and the deprioritized failure are SYNTHETIC composites, not real companies. They are constructed to be comparably visible to their matched winner while lacking sustained build evidence — which is precisely the confound the H12 fame check exists to detect. A synthetic control is a weaker test than a real one, and this file says so rather than implying otherwise."
+    "synthetic": "Controls and the deprioritized failure are SYNTHETIC composites, not real companies. They are constructed to be comparably visible to their matched winner while lacking sustained build evidence — which is precisely the confound the H12 fame check exists to detect. A synthetic control is a weaker test than a real one, and this file says so rather than implying otherwise.",
+    "real-controls": "Three controls (Flynn, Deis, Space Cloud) are REAL companies: same era, same category, comparably visible at the time, and each with a citable non-breakout outcome. Every one of their events carries a `verification` field marking each fact VERIFIED (with the URL it came from), UNVERIFIED-RECALL, or NOT-FOUND. Only the event's existence, kind, date, source URL and retrievable headline metrics (HN points and comment counts, release tags, repository creation dates) are asserted. Historical commit volumes, lines changed, star counts and contributor counts at a past date could NOT be retrieved without archival API access, so those payload fields are OMITTED rather than estimated. That omission is not neutral: it removes scoring inputs the winners have, so a real control's low score is partly an artifact of what could be retrieved about it. The calibration reports that handicap as an evidence-parity ratio and refuses to read a bare PASS off these members. See docs/CALIBRATION.md."
   },
   "threshold": {
     "value": 0.62,
@@ -14,7 +15,8 @@
   "gate_h12": {
     "name": "fame-vs-trajectory",
     "assertion": "no control founder clears the threshold at any replayed as_of",
-    "interpretation": "Controls are matched contemporaries with comparable visibility. If a control clears, the score is measuring fame rather than trajectory and feature work stops until that is fixed. The PASS/FAIL is computed at replay time from replayed control scores; it is deliberately not recorded here."
+    "interpretation": "Controls are matched contemporaries with comparable visibility. If a control clears, the score is measuring fame rather than trajectory and feature work stops until that is fixed. The PASS/FAIL is computed at replay time from replayed control scores; it is deliberately not recorded here.",
+    "real_control_caveat": "The four synthetic controls were written by the same author as the winners they are compared against, which is a materially weaker test than real contemporaries. The three real controls fix the authorship problem but introduce an evidence-parity problem in its place. Neither arm alone establishes the gate; the calibration reports both and states which."
   },
   "winners": [
     {
@@ -1010,7 +1012,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=northgate-1",
+          "source_url": "https://hn.example.invalid/item?id=northgate-1",
           "observed_at": "2013-04-02T14:00:00+00:00",
           "payload": {
             "title": "Northgate Runtime: rethinking how software is packaged and shipped",
@@ -1036,7 +1038,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/northgate/runtime/commits/main",
+          "source_url": "https://github.example.invalid/northgate/runtime/commits/main",
           "observed_at": "2013-04-30T10:00:00+00:00",
           "payload": {
             "repo": "northgate/runtime",
@@ -1066,7 +1068,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=northgate-2",
+          "source_url": "https://hn.example.invalid/item?id=northgate-2",
           "observed_at": "2013-08-14T13:00:00+00:00",
           "payload": {
             "title": "The deployment problem nobody is solving",
@@ -1092,7 +1094,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/northgate/runtime/commits/main",
+          "source_url": "https://github.example.invalid/northgate/runtime/commits/main",
           "observed_at": "2013-11-20T10:00:00+00:00",
           "payload": {
             "repo": "northgate/runtime",
@@ -1110,7 +1112,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=northgate-3",
+          "source_url": "https://hn.example.invalid/item?id=northgate-3",
           "observed_at": "2014-02-05T13:00:00+00:00",
           "payload": {
             "title": "Northgate Runtime: our vision for the next decade of infrastructure",
@@ -1133,7 +1135,8 @@
           "evidence_span": "roundup article, April 2014",
           "confidence": 0.8
         }
-      ]
+      ],
+      "control_kind": "synthetic"
     },
     {
       "id": "ctl-parallax-models",
@@ -1155,7 +1158,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=parallax-1",
+          "source_url": "https://hn.example.invalid/item?id=parallax-1",
           "observed_at": "2018-11-28T14:00:00+00:00",
           "payload": {
             "title": "Parallax Models: making state-of-the-art language models accessible to everyone",
@@ -1181,7 +1184,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/parallax/models/commits/main",
+          "source_url": "https://github.example.invalid/parallax/models/commits/main",
           "observed_at": "2019-01-22T10:00:00+00:00",
           "payload": {
             "repo": "parallax/models",
@@ -1211,7 +1214,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=parallax-2",
+          "source_url": "https://hn.example.invalid/item?id=parallax-2",
           "observed_at": "2019-06-11T13:00:00+00:00",
           "payload": {
             "title": "Why the next decade of AI belongs to open models",
@@ -1237,7 +1240,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/parallax/models/commits/main",
+          "source_url": "https://github.example.invalid/parallax/models/commits/main",
           "observed_at": "2019-11-19T10:00:00+00:00",
           "payload": {
             "repo": "parallax/models",
@@ -1255,7 +1258,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=parallax-3",
+          "source_url": "https://hn.example.invalid/item?id=parallax-3",
           "observed_at": "2020-02-20T13:00:00+00:00",
           "payload": {
             "title": "Parallax Models: our platform roadmap for 2020",
@@ -1278,7 +1281,8 @@
           "evidence_span": "survey article, April 2020",
           "confidence": 0.8
         }
-      ]
+      ],
+      "control_kind": "synthetic"
     },
     {
       "id": "ctl-riverbend-data",
@@ -1300,7 +1304,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=riverbend-1",
+          "source_url": "https://hn.example.invalid/item?id=riverbend-1",
           "observed_at": "2020-02-04T14:00:00+00:00",
           "payload": {
             "title": "Riverbend Data: the database layer modern applications deserve",
@@ -1326,7 +1330,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/riverbend/core/commits/main",
+          "source_url": "https://github.example.invalid/riverbend/core/commits/main",
           "observed_at": "2020-05-06T10:00:00+00:00",
           "payload": {
             "repo": "riverbend/core",
@@ -1344,7 +1348,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=riverbend-2",
+          "source_url": "https://hn.example.invalid/item?id=riverbend-2",
           "observed_at": "2020-09-15T13:00:00+00:00",
           "payload": {
             "title": "Riverbend Data: why we are rebuilding the data stack",
@@ -1370,7 +1374,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/riverbend/core/commits/main",
+          "source_url": "https://github.example.invalid/riverbend/core/commits/main",
           "observed_at": "2021-02-11T10:00:00+00:00",
           "payload": {
             "repo": "riverbend/core",
@@ -1388,7 +1392,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=riverbend-3",
+          "source_url": "https://hn.example.invalid/item?id=riverbend-3",
           "observed_at": "2021-05-27T13:00:00+00:00",
           "payload": {
             "title": "Riverbend Data opens its private beta",
@@ -1411,7 +1415,8 @@
           "evidence_span": "feature article, July 2021",
           "confidence": 0.8
         }
-      ]
+      ],
+      "control_kind": "synthetic"
     },
     {
       "id": "ctl-hallmark-edge",
@@ -1434,7 +1439,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=hallmark-1",
+          "source_url": "https://hn.example.invalid/item?id=hallmark-1",
           "observed_at": "2016-11-08T14:00:00+00:00",
           "payload": {
             "title": "Hallmark Edge: the last frontend platform you will ever need",
@@ -1472,7 +1477,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/hallmark/edge/commits/main",
+          "source_url": "https://github.example.invalid/hallmark/edge/commits/main",
           "observed_at": "2017-04-19T10:00:00+00:00",
           "payload": {
             "repo": "hallmark/edge",
@@ -1490,7 +1495,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=hallmark-2",
+          "source_url": "https://hn.example.invalid/item?id=hallmark-2",
           "observed_at": "2017-08-02T13:00:00+00:00",
           "payload": {
             "title": "The web is broken and here is how we fix it",
@@ -1516,7 +1521,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/hallmark/edge/commits/main",
+          "source_url": "https://github.example.invalid/hallmark/edge/commits/main",
           "observed_at": "2018-01-15T10:00:00+00:00",
           "payload": {
             "repo": "hallmark/edge",
@@ -1534,7 +1539,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=hallmark-3",
+          "source_url": "https://hn.example.invalid/item?id=hallmark-3",
           "observed_at": "2018-04-24T13:00:00+00:00",
           "payload": {
             "title": "Hallmark Edge: what we are building in 2018",
@@ -1556,6 +1561,333 @@
           },
           "evidence_span": "profile article, July 2018",
           "confidence": 0.8
+        }
+      ],
+      "control_kind": "synthetic"
+    },
+    {
+      "id": "ctl-real-flynn",
+      "name": "Flynn",
+      "company_name": "Flynn",
+      "sector": "dev-tools",
+      "founder": {
+        "display_name": "Jonathan Rudenberg",
+        "name_normalized": "jonathan rudenberg"
+      },
+      "evidence_provenance": "reconstructed-from-public-record",
+      "control_kind": "real",
+      "matched_to": "wnr-container-runtime",
+      "matching_basis": "Real open-source PaaS built on containers, repo created 2013-07-09, four months after Docker's first public commit and eleven months before Docker's breakout. Its launch thread (339 points) is of the same order as Docker's (470), so it was comparably visible at the time — which is the property the H12 fame check requires.",
+      "outcome": "No breakout. Never raised a Series A; development stopped and the repository was archived 2021-09-04 with the README stating the project is unmaintained and all Flynn infrastructure shut down.",
+      "outcome_citation": "https://news.ycombinator.com/item?id=26295065 (\"RIP Flynn.io\", 285 points, 2021-02-28); https://github.com/flynn/flynn (archived, README: \"[UNMAINTAINED]\")",
+      "collection_cutoff": "2014-06-01T00:00:00+00:00",
+      "truncation_note": "Collected to 2014-06-01, the same cutoff as its matched winner, so the two are scored over the same window. The 2014-06-11 HN thread \"Flynn Container Independence\" (item 7879425) falls after the cutoff and was deliberately not collected.",
+      "founder_name_provenance": "UNVERIFIED-RECALL: Flynn's founders are recalled as Jonathan Rudenberg and Jeff Lindsay; not confirmed against a retrieved source.",
+      "events": [
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/flynn/flynn",
+          "observed_at": "2013-07-09T00:00:00+00:00",
+          "payload": {
+            "repo": "flynn/flynn",
+            "topic": "repository created"
+          },
+          "evidence_span": "repository flynn/flynn created 2013-07-09",
+          "confidence": 0.95,
+          "verification": "VERIFIED: created_at 2013-07-09 from https://api.github.com/repos/flynn/flynn"
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=6058662",
+          "observed_at": "2013-07-17T00:00:00+00:00",
+          "payload": {
+            "title": "Flynn: an open source PaaS",
+            "points": 339,
+            "comments": 153
+          },
+          "evidence_span": "launch thread, 339 points / 153 comments, 2013-07-17",
+          "confidence": 0.95,
+          "verification": "VERIFIED: HN item 6058662 via Algolia; points and comment count as recorded"
+        },
+        {
+          "kind": "profile_fact",
+          "source": "web",
+          "source_url": "http://web.archive.org/web/20130801000000/http://flynn.io/",
+          "observed_at": "2013-07-18T00:00:00+00:00",
+          "payload": {
+            "title": "Flynn crowdfunding campaign 80% funded",
+            "description": "Archived flynn.io snapshot reads \"$60,250 of $75,000 / 12 days left / 80% Funded\"."
+          },
+          "evidence_span": "Wayback snapshot of flynn.io, 2013-07-18",
+          "confidence": 0.9,
+          "verification": "VERIFIED: verbatim text retrieved from the Wayback snapshot"
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=6124614",
+          "observed_at": "2013-07-29T00:00:00+00:00",
+          "payload": {
+            "title": "Flynn 101% Funded",
+            "points": 158
+          },
+          "evidence_span": "funding-target thread, 158 points, 2013-07-29",
+          "confidence": 0.9,
+          "verification": "VERIFIED: HN item 6124614 via Algolia"
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=6735903",
+          "observed_at": "2013-11-14T00:00:00+00:00",
+          "payload": {
+            "title": "Flynn Demo and Roadmap",
+            "points": 43
+          },
+          "evidence_span": "demo and roadmap thread, 43 points, 2013-11-14",
+          "confidence": 0.9,
+          "verification": "VERIFIED: HN item 6735903 via Algolia"
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/flynn/flynn",
+          "observed_at": "2014-04-21T00:00:00+00:00",
+          "payload": {
+            "repo": "flynn/flynn",
+            "topic": "first preview release"
+          },
+          "evidence_span": "first preview release, 2014-04-21",
+          "confidence": 0.9,
+          "verification": "VERIFIED: release date attested by HN item 7622445 (\"Flynn: first preview release\", 2014-04-21). NOT-FOUND: no git tag name retrieved — the repo carries 758 tags and no GitHub Releases."
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=7622445",
+          "observed_at": "2014-04-21T00:00:00+00:00",
+          "payload": {
+            "title": "Flynn: first preview release",
+            "points": 216
+          },
+          "evidence_span": "preview-release thread, 216 points, 2014-04-21",
+          "confidence": 0.95,
+          "verification": "VERIFIED: HN item 7622445 via Algolia"
+        }
+      ]
+    },
+    {
+      "id": "ctl-real-deis",
+      "name": "Deis",
+      "company_name": "Deis",
+      "sector": "dev-tools",
+      "founder": {
+        "display_name": "Gabriel Monroy",
+        "name_normalized": "gabriel monroy"
+      },
+      "evidence_provenance": "reconstructed-from-public-record",
+      "control_kind": "real",
+      "matched_to": "wnr-container-runtime",
+      "matching_basis": "Real container-based PaaS, repo created 2013-07-22, same era and category as the matched winner. This is the HARD control: unlike the synthetic ones, Deis shipped real, dated, versioned releases on a sustained cadence right up to the cutoff. If the score is measuring shipping rather than fame, Deis is where it should be closest to being wrong.",
+      "outcome": "No independent breakout. OpDemand (the company behind Deis) was acquired by Engine Yard 2015-04-14; Microsoft acquired Deis from Engine Yard 2017-04-10 for an undisclosed sum. The repository is archived.",
+      "outcome_citation": "https://techcrunch.com/2017/04/10/microsoft-acquires-container-platform-deis/; https://news.ycombinator.com/item?id=14078838",
+      "collection_cutoff": "2014-06-01T00:00:00+00:00",
+      "truncation_note": "Collected to 2014-06-01, matching its winner. The v1.0 \"Production Ready\" release (HN item 8591209, 2014-11-11) falls well after the cutoff and was not collected.",
+      "founder_name_provenance": "UNVERIFIED-RECALL: Deis/OpDemand founder recalled as Gabriel Monroy; not confirmed against a retrieved source.",
+      "events": [
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/deis/deis",
+          "observed_at": "2013-07-22T00:00:00+00:00",
+          "payload": {
+            "repo": "deis/deis",
+            "topic": "repository created"
+          },
+          "evidence_span": "repository deis/deis created 2013-07-22",
+          "confidence": 0.95,
+          "verification": "VERIFIED: created_at 2013-07-22 from the GitHub API"
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=6167712",
+          "observed_at": "2013-08-06T00:00:00+00:00",
+          "payload": {
+            "title": "Deis: your PaaS, your rules",
+            "points": 131,
+            "comments": 28
+          },
+          "evidence_span": "launch thread, 131 points / 28 comments, 2013-08-06",
+          "confidence": 0.95,
+          "verification": "VERIFIED: HN item 6167712 via Algolia"
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/deis/deis",
+          "observed_at": "2013-10-02T00:00:00+00:00",
+          "payload": {
+            "repo": "deis/deis",
+            "tag": "v0.1.0"
+          },
+          "evidence_span": "v0.1.0 — \"ready for dev/test\"",
+          "confidence": 0.9,
+          "verification": "VERIFIED: release and date attested by HN item 6485297 (2013-10-02)"
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=6485297",
+          "observed_at": "2013-10-02T00:00:00+00:00",
+          "payload": {
+            "title": "Deis 0.1.0",
+            "points": 29
+          },
+          "evidence_span": "release thread, 29 points, 2013-10-02",
+          "confidence": 0.9,
+          "verification": "VERIFIED: HN item 6485297 via Algolia"
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/deis/deis",
+          "observed_at": "2014-03-11T00:00:00+00:00",
+          "payload": {
+            "repo": "deis/deis",
+            "tag": "v0.5.1"
+          },
+          "evidence_span": "v0.5.1",
+          "confidence": 0.9,
+          "verification": "VERIFIED: release and date attested by HN item 7380557 (2014-03-11)"
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=7380557",
+          "observed_at": "2014-03-11T00:00:00+00:00",
+          "payload": {
+            "title": "Deis 0.5.1",
+            "points": 35
+          },
+          "evidence_span": "release thread, 35 points, 2014-03-11",
+          "confidence": 0.9,
+          "verification": "VERIFIED: HN item 7380557 via Algolia"
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/deis/deis",
+          "observed_at": "2014-05-06T00:00:00+00:00",
+          "payload": {
+            "repo": "deis/deis",
+            "tag": "v0.8.0"
+          },
+          "evidence_span": "v0.8.0 — CoreOS integration",
+          "confidence": 0.9,
+          "verification": "VERIFIED: release and date attested by HN item 7706596 (2014-05-06)"
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=7706596",
+          "observed_at": "2014-05-06T00:00:00+00:00",
+          "payload": {
+            "title": "Deis 0.8.0: CoreOS integration",
+            "points": 94
+          },
+          "evidence_span": "release thread, 94 points, 2014-05-06",
+          "confidence": 0.9,
+          "verification": "VERIFIED: HN item 7706596 via Algolia"
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/deis/deis",
+          "observed_at": "2014-05-30T00:00:00+00:00",
+          "payload": {
+            "repo": "deis/deis",
+            "tag": "v0.9.0"
+          },
+          "evidence_span": "v0.9.0",
+          "confidence": 0.9,
+          "verification": "VERIFIED: release and date attested by HN item 7824378 (2014-05-30)"
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=7824378",
+          "observed_at": "2014-05-30T00:00:00+00:00",
+          "payload": {
+            "title": "Deis 0.9.0",
+            "points": 38
+          },
+          "evidence_span": "release thread, 38 points, 2014-05-30",
+          "confidence": 0.9,
+          "verification": "VERIFIED: HN item 7824378 via Algolia"
+        }
+      ]
+    },
+    {
+      "id": "ctl-real-spacecloud",
+      "name": "Space Cloud",
+      "company_name": "Space Cloud",
+      "sector": "dev-tools",
+      "founder": {
+        "display_name": "Noorain Panjwani",
+        "name_normalized": "noorain panjwani"
+      },
+      "evidence_provenance": "reconstructed-from-public-record",
+      "control_kind": "real",
+      "matched_to": "wnr-postgres-platform",
+      "matching_basis": "Real open-source backend-as-a-service (\"open-source Firebase and Heroku on Kubernetes\"), repo created 2019-02-09, a year before the matched winner's first collected signal. Its 2021-04-30 HN thread (251 points) landed five months before the winner's breakout.",
+      "outcome": "No breakout. Final release 2021-09-05; final commit 2024-01-28 with the message \"SpaceCloud is now in maintenance mode\"; the README now points readers at Hasura or Wundergraph.",
+      "outcome_citation": "https://github.com/spaceuptech/space-cloud (commit history and README)",
+      "collection_cutoff": "2021-09-01T00:00:00+00:00",
+      "truncation_note": "Collected to 2021-09-01, matching its winner. Release v0.21.5 (2021-09-05) falls four days after the cutoff and was deliberately not collected.",
+      "evidence_completeness": "sparse",
+      "evidence_completeness_note": "Only three in-window events could be retrieved from public sources: repository creation, one dated release, and one HN thread. Intermediate releases between v0.13.1 (2019-11-25) and v0.21.5 (2021-09-05) exist but their dates were not retrieved, and inventing them would defeat the purpose of a real control. This member is therefore reported but is NOT counted toward the H12 fame check — see backtest/runner.py:_evidence_parity.",
+      "events": [
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.com/spaceuptech/space-cloud",
+          "observed_at": "2019-02-09T00:00:00+00:00",
+          "payload": {
+            "repo": "spaceuptech/space-cloud",
+            "topic": "repository created"
+          },
+          "evidence_span": "repository spaceuptech/space-cloud created 2019-02-09",
+          "confidence": 0.95,
+          "verification": "VERIFIED: created_at 2019-02-09 from the GitHub API"
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.com/spaceuptech/space-cloud/releases/tag/v0.13.1",
+          "observed_at": "2019-11-25T00:00:00+00:00",
+          "payload": {
+            "repo": "spaceuptech/space-cloud",
+            "tag": "v0.13.1"
+          },
+          "evidence_span": "v0.13.1, 2019-11-25",
+          "confidence": 0.9,
+          "verification": "VERIFIED: tag and date from the GitHub releases API"
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=26997595",
+          "observed_at": "2021-04-30T00:00:00+00:00",
+          "payload": {
+            "title": "Space Cloud: Open-source Firebase and Heroku on Kubernetes",
+            "points": 251
+          },
+          "evidence_span": "HN thread, 251 points, 2021-04-30",
+          "confidence": 0.95,
+          "verification": "VERIFIED: HN item 26997595 via Algolia"
         }
       ]
     }
@@ -1581,7 +1913,7 @@
       {
         "kind": "hn_post",
         "source": "hn",
-        "source_url": "https://news.ycombinator.com/item?id=veridian-1",
+        "source_url": "https://hn.example.invalid/item?id=veridian-1",
         "observed_at": "2019-09-10T14:00:00+00:00",
         "payload": {
           "title": "Veridian Stack: a new foundation for machine learning infrastructure",
@@ -1595,7 +1927,7 @@
       {
         "kind": "repo_activity",
         "source": "github",
-        "source_url": "https://github.com/veridian/stack/commits/main",
+        "source_url": "https://github.example.invalid/veridian/stack/commits/main",
         "observed_at": "2019-09-24T10:00:00+00:00",
         "payload": {
           "repo": "veridian/stack",
@@ -1637,7 +1969,7 @@
       {
         "kind": "repo_activity",
         "source": "github",
-        "source_url": "https://github.com/veridian/stack/commits/main",
+        "source_url": "https://github.example.invalid/veridian/stack/commits/main",
         "observed_at": "2020-06-16T10:00:00+00:00",
         "payload": {
           "repo": "veridian/stack",
@@ -1655,7 +1987,7 @@
       {
         "kind": "hn_post",
         "source": "hn",
-        "source_url": "https://news.ycombinator.com/item?id=veridian-2",
+        "source_url": "https://hn.example.invalid/item?id=veridian-2",
         "observed_at": "2020-10-08T13:00:00+00:00",
         "payload": {
           "title": "Veridian Stack: our platform philosophy",
@@ -1681,7 +2013,7 @@
       {
         "kind": "repo_activity",
         "source": "github",
-        "source_url": "https://github.com/veridian/stack/commits/main",
+        "source_url": "https://github.example.invalid/veridian/stack/commits/main",
         "observed_at": "2021-03-22T10:00:00+00:00",
         "payload": {
           "repo": "veridian/stack",
@@ -1696,6 +2028,7 @@
         "evidence_span": "commit \"demo branch\"",
         "confidence": 0.85
       }
-    ]
+    ],
+    "control_kind": "synthetic"
   }
 }

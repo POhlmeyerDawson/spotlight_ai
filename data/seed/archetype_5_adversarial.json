@@ -87,7 +87,7 @@
         {
           "kind": "commit_burst",
           "source": "github",
-          "source_url": "https://github.com/synthgrid/synthgrid-core/commits/main",
+          "source_url": "https://github.example.invalid/synthgrid/synthgrid-core/commits/main",
           "observed_at": "2025-01-22T00:00:00+00:00",
           "payload": {
             "repo": "synthgrid/synthgrid-core",
@@ -108,7 +108,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/synthgrid/synthgrid-core/commits/main",
+          "source_url": "https://github.example.invalid/synthgrid/synthgrid-core/commits/main",
           "observed_at": "2025-01-24T00:00:00+00:00",
           "payload": {
             "repo": "synthgrid/synthgrid-core",
@@ -126,7 +126,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/synthgrid/synthgrid-core/tree/main",
+          "source_url": "https://github.example.invalid/synthgrid/synthgrid-core/tree/main",
           "observed_at": "2025-02-01T00:00:00+00:00",
           "payload": {
             "repo": "synthgrid/synthgrid-core",
@@ -166,7 +166,7 @@
         {
           "kind": "commit_burst",
           "source": "github",
-          "source_url": "https://github.com/ferrite-labs/ferrite/commits/main",
+          "source_url": "https://github.example.invalid/ferrite-labs/ferrite/commits/main",
           "observed_at": "2025-01-19T00:00:00+00:00",
           "payload": {
             "repo": "ferrite-labs/ferrite",
@@ -188,7 +188,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/ferrite-labs/ferrite/commits/main",
+          "source_url": "https://github.example.invalid/ferrite-labs/ferrite/commits/main",
           "observed_at": "2025-01-21T00:00:00+00:00",
           "payload": {
             "repo": "ferrite-labs/ferrite",
@@ -207,7 +207,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/ferrite-labs/ferrite/releases/tag/v1.0.0",
+          "source_url": "https://github.example.invalid/ferrite-labs/ferrite/releases/tag/v1.0.0",
           "observed_at": "2025-02-03T10:00:00+00:00",
           "payload": {
             "repo": "ferrite-labs/ferrite",
@@ -222,7 +222,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=42930188",
+          "source_url": "https://hn.example.invalid/item?id=42930188",
           "observed_at": "2025-02-04T12:15:00+00:00",
           "payload": {
             "title": "Show HN: Ferrite - one FFI surface for 41 embedded targets",
@@ -235,7 +235,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/ferrite-labs/ferrite/commits/main",
+          "source_url": "https://github.example.invalid/ferrite-labs/ferrite/commits/main",
           "observed_at": "2025-04-06T09:00:00+00:00",
           "payload": {
             "repo": "ferrite-labs/ferrite",

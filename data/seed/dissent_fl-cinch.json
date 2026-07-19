@@ -1,0 +1,24 @@
+{
+  "company_id": "fl-cinch",
+  "company_name": "Cinch Systems",
+  "generated_at": "2025-06-01T00:00:00+00:00",
+  "provenance": "constructed",
+  "bear_case": "The bull case is that we have found an exceptional engineer. Grant it entirely - the evidence is real and the proof result is the best in the corpus. The bear case does not dispute the founder; it disputes that the founder is the question. Cinch is a masking pass inside somebody else's decode loop. It has no state, no data, no network effect and no surface a customer touches directly; it is a library that makes an inference server better at a thing inference servers are already expected to do. The method is now published in full, with a reproducible benchmark harness and an open-source implementation, which means the incumbent serving frameworks have both the motive and the complete recipe. Sixteen months from now the most likely world is not that Cinch lost - it is that Cinch won, the technique became standard, and it became standard inside three projects that are not this company. We are also being asked to weight a public self-correction very heavily. It is genuinely admirable. It is also what a careful person does when a wrong number is about to be measured by 163 dependent repositories, and we should not price honesty under observation as though it were honesty in private.",
+  "weakest_evidence": [
+    "Market axis confidence is 0.56 against founder confidence 0.90. We are extrapolating a business from download counts, and 112k downloads is a measure of convenience, not of willingness to pay.",
+    "163 dependent repositories counts imports. Not one of those repositories would necessarily pay if the licence changed tomorrow, and a library this narrow is unusually cheap to vendor or reimplement.",
+    "The three production design partners on slide 7 are asserted under NDA and corroborated by nothing. That claim came back UNVERIFIABLE, and it is carrying more weight in the traction story than an unverifiable claim should.",
+    "The deck's headline performance number was wrong and was corrected by the founder six weeks later. The correction is a founder-quality signal; it is also evidence that the deck in circulation overstates the product, and we do not know what else on it has not yet met a nested schema.",
+    "The Proof Protocol result is one 90-minute exercise. It is weighted as the strongest single observation we hold and it samples one task on one afternoon.",
+    "The founder's own last commit note says the cache eviction policy is plain LRU and will thrash under mixed-grammar batches - which is exactly the production workload the product is sold into."
+  ],
+  "load_bearing_claim": "That grammar-constrained decoding is a company rather than a feature of the serving layer. Everything else in the bull case is downstream of this: if it is a feature, then the engineering is excellent, the technique gets absorbed by whoever owns the decode loop, the outcome is a small acquisition, and a strong return on this position is arithmetically unavailable to us no matter how good the founder turns out to be.",
+  "axis_spreads": {"founder": 0.09, "market": 0.34, "idea_vs_market": 0.27},
+  "spread_note": "The narrowest founder spread in the corpus and a wide market spread. Bull and bear read the same eighteen months and agree almost exactly about the engineer while disagreeing substantially about whether there is a business under her.",
+  "what_would_change_my_mind": [
+    "Any stated commercial model at all - hosted, enterprise licensing, support. A price would move the market axis further than another release would.",
+    "One of the major serving frameworks taking a dependency on Cinch rather than reimplementing the technique. That single observable event is the entire bull case resolved.",
+    "Evidence that the semantic problem the founder named on their own thread - a grammar so restrictive the model has no good token left - is something they can solve, because that is the part a serving framework would not casually absorb.",
+    "A third hire, which would test whether per-sequence grammar switching and the eviction rewrite are staffed or aspirational."
+  ]
+}

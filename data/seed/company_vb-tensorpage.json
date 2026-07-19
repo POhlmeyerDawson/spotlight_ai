@@ -19,10 +19,10 @@
       "band": 0.07,
       "evidence_count": 16,
       "evidence": [
-        {"event_ref": "vb-tensorpage#0", "kind": "repo_activity", "source": "github", "observed_at": "2023-09-14T11:20:00+00:00", "span": "commit 4b91e0c \"pagekv: block table with refcounted physical pages\"", "url": "https://github.com/tensorpage/pagekv/commits/main"},
-        {"event_ref": "vb-tensorpage#4", "kind": "hn_comment", "source": "hn", "observed_at": "2023-11-21T18:30:00+00:00", "span": "\"You're right that 16 is arbitrary. It's a config knob in main as of an hour ago; defaults are a benchmark artifact, not a belief.\"", "url": "https://news.ycombinator.com/item?id=38321559"},
-        {"event_ref": "vb-tensorpage#10", "kind": "hn_post", "source": "hn", "observed_at": "2024-06-26T13:05:00+00:00", "span": "\"Our v0.1 numbers overstated the win by ~18% because we benchmarked against an unbatched baseline. Corrected table below.\"", "url": "https://news.ycombinator.com/item?id=40712233", "note": "Self-correction against their own headline number. Weighted heavily."},
-        {"event_ref": "vb-tensorpage#14", "kind": "release", "source": "github", "observed_at": "2025-03-04T14:35:00+00:00", "span": "v0.5.0 — \"disaggregated prefill/decode with RDMA page migration. 148 dependent repos as of tagging.\"", "url": "https://github.com/tensorpage/pagekv/releases/tag/v0.5.0"}
+        {"event_ref": "vb-tensorpage#0", "kind": "repo_activity", "source": "github", "observed_at": "2023-09-14T11:20:00+00:00", "span": "commit 4b91e0c \"pagekv: block table with refcounted physical pages\"", "url": "https://github.example.invalid/tensorpage/pagekv/commits/main"},
+        {"event_ref": "vb-tensorpage#4", "kind": "hn_comment", "source": "hn", "observed_at": "2023-11-21T18:30:00+00:00", "span": "\"You're right that 16 is arbitrary. It's a config knob in main as of an hour ago; defaults are a benchmark artifact, not a belief.\"", "url": "https://hn.example.invalid/item?id=38321559"},
+        {"event_ref": "vb-tensorpage#10", "kind": "hn_post", "source": "hn", "observed_at": "2024-06-26T13:05:00+00:00", "span": "\"Our v0.1 numbers overstated the win by ~18% because we benchmarked against an unbatched baseline. Corrected table below.\"", "url": "https://hn.example.invalid/item?id=40712233", "note": "Self-correction against their own headline number. Weighted heavily."},
+        {"event_ref": "vb-tensorpage#14", "kind": "release", "source": "github", "observed_at": "2025-03-04T14:35:00+00:00", "span": "v0.5.0 — \"disaggregated prefill/decode with RDMA page migration. 148 dependent repos as of tagging.\"", "url": "https://github.example.invalid/tensorpage/pagekv/releases/tag/v0.5.0"}
       ]
     },
     "market": {
@@ -32,7 +32,7 @@
       "band": 0.14,
       "evidence_count": 5,
       "evidence": [
-        {"event_ref": "vb-tensorpage#12", "kind": "release", "source": "github", "observed_at": "2024-10-22T11:00:00+00:00", "span": "v0.4.0 — \"per-tenant quotas, fail-closed. Two production users on this path.\"", "url": "https://github.com/tensorpage/pagekv/releases/tag/v0.4.0"}
+        {"event_ref": "vb-tensorpage#12", "kind": "release", "source": "github", "observed_at": "2024-10-22T11:00:00+00:00", "span": "v0.4.0 — \"per-tenant quotas, fail-closed. Two production users on this path.\"", "url": "https://github.example.invalid/tensorpage/pagekv/releases/tag/v0.4.0"}
       ]
     },
     "idea_vs_market": {
@@ -42,7 +42,7 @@
       "band": 0.11,
       "evidence_count": 9,
       "evidence": [
-        {"event_ref": "vb-tensorpage#8", "kind": "paper", "source": "arxiv", "observed_at": "2024-05-16T00:00:00+00:00", "span": "\"We report a 2.3x increase in achievable batch size at 128k context with 1.7% throughput overhead.\"", "url": "https://arxiv.org/abs/2405.09912"}
+        {"event_ref": "vb-tensorpage#8", "kind": "paper", "source": "arxiv", "observed_at": "2024-05-16T00:00:00+00:00", "span": "\"We report a 2.3x increase in achievable batch size at 128k context with 1.7% throughput overhead.\"", "url": "https://arxiv.example.invalid/abs/2405.09912"}
       ]
     }
   },
@@ -57,8 +57,8 @@
   ],
   "gate": {"outcome": "proceed", "rationale": "Eighteen months of iteration on a single artifact, with a public self-correction against their own benchmark. Band tightens monotonically as evidence accumulates.", "absence_is_suspicious": false},
   "claims": [
-    {"claim_text": "2.3x increase in achievable batch size at 128k context, 1.7% throughput overhead", "claim_source_span": "preprint abstract, 2024-05", "status": "verified", "trust": 0.79, "self_published": false, "corroborating_url": "https://github.com/tensorpage/pagekv/releases/tag/v0.3.0", "corroborating_span": "v0.3.0 — \"benchmark harness now reproducible from a single make target\"", "claim_asserted_at": "2024-05-16T00:00:00+00:00"},
-    {"claim_text": "148 dependent repositories", "claim_source_span": "v0.5.0 release notes", "status": "verified", "trust": 0.85, "self_published": true, "corroborating_url": "https://github.com/tensorpage/pagekv/network/dependents", "corroborating_span": "dependent graph, counted at tag time", "claim_asserted_at": "2025-03-04T14:35:00+00:00"}
+    {"claim_text": "2.3x increase in achievable batch size at 128k context, 1.7% throughput overhead", "claim_source_span": "preprint abstract, 2024-05", "status": "verified", "trust": 0.79, "self_published": false, "corroborating_url": "https://github.example.invalid/tensorpage/pagekv/releases/tag/v0.3.0", "corroborating_span": "v0.3.0 — \"benchmark harness now reproducible from a single make target\"", "claim_asserted_at": "2024-05-16T00:00:00+00:00"},
+    {"claim_text": "148 dependent repositories", "claim_source_span": "v0.5.0 release notes", "status": "verified", "trust": 0.85, "self_published": true, "corroborating_url": "https://github.example.invalid/tensorpage/pagekv/network/dependents", "corroborating_span": "dependent graph, counted at tag time", "claim_asserted_at": "2025-03-04T14:35:00+00:00"}
   ],
   "trace_note": "The moving score line is the same events replayed at six as_of dates. No number here was computed with knowledge of a later event."
 }

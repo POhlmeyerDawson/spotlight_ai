@@ -1,0 +1,494 @@
+{
+  "archetype": 7,
+  "label": "Flagship (constructed reference)",
+  "provenance": "constructed",
+  "provenance_note": "CONSTRUCTED, NOT SOURCED. Cinch Systems does not exist. Every event in this file was authored to exercise the pipeline end to end; none of it was scanned from a real source. Citation URLs deliberately use the reserved, permanently non-resolving TLD `example.invalid` (RFC 2606) and the non-web `deck://` and `proof://` schemes, so no citation here can be mistaken for a sourced one on inspection. A constructed company's receipt must never look like a real company's receipt - that confusion is the specific failure this corpus exists to avoid.",
+  "note": "The reference company: enough evidence density that the filter, the flag rules, the validator, the proof protocol and the dissent all have real material to work on. Deliberately NOT maximal - the founder does not fire proof_fast_start (they spent 41 minutes reading the spec before their first commit), the market axis is materially weaker than the founder axis, and one deck claim is contradicted by the founder's own later correction.",
+  "profiles": [
+    {
+      "company_id": "fl-cinch",
+      "company_name": "Cinch Systems",
+      "one_liner": "Grammar-constrained decoding that keeps the token mask on the GPU instead of stalling the sampler.",
+      "provenance": "constructed",
+      "founders": [
+        {
+          "key": "fl-cinch-founder",
+          "name": "Nadia Oyelaran",
+          "name_normalized": "nadia oyelaran",
+          "handles": {
+            "github": "noyelaran",
+            "hn": "nadia_oy"
+          }
+        }
+      ],
+      "events": [
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/commits/main",
+          "observed_at": "2023-12-06T10:20:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "commits_30d": 34,
+            "files_touched": 16,
+            "net_lines": 2410,
+            "topic": "byte-level pushdown automaton compiled from a JSON Schema",
+            "has_tests": true,
+            "role": "owner"
+          },
+          "evidence_span": "commit 1c40be2 \"grammar: compile JSON Schema to a byte-level pushdown automaton, not a DFA - nested objects are not regular\"",
+          "confidence": 0.95
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/commits/main",
+          "observed_at": "2024-01-15T09:40:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "commits_30d": 47,
+            "files_touched": 21,
+            "net_lines": 3120,
+            "topic": "token-boundary alignment between byte transitions and tokenizer merges",
+            "has_tests": true,
+            "role": "owner"
+          },
+          "evidence_span": "commit 8ad91f7 \"align byte transitions onto tokenizer merges; a token can straddle an automaton edge and we were silently dropping those\"",
+          "confidence": 0.95
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/commits/main",
+          "observed_at": "2024-02-08T11:05:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "commits_30d": 52,
+            "files_touched": 24,
+            "net_lines": 2870,
+            "topic": "adaptive mask representation per automaton state",
+            "has_tests": true,
+            "role": "owner"
+          },
+          "evidence_span": "commit f30c8b1 \"masks: dense bitset for high-fanout states, sorted sparse list below 64 successors. The trade-off is a branch in the sampling kernel, at the cost of ~3% of mask-apply time, and it saves 11 GB of resident table.\"",
+          "confidence": 0.95
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/releases/tag/v0.1.0",
+          "observed_at": "2024-02-27T15:00:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "tag": "v0.1.0",
+            "assets": 3,
+            "changelog_entries": 12,
+            "has_tests": true
+          },
+          "evidence_span": "v0.1.0 - \"first release that holds a recursive JSON Schema without falling back to CPU masking. README and changelog document the one grammar class we do not support yet.\"",
+          "confidence": 0.98
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://hn.example.invalid/item?id=cinch-show-hn-v0-1",
+          "observed_at": "2024-03-04T14:10:00+00:00",
+          "payload": {
+            "title": "Show HN: Cinch - grammar-constrained decoding that does not stall the sampler",
+            "points": 96,
+            "comments": 38
+          },
+          "evidence_span": "\"Show HN: constrained decoding usually recomputes the token mask on CPU every step. At batch 128 that mask is the critical path and throughput drops ~34%. We compile the grammar once and keep the mask table resident on the GPU.\"",
+          "confidence": 0.92
+        },
+        {
+          "kind": "hn_comment",
+          "source": "hn",
+          "source_url": "https://hn.example.invalid/item?id=cinch-show-hn-v0-1-reply-1",
+          "observed_at": "2024-03-05T18:20:00+00:00",
+          "payload": {
+            "parent_title": "Show HN: Cinch",
+            "points": 41,
+            "is_author": true,
+            "responding_to": "criticism that the resident mask table cannot fit for large vocabularies"
+          },
+          "evidence_span": "\"Fair challenge. We assume a vocabulary under 200k and a schema whose reachable state count stays under ~40k; past that the dense table does not fit and we fall back to lazy materialisation. That assumption is in the README, and it is a real limit, not a footnote.\"",
+          "confidence": 0.9
+        },
+        {
+          "kind": "hn_comment",
+          "source": "hn",
+          "source_url": "https://hn.example.invalid/item?id=cinch-show-hn-v0-1-reply-2",
+          "observed_at": "2024-03-06T09:35:00+00:00",
+          "payload": {
+            "parent_title": "Show HN: Cinch",
+            "points": 28,
+            "is_author": true,
+            "responding_to": "question about scope"
+          },
+          "evidence_span": "\"Explicitly not a goal: we do not try to make the model obey semantics, only syntax. Cinch guarantees the output parses against the grammar. Whether the field values are sensible is out of scope and we say so on the first page of the docs.\"",
+          "confidence": 0.9
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/commits/main",
+          "observed_at": "2024-04-17T08:50:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "commits_30d": 39,
+            "files_touched": 18,
+            "net_lines": 1640,
+            "topic": "CI and a differential conformance harness",
+            "has_tests": true,
+            "role": "owner"
+          },
+          "evidence_span": "commit 5be07d3 \"ci: github actions workflow runs the conformance harness - 12k schemas differentially tested against a reference CPU masker on every push\"",
+          "confidence": 0.95
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/releases/tag/v0.2.0",
+          "observed_at": "2024-05-21T12:30:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "tag": "v0.2.0",
+            "assets": 4,
+            "changelog_entries": 21,
+            "breaking_changes": 1,
+            "downloads_90d": 7300,
+            "has_tests": true
+          },
+          "evidence_span": "v0.2.0 - \"BREAKING: the masker interface takes a compiled grammar handle rather than a schema string. Migration guide in docs/upgrade-0.2.md. Benchmark: 2.1% throughput overhead at batch 128, down from 34%.\"",
+          "confidence": 0.98
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/commits/main",
+          "observed_at": "2024-06-19T10:15:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "commits_30d": 44,
+            "files_touched": 27,
+            "net_lines": 2260,
+            "topic": "lazy state materialisation for unbounded-depth schemas",
+            "contributors": 4,
+            "external_contributors": 4,
+            "has_tests": true,
+            "role": "owner"
+          },
+          "evidence_span": "commit a92d4c0 \"lazy: materialise automaton states on first visit and cache them, so an unbounded-depth schema no longer needs an unbounded precomputed table (#63)\"",
+          "confidence": 0.95
+        },
+        {
+          "kind": "commit_burst",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/commits/main?since=2024-07-30",
+          "observed_at": "2024-07-30T16:45:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "commits": 218,
+            "net_lines": 9840,
+            "tests_added": 137,
+            "distinct_messages": 206,
+            "whitespace_only_pct": 0.02,
+            "rename_or_move_pct": 0.03,
+            "files_touched": 61,
+            "has_tests": true,
+            "topic": "rewrite of the mask-apply path to fuse into the sampling kernel",
+            "role": "owner"
+          },
+          "evidence_span": "burst: rewrote the mask-apply path from a separate pass into the sampling kernel itself. 218 commits, 137 tests added, 206 distinct messages.",
+          "confidence": 0.94
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/releases/tag/v0.3.0",
+          "observed_at": "2024-08-14T13:20:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "tag": "v0.3.0",
+            "assets": 5,
+            "changelog_entries": 26,
+            "downloads_90d": 21400,
+            "has_tests": true
+          },
+          "evidence_span": "v0.3.0 - \"mask application is now fused into the sampling kernel; there is no separate masking pass. Measured 0.9% throughput overhead at batch 128 on flat schemas.\"",
+          "confidence": 0.98
+        },
+        {
+          "kind": "paper",
+          "source": "arxiv",
+          "source_url": "https://arxiv.example.invalid/abs/constructed-cinch-2024-09",
+          "observed_at": "2024-09-10T00:00:00+00:00",
+          "payload": {
+            "title": "Resident Token Masks: Fusing Grammar Constraints into the Sampling Kernel",
+            "authors": 2,
+            "venue": "preprint",
+            "abstract": "We compile a context-free grammar to a byte-level pushdown automaton, materialise per-state token masks lazily, and apply them inside the sampling kernel. Across 12k JSON schemas we measure 0.9% throughput overhead at batch 128 against an unconstrained baseline. The implementation is open-source and the benchmark harness is reproducible from one make target.",
+            "artifact_link": "https://github.example.invalid/cinch-systems/cinch"
+          },
+          "evidence_span": "\"We measure 0.9% throughput overhead at batch 128 across 12k schemas. The implementation is open-source and the benchmark harness reproduces from a single make target.\"",
+          "confidence": 0.93
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/commits/main?since=2024-10-08",
+          "observed_at": "2024-10-08T09:10:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "commits_30d": 31,
+            "files_touched": 14,
+            "net_lines": -820,
+            "topic": "reverted the speculative mask prefetch",
+            "has_tests": true,
+            "role": "owner"
+          },
+          "evidence_span": "commit c71a350 \"revert the speculative mask prefetch - it did not work under mixed-grammar batches and regressed p99 by 18ms. Rolled back to lazy materialisation.\"",
+          "confidence": 0.95
+        },
+        {
+          "kind": "hn_comment",
+          "source": "hn",
+          "source_url": "https://hn.example.invalid/item?id=cinch-ask-hn-structured-output",
+          "observed_at": "2024-11-12T20:05:00+00:00",
+          "payload": {
+            "parent_title": "Ask HN: what actually breaks structured output in production?",
+            "points": 57,
+            "is_author": true
+          },
+          "evidence_span": "\"Honest answer from our own issue tracker: the failure people hit is not invalid JSON, it is a grammar so restrictive the model has no good token left and the sampler picks the least-bad one. We narrowed the problem specifically to that case and we still do not have a general fix.\"",
+          "confidence": 0.9
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/releases/tag/v0.4.0",
+          "observed_at": "2024-12-03T11:40:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "tag": "v0.4.0",
+            "assets": 5,
+            "changelog_entries": 33,
+            "downloads_90d": 48900,
+            "dependent_repos": 84,
+            "has_tests": true
+          },
+          "evidence_span": "v0.4.0 - \"mask fused into the sampling kernel by default. Documentation rewritten around the one thing we guarantee: the output parses. 84 dependent repos at tagging.\"",
+          "confidence": 0.98
+        },
+        {
+          "kind": "repo_activity",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/commits/main",
+          "observed_at": "2025-01-21T10:25:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "commits_30d": 41,
+            "files_touched": 23,
+            "net_lines": 2540,
+            "topic": "per-sequence grammar switching inside one batch",
+            "contributors": 7,
+            "external_contributors": 7,
+            "has_tests": true,
+            "role": "owner"
+          },
+          "evidence_span": "commit 2e6b9d4 \"allow every sequence in a batch to carry a different grammar. The downside is one indirection per token in the sampling kernel; measured at 0.4% and we chose that because forcing a batch to share a schema is useless in a real serving mix.\"",
+          "confidence": 0.95
+        },
+        {
+          "kind": "profile_fact",
+          "source": "web",
+          "source_url": "https://cinch-systems.example.invalid/about",
+          "observed_at": "2025-02-11T00:00:00+00:00",
+          "payload": {
+            "fact": "two-person team, remote, one artifact since late 2023",
+            "affiliation_note": "recorded as a neutral fact; affiliations are not scoring inputs",
+            "followers": 1900,
+            "karma": 2400
+          },
+          "evidence_span": "\"Two of us. We have shipped one library for eighteen months and we have not started a second thing.\"",
+          "confidence": 0.85
+        },
+        {
+          "kind": "release",
+          "source": "github",
+          "source_url": "https://github.example.invalid/cinch-systems/cinch/releases/tag/v0.5.0",
+          "observed_at": "2025-03-18T14:05:00+00:00",
+          "payload": {
+            "repo": "cinch-systems/cinch",
+            "tag": "v0.5.0",
+            "assets": 6,
+            "changelog_entries": 38,
+            "downloads_90d": 112000,
+            "dependent_repos": 163,
+            "has_tests": true
+          },
+          "evidence_span": "v0.5.0 - \"per-sequence grammar switching, stable. Conformance harness now covers 12k schemas in CI. 163 dependent repos at tagging.\"",
+          "confidence": 0.98
+        },
+        {
+          "kind": "deck_claim",
+          "source": "deck",
+          "source_url": "deck://cinch-seed-2025.pdf#slide=3",
+          "observed_at": "2025-04-02T00:00:00+00:00",
+          "payload": {
+            "claim": "Cinch compiles a JSON Schema into a byte-level pushdown automaton and keeps the per-state token-mask table resident on the GPU, so constrained decoding needs no CPU round trip per token",
+            "claim_type": "architecture",
+            "falsifiable": true,
+            "slide": 3,
+            "self_published": true
+          },
+          "evidence_span": "slide 3: \"schema -> byte-level pushdown automaton -> GPU-resident token masks. No CPU round trip per token.\"",
+          "confidence": 0.96
+        },
+        {
+          "kind": "deck_claim",
+          "source": "deck",
+          "source_url": "deck://cinch-seed-2025.pdf#slide=4",
+          "observed_at": "2025-04-02T00:00:00+00:00",
+          "payload": {
+            "claim": "mask application is fused into the sampling kernel, so there is no separate masking pass in the decode loop",
+            "claim_type": "architecture",
+            "falsifiable": true,
+            "slide": 4,
+            "self_published": true
+          },
+          "evidence_span": "slide 4: \"the mask is applied inside the sampling kernel. There is no second pass.\"",
+          "confidence": 0.95
+        },
+        {
+          "kind": "deck_claim",
+          "source": "deck",
+          "source_url": "deck://cinch-seed-2025.pdf#slide=5",
+          "observed_at": "2025-04-02T00:00:00+00:00",
+          "payload": {
+            "claim": "zero measurable throughput overhead at batch 256",
+            "claim_type": "performance",
+            "falsifiable": true,
+            "slide": 5,
+            "self_published": true
+          },
+          "evidence_span": "slide 5: \"zero measurable throughput overhead at batch 256.\"",
+          "confidence": 0.94
+        },
+        {
+          "kind": "deck_claim",
+          "source": "deck",
+          "source_url": "deck://cinch-seed-2025.pdf#slide=7",
+          "observed_at": "2025-04-02T00:00:00+00:00",
+          "payload": {
+            "claim": "three design partners run Cinch in production behind their own inference gateways",
+            "claim_type": "traction",
+            "falsifiable": true,
+            "slide": 7,
+            "self_published": true
+          },
+          "evidence_span": "slide 7: \"three design partners in production. Named under NDA.\"",
+          "confidence": 0.72
+        },
+        {
+          "kind": "proof_artifact",
+          "source": "proof_protocol",
+          "source_url": "proof://cinch-challenge-01/artifact",
+          "observed_at": "2025-04-24T17:30:00+00:00",
+          "payload": {
+            "challenge_id": "cinch-challenge-01",
+            "artifact": "proof://cinch-challenge-01/submission",
+            "works": true,
+            "sound": true,
+            "handled_ambiguity": true,
+            "components": {
+              "works": "all 40 held-out schemas parse; 3 of 40 required the lazy path and took it",
+              "technically_sound": "no unbounded precomputation; memory ceiling is stated and enforced",
+              "ambiguity_handling": "asked whether the schema class was recursive before choosing an automaton"
+            },
+            "caveat": "One 90-minute exercise on one contrived task. This samples behaviour; it does not establish a track record."
+          },
+          "evidence_span": "Submitted a working masker for the held-out schema set. Refused to precompute the full state-by-vocabulary table and said why.",
+          "confidence": 0.9
+        },
+        {
+          "kind": "proof_behavior",
+          "source": "proof_protocol",
+          "observed_at": "2025-04-24T17:30:00+00:00",
+          "source_url": "proof://cinch-challenge-01/behaviour",
+          "payload": {
+            "challenge_id": "cinch-challenge-01",
+            "challenged_bad_constraint": true,
+            "pushed_back_on_constraint": true,
+            "asked_clarifying": true,
+            "iteration_count": 6,
+            "time_to_first_commit_min": 41,
+            "planted_ambiguity": "The brief says 'JSON Schema' but never says whether $ref may be recursive or whether additionalProperties is permitted. That choice decides whether a finite automaton is sufficient or a pushdown automaton is required.",
+            "planted_bad_constraint": "The brief instructs: 'precompute the full state-by-vocabulary mask table up front and hold it in device memory.'",
+            "transcript": [
+              {
+                "turn": 1,
+                "at": "2025-04-24T16:09:00+00:00",
+                "role": "founder",
+                "kind": "clarifying_question",
+                "text": "Before I write anything: does the schema class permit recursive $ref, and is additionalProperties allowed? If either is yes the reachable state set is unbounded and a DFA cannot represent it - I would need a pushdown automaton with a stack. If both are no, the schema is finite and a DFA is not only sufficient, it is the right call because the transition table is dense and cache-friendly. I do not want to guess this, because the two answers produce different programs, not different constants."
+              },
+              {
+                "turn": 2,
+                "at": "2025-04-24T16:24:00+00:00",
+                "role": "reviewer",
+                "kind": "answer",
+                "text": "Assume recursive $ref is permitted. Keep the rest of the brief as written."
+              },
+              {
+                "turn": 3,
+                "at": "2025-04-24T16:31:00+00:00",
+                "role": "founder",
+                "kind": "constraint_challenged",
+                "text": "Then I am going to push back on the precompute instruction rather than follow it. With recursive $ref the reachable state count has no finite bound, so 'precompute the full table' does not have a largest case to size for. Even bounding depth at 8 I get roughly 40k reachable states; at a 128k vocabulary that is a 128k-bit mask per state, which is 640 MB if I store it densely, and it grows without limit as depth rises. I will materialise states lazily on first visit and cache them, with a hard memory ceiling that fails closed rather than pages. If you specifically want the precomputed table for a reason I am not seeing - determinism of latency, maybe - tell me and I will build it behind a depth cap and document the cap. But I will not silently ship something that OOMs on the fourth level of nesting."
+              },
+              {
+                "turn": 4,
+                "at": "2025-04-24T16:38:00+00:00",
+                "role": "founder",
+                "kind": "assumption_stated",
+                "text": "Stating what I am assuming so it is checkable rather than buried: vocabulary under 200k, nesting depth under 32, and a single grammar per sequence but not per batch. If any of those is wrong the memory ceiling is wrong and I would want to redo the sizing."
+              },
+              {
+                "turn": 5,
+                "at": "2025-04-24T17:02:00+00:00",
+                "role": "founder",
+                "kind": "commit",
+                "text": "First working masker: pushdown automaton, lazy state materialisation, LRU cache with a fixed byte ceiling. 34 of 40 held-out schemas pass. The 6 failures are all the same bug - I am not handling a token that straddles a stack push."
+              },
+              {
+                "turn": 6,
+                "at": "2025-04-24T17:26:00+00:00",
+                "role": "founder",
+                "kind": "commit",
+                "text": "Fixed the straddling case by splitting the token at the push boundary and re-entering the automaton. 40 of 40 pass. I did not have time to make the cache eviction policy smart; it is plain LRU and under a mixed-grammar batch it will thrash. That is the first thing I would fix and I would rather say so than let you find it."
+              }
+            ],
+            "caveat": "Behavioural sampling from a single exercise. Reaction latency is deliberately not scored."
+          },
+          "evidence_span": "Asked whether the schema class was recursive before writing code; refused the planted precompute constraint with a concrete 640 MB sizing; stated assumptions; named the weakness they did not have time to fix.",
+          "confidence": 0.9
+        },
+        {
+          "kind": "hn_post",
+          "source": "hn",
+          "source_url": "https://hn.example.invalid/item?id=cinch-overhead-correction",
+          "observed_at": "2025-05-13T13:15:00+00:00",
+          "payload": {
+            "title": "Our 'zero overhead' number was wrong at batch 256 - postmortem",
+            "points": 187,
+            "comments": 64
+          },
+          "evidence_span": "\"Postmortem on our own headline number. We have been saying zero measurable throughput overhead at batch 256. That is only true on flat schemas. On grammars nested deeper than six levels we measure 4.1% overhead at batch 256, because lazy state materialisation misses more often than we assumed and the fetch is on the critical path. What went wrong: we benchmarked the schemas our own tests use, which are shallow. Corrected table below, and the deck slide is wrong until we reprint it.\"",
+          "confidence": 0.94
+        }
+      ]
+    }
+  ]
+}

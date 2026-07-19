@@ -1,0 +1,40 @@
+{
+  "company_id": "fl-cinch",
+  "company_name": "Cinch Systems",
+  "as_of": "2025-06-01T00:00:00+00:00",
+  "provenance": "constructed",
+  "provenance_note": "Constructed reference company. Every citation below points at example.invalid (a reserved, permanently non-resolving TLD) or at a deck:// / proof:// scheme that is not a web address at all. None of it is sourced evidence and none of it should be read as such.",
+  "sections": {
+    "thesis": "Constraining a model to a grammar is now table stakes for anything that consumes model output as data, but the standard implementation recomputes the token mask on CPU at every decode step. At batch 128 that mask becomes the critical path and costs roughly a third of throughput [fl-cinch#4]. Cinch compiles the grammar once into a byte-level pushdown automaton, materialises per-state token masks lazily on the GPU, and applies them inside the sampling kernel rather than as a separate pass - measured at 0.9% overhead at batch 128 across 12k schemas, with the harness reproducible from one make target [fl-cinch#12].",
+    "founder": "Eighteen months on one library with no second project and no pivot [fl-cinch#0 through fl-cinch#18]. Three behaviours carry most of the founder score. First, they answer criticism with a limit rather than a deflection: challenged that the resident mask table cannot fit for large vocabularies, they named the exact vocabulary and state-count ceiling past which their design fails and pointed at where it is already documented [fl-cinch#5]. Second, they revert publicly - the speculative mask prefetch regressed p99 by 18ms under mixed-grammar batches and was rolled back rather than kept and caveated [fl-cinch#13]. Third, and weighted most heavily, they published a postmortem against their own headline number: the deck says zero overhead at batch 256, and the founder posted that this holds only on flat schemas and that deeply nested grammars cost 4.1%, stating plainly that the slide is wrong until reprinted [fl-cinch#24]. The Proof Protocol result is consistent with all of it: asked whether the schema class was recursive before writing any code, then refused the planted precompute constraint with a concrete 640 MB sizing rather than complying [fl-cinch#22, fl-cinch#23].",
+    "market": "Inference-serving middleware, developer-led adoption: 163 dependent repositories at the v0.5.0 tag [fl-cinch#18] and 112k downloads in the trailing 90 days. GAP: no revenue, no pricing, no commercial model stated anywhere in the public record or the deck. The three production design partners are asserted on slide 7 and are not independently observable [fl-cinch#21].",
+    "risks": [
+      "Constrained decoding is a plausible feature of an inference server rather than a standalone product. The method is published in full with a reproducible harness, which is excellent practice and also a complete implementation guide for whoever owns the serving layer.",
+      "The one deck claim we could check against later evidence did not survive it. The founder corrected it themselves, which is the good version of that event, but the deck in circulation still carries the wrong number.",
+      "Market axis confidence is 0.56 against founder axis confidence 0.90. We know a great deal about how this person builds and very little about who pays.",
+      "Two people. Per-sequence grammar switching and the cache-eviction work the founder themselves flagged as thrashing under mixed batches are both substantially larger surfaces than the original masker was.",
+      "The Proof Protocol is one 90-minute sample of behaviour under a contrived task. It is the strongest single observation we hold and it is still one sample."
+    ],
+    "gaps_flagged": [
+      "No revenue verification attempted - no revenue is claimed anywhere.",
+      "Three design partners are named only under NDA on slide 7 and could not be corroborated by any independent channel; reported UNVERIFIABLE, not false.",
+      "No pricing or commercial model exists to evaluate.",
+      "Score trajectory was recomputed at eighteen monthly checkpoints; every point uses only events observed on or before that date.",
+      "proof_fast_start did not fire: the founder took 41 minutes before their first commit. Reaction latency is a declared non-trait in this system and costs nothing - noted so the non-firing rule is not mistaken for a finding."
+    ],
+    "recommendation": "PROCEED. Strongest founder evidence in the corpus, with a band that tightens monotonically across eighteen replayed checkpoints and a founder who corrected their own headline number in public before we asked. The open question is entirely commercial: take the meeting on what they would charge for, because the technical question is answered by the public record and the proof result."
+  },
+  "recommendation": "PROCEED. Strongest founder evidence in the corpus; band tightens across eighteen replayed checkpoints. The unresolved question is commercial, not technical.",
+  "citations": [
+    {"ref": "fl-cinch#4", "span": "\"constrained decoding usually recomputes the token mask on CPU every step. At batch 128 that mask is the critical path and throughput drops ~34%.\"", "url": "https://hn.example.invalid/item?id=cinch-show-hn-v0-1"},
+    {"ref": "fl-cinch#5", "span": "\"We assume a vocabulary under 200k and a schema whose reachable state count stays under ~40k; past that the dense table does not fit and we fall back to lazy materialisation.\"", "url": "https://hn.example.invalid/item?id=cinch-show-hn-v0-1-reply-1"},
+    {"ref": "fl-cinch#12", "span": "\"We measure 0.9% throughput overhead at batch 128 across 12k schemas. The implementation is open-source and the benchmark harness reproduces from a single make target.\"", "url": "https://arxiv.example.invalid/abs/constructed-cinch-2024-09"},
+    {"ref": "fl-cinch#13", "span": "commit c71a350 \"revert the speculative mask prefetch - it did not work under mixed-grammar batches and regressed p99 by 18ms.\"", "url": "https://github.example.invalid/cinch-systems/cinch/commits/main?since=2024-10-08"},
+    {"ref": "fl-cinch#18", "span": "v0.5.0 - \"per-sequence grammar switching, stable. 163 dependent repos at tagging.\"", "url": "https://github.example.invalid/cinch-systems/cinch/releases/tag/v0.5.0"},
+    {"ref": "fl-cinch#21", "span": "slide 7: \"three design partners in production. Named under NDA.\"", "url": "deck://cinch-seed-2025.pdf#slide=7"},
+    {"ref": "fl-cinch#22", "span": "Submitted a working masker for the held-out schema set. Refused to precompute the full state-by-vocabulary table and said why.", "url": "proof://cinch-challenge-01/artifact"},
+    {"ref": "fl-cinch#23", "span": "\"With recursive $ref the reachable state count has no finite bound... at a 128k vocabulary that is 640 MB if I store it densely, and it grows without limit as depth rises.\"", "url": "proof://cinch-challenge-01/behaviour"},
+    {"ref": "fl-cinch#24", "span": "\"On grammars nested deeper than six levels we measure 4.1% overhead at batch 256... the deck slide is wrong until we reprint it.\"", "url": "https://hn.example.invalid/item?id=cinch-overhead-correction"}
+  ],
+  "entity_resolution_notes": ["Single founder entity; github noyelaran and hn nadia_oy merged on a shared release URL, confidence 0.93."]
+}

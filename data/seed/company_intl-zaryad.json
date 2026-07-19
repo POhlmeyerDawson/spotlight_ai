@@ -31,10 +31,10 @@
       "band": 0.11,
       "evidence_count": 7,
       "evidence": [
-        {"event_ref": "intl-zaryad#0", "kind": "repo_activity", "source": "github", "observed_at": "2023-08-21T07:30:00+00:00", "span": "commit c81b204 \"blocksparse: tile so the working set fits 8GB; the point is the cheap card\"", "url": "https://github.com/kmorozova-dev/sparsekern/commits/main"},
-        {"event_ref": "intl-zaryad#1", "kind": "paper", "source": "arxiv", "observed_at": "2024-02-14T00:00:00+00:00", "span": "\"Мы показываем снижение потребления памяти на 61% при потере качества менее 1% на последовательностях до 32k токенов.\"", "span_translated": "\"We show a 61% memory reduction with under 1% quality loss at sequence lengths up to 32k.\"", "url": "https://cyberleninka.ru/article/n/blochno-razrezhennoe-vnimanie-na-potrebitelskih-gpu", "language": "ru"},
-        {"event_ref": "intl-zaryad#5", "kind": "repo_activity", "source": "github", "observed_at": "2025-01-16T08:00:00+00:00", "span": "commit 3d0c8f5 \"int8 KV path: 32k context inside 8GB, accuracy delta table in bench/README\"", "url": "https://github.com/kmorozova-dev/sparsekern/commits/main"},
-        {"event_ref": "intl-zaryad#6", "kind": "release", "source": "github", "observed_at": "2025-04-22T10:00:00+00:00", "span": "v0.5.0 — \"int8 KV path stable. 63 dependent repos, most of them in languages I do not read.\"", "url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.5.0"}
+        {"event_ref": "intl-zaryad#0", "kind": "repo_activity", "source": "github", "observed_at": "2023-08-21T07:30:00+00:00", "span": "commit c81b204 \"blocksparse: tile so the working set fits 8GB; the point is the cheap card\"", "url": "https://github.example.invalid/kmorozova-dev/sparsekern/commits/main"},
+        {"event_ref": "intl-zaryad#1", "kind": "paper", "source": "arxiv", "observed_at": "2024-02-14T00:00:00+00:00", "span": "\"Мы показываем снижение потребления памяти на 61% при потере качества менее 1% на последовательностях до 32k токенов.\"", "span_translated": "\"We show a 61% memory reduction with under 1% quality loss at sequence lengths up to 32k.\"", "url": "https://cyberleninka.example.invalid/article/n/blochno-razrezhennoe-vnimanie-na-potrebitelskih-gpu", "language": "ru"},
+        {"event_ref": "intl-zaryad#5", "kind": "repo_activity", "source": "github", "observed_at": "2025-01-16T08:00:00+00:00", "span": "commit 3d0c8f5 \"int8 KV path: 32k context inside 8GB, accuracy delta table in bench/README\"", "url": "https://github.example.invalid/kmorozova-dev/sparsekern/commits/main"},
+        {"event_ref": "intl-zaryad#6", "kind": "release", "source": "github", "observed_at": "2025-04-22T10:00:00+00:00", "span": "v0.5.0 — \"int8 KV path stable. 63 dependent repos, most of them in languages I do not read.\"", "url": "https://github.example.invalid/kmorozova-dev/sparsekern/releases/tag/v0.5.0"}
       ]
     },
     "market": {
@@ -44,7 +44,7 @@
       "band": 0.17,
       "evidence_count": 3,
       "evidence": [
-        {"event_ref": "intl-zaryad#4", "kind": "profile_fact", "source": "web", "observed_at": "2024-10-03T00:00:00+00:00", "span": "\"Два года я поддерживаю эту библиотеку одна.\"", "span_translated": "\"I have maintained this library alone for two years.\"", "url": "https://habr.com/ru/articles/812934/", "language": "ru"}
+        {"event_ref": "intl-zaryad#4", "kind": "profile_fact", "source": "web", "observed_at": "2024-10-03T00:00:00+00:00", "span": "\"Два года я поддерживаю эту библиотеку одна.\"", "span_translated": "\"I have maintained this library alone for two years.\"", "url": "https://habr.example.invalid/ru/articles/812934/", "language": "ru"}
       ]
     },
     "idea_vs_market": {
@@ -54,7 +54,7 @@
       "band": 0.13,
       "evidence_count": 5,
       "evidence": [
-        {"event_ref": "intl-zaryad#3", "kind": "release", "source": "github", "observed_at": "2024-09-12T09:20:00+00:00", "span": "v0.3.0 — \"32k context on a 3060. Benchmarks reproduce with one script and no cluster.\"", "url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.3.0"}
+        {"event_ref": "intl-zaryad#3", "kind": "release", "source": "github", "observed_at": "2024-09-12T09:20:00+00:00", "span": "v0.3.0 — \"32k context on a 3060. Benchmarks reproduce with one script and no cluster.\"", "url": "https://github.example.invalid/kmorozova-dev/sparsekern/releases/tag/v0.3.0"}
       ]
     }
   },
@@ -67,7 +67,7 @@
     "access_lift_contribution": 0.31
   },
   "claims": [
-    {"claim_text": "61% memory reduction with under 1% quality loss at 32k context", "claim_source_span": "regional journal article, 2024-02", "status": "verified", "trust": 0.72, "self_published": false, "corroborating_url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.3.0", "corroborating_span": "v0.3.0 — \"32k context on a 3060. Benchmarks reproduce with one script and no cluster.\"", "note": "The benchmark harness is public and reruns, which is what carries the verification. The publication venue is irrelevant to the verdict.", "claim_asserted_at": "2024-02-14T00:00:00+00:00"}
+    {"claim_text": "61% memory reduction with under 1% quality loss at 32k context", "claim_source_span": "regional journal article, 2024-02", "status": "verified", "trust": 0.72, "self_published": false, "corroborating_url": "https://github.example.invalid/kmorozova-dev/sparsekern/releases/tag/v0.3.0", "corroborating_span": "v0.3.0 — \"32k context on a 3060. Benchmarks reproduce with one script and no cluster.\"", "note": "The benchmark harness is public and reruns, which is what carries the verification. The publication venue is irrelevant to the verdict.", "claim_asserted_at": "2024-02-14T00:00:00+00:00"}
   ],
   "trace_note": "Non-English spans are shown in the original with a translation alongside. The original is the evidence; the translation is a convenience."
 }

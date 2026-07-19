@@ -33,7 +33,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/kmorozova-dev/sparsekern/commits/main",
+          "source_url": "https://github.example.invalid/kmorozova-dev/sparsekern/commits/main",
           "observed_at": "2023-08-21T07:30:00+00:00",
           "payload": {
             "repo": "kmorozova-dev/sparsekern",
@@ -53,7 +53,7 @@
         {
           "kind": "paper",
           "source": "arxiv",
-          "source_url": "https://cyberleninka.ru/article/n/blochno-razrezhennoe-vnimanie-na-potrebitelskih-gpu",
+          "source_url": "https://cyberleninka.example.invalid/article/n/blochno-razrezhennoe-vnimanie-na-potrebitelskih-gpu",
           "observed_at": "2024-02-14T00:00:00+00:00",
           "payload": {
             "title_native": "Блочно-разреженное внимание на потребительских GPU",
@@ -72,7 +72,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/kmorozova-dev/sparsekern/commits/main",
+          "source_url": "https://github.example.invalid/kmorozova-dev/sparsekern/commits/main",
           "observed_at": "2024-05-30T08:00:00+00:00",
           "payload": {
             "repo": "kmorozova-dev/sparsekern",
@@ -92,7 +92,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.3.0",
+          "source_url": "https://github.example.invalid/kmorozova-dev/sparsekern/releases/tag/v0.3.0",
           "observed_at": "2024-09-12T09:20:00+00:00",
           "payload": {
             "repo": "kmorozova-dev/sparsekern",
@@ -110,7 +110,7 @@
         {
           "kind": "profile_fact",
           "source": "web",
-          "source_url": "https://habr.com/ru/articles/812934/",
+          "source_url": "https://habr.example.invalid/ru/articles/812934/",
           "observed_at": "2024-10-03T00:00:00+00:00",
           "payload": {
             "fact_native": "Автор поддерживает библиотеку в одиночку два года",
@@ -130,7 +130,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/kmorozova-dev/sparsekern/commits/main",
+          "source_url": "https://github.example.invalid/kmorozova-dev/sparsekern/commits/main",
           "observed_at": "2025-01-16T08:00:00+00:00",
           "payload": {
             "repo": "kmorozova-dev/sparsekern",
@@ -151,7 +151,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/tensorpage/pagekv/commits?author=kmorozova-dev",
+          "source_url": "https://github.example.invalid/tensorpage/pagekv/commits?author=kmorozova-dev",
           "observed_at": "2025-02-18T09:12:00+00:00",
           "evidence_span": "14 commits to the block-table allocator over six weeks",
           "integrity_flags": [
@@ -169,7 +169,7 @@
         {
           "kind": "paper",
           "source": "arxiv",
-          "source_url": "https://arxiv.org/abs/2503.00711",
+          "source_url": "https://arxiv.example.invalid/abs/2503.00711",
           "observed_at": "2025-03-02T00:00:00+00:00",
           "evidence_span": "Fragmentation-Free KV Caching via Block Tables",
           "integrity_flags": [
@@ -184,7 +184,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/kmorozova-dev/sparsekern/releases/tag/v0.5.0",
+          "source_url": "https://github.example.invalid/kmorozova-dev/sparsekern/releases/tag/v0.5.0",
           "observed_at": "2025-04-22T10:00:00+00:00",
           "payload": {
             "repo": "kmorozova-dev/sparsekern",
@@ -231,7 +231,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/adeshpande-tantu/tantu-sched/commits/main",
+          "source_url": "https://github.example.invalid/adeshpande-tantu/tantu-sched/commits/main",
           "observed_at": "2023-11-09T05:40:00+00:00",
           "payload": {
             "repo": "adeshpande-tantu/tantu-sched",
@@ -251,7 +251,7 @@
         {
           "kind": "paper",
           "source": "arxiv",
-          "source_url": "https://www.ijcaonline.org/archives/volume186/number12/tantu-deterministic-batching/",
+          "source_url": "https://ijcaonline.example.invalid/archives/volume186/number12/tantu-deterministic-batching/",
           "observed_at": "2024-04-27T00:00:00+00:00",
           "payload": {
             "title": "Deterministic Batching for Heterogeneous Inference Fleets",
@@ -268,7 +268,7 @@
         {
           "kind": "profile_fact",
           "source": "web",
-          "source_url": "https://www.youtube.com/watch?v=tantu-mtg-marathi-2024",
+          "source_url": "https://youtube.example.invalid/watch?v=tantu-mtg-marathi-2024",
           "observed_at": "2024-06-15T00:00:00+00:00",
           "payload": {
             "fact_native": "नागपूर सिस्टिम्स मीटअप मध्ये सादरीकरण",
@@ -289,7 +289,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/adeshpande-tantu/tantu-sched/releases/tag/v0.2.0",
+          "source_url": "https://github.example.invalid/adeshpande-tantu/tantu-sched/releases/tag/v0.2.0",
           "observed_at": "2024-08-30T06:15:00+00:00",
           "payload": {
             "repo": "adeshpande-tantu/tantu-sched",
@@ -306,7 +306,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/adeshpande-tantu/tantu-sched/commits/main",
+          "source_url": "https://github.example.invalid/adeshpande-tantu/tantu-sched/commits/main",
           "observed_at": "2025-02-11T06:00:00+00:00",
           "payload": {
             "repo": "adeshpande-tantu/tantu-sched",
@@ -327,7 +327,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/quillstack/qs-trace/commits?author=adeshpande",
+          "source_url": "https://github.example.invalid/quillstack/qs-trace/commits?author=adeshpande",
           "observed_at": "2025-05-06T11:40:00+00:00",
           "evidence_span": "9 commits to the span-sampling path",
           "integrity_flags": [
@@ -345,7 +345,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/adeshpande-tantu/tantu-sched/releases/tag/v0.4.0",
+          "source_url": "https://github.example.invalid/adeshpande-tantu/tantu-sched/releases/tag/v0.4.0",
           "observed_at": "2025-05-08T07:00:00+00:00",
           "payload": {
             "repo": "adeshpande-tantu/tantu-sched",
@@ -392,7 +392,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/muyun-c/xiliu/commits/main",
+          "source_url": "https://github.example.invalid/muyun-c/xiliu/commits/main",
           "observed_at": "2023-12-18T02:10:00+00:00",
           "payload": {
             "repo": "muyun-c/xiliu",
@@ -412,7 +412,7 @@
         {
           "kind": "profile_fact",
           "source": "web",
-          "source_url": "https://zhuanlan.zhihu.com/p/678451209",
+          "source_url": "https://zhihu.example.invalid/p/678451209",
           "observed_at": "2024-03-08T00:00:00+00:00",
           "payload": {
             "fact_native": "自适应草稿模型的推测解码实现笔记",
@@ -434,7 +434,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/muyun-c/xiliu/releases/tag/v0.2.0",
+          "source_url": "https://github.example.invalid/muyun-c/xiliu/releases/tag/v0.2.0",
           "observed_at": "2024-07-19T03:00:00+00:00",
           "payload": {
             "repo": "muyun-c/xiliu",
@@ -451,14 +451,14 @@
         {
           "kind": "paper",
           "source": "arxiv",
-          "source_url": "https://arxiv.org/abs/2411.04338",
+          "source_url": "https://arxiv.example.invalid/abs/2411.04338",
           "observed_at": "2024-11-07T00:00:00+00:00",
           "payload": {
             "title": "Adaptive Draft Selection for Speculative Decoding",
             "authors": 1,
             "venue": "preprint",
             "citations": 5,
-            "artifact_link": "https://github.com/muyun-c/xiliu"
+            "artifact_link": "https://github.example.invalid/muyun-c/xiliu"
           },
           "evidence_span": "\"Adaptive draft selection recovers 1.9x end-to-end speedup on workloads where a fixed draft model degrades to 1.1x.\"",
           "confidence": 0.9,
@@ -469,7 +469,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/muyun-c/xiliu/commits/main",
+          "source_url": "https://github.example.invalid/muyun-c/xiliu/commits/main",
           "observed_at": "2025-03-05T02:30:00+00:00",
           "payload": {
             "repo": "muyun-c/xiliu",
@@ -490,7 +490,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/muyun-c/xiliu/releases/tag/v0.4.0",
+          "source_url": "https://github.example.invalid/muyun-c/xiliu/releases/tag/v0.4.0",
           "observed_at": "2025-05-27T04:00:00+00:00",
           "payload": {
             "repo": "muyun-c/xiliu",
@@ -508,7 +508,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/tensorpage/pagekv/commits?author=muyun-c",
+          "source_url": "https://github.example.invalid/tensorpage/pagekv/commits?author=muyun-c",
           "observed_at": "2025-08-21T14:05:00+00:00",
           "evidence_span": "6 commits adding the speculative-decode benchmark",
           "integrity_flags": [

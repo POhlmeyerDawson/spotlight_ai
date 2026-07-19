@@ -22,12 +22,12 @@
   },
   "recommendation": "PROCEED. Strongest founder evidence in the set, band tightening across six replayed as_of dates. Take the meeting on the commercial question.",
   "citations": [
-    {"ref": "vb-tensorpage#0", "span": "commit 4b91e0c \"pagekv: block table with refcounted physical pages\"", "url": "https://github.com/tensorpage/pagekv/commits/main"},
-    {"ref": "vb-tensorpage#4", "span": "\"You're right that 16 is arbitrary. It's a config knob in main as of an hour ago; defaults are a benchmark artifact, not a belief.\"", "url": "https://news.ycombinator.com/item?id=38321559"},
-    {"ref": "vb-tensorpage#8", "span": "\"We report a 2.3x increase in achievable batch size at 128k context with 1.7% throughput overhead.\"", "url": "https://arxiv.org/abs/2405.09912"},
-    {"ref": "vb-tensorpage#10", "span": "\"Our v0.1 numbers overstated the win by ~18% because we benchmarked against an unbatched baseline. Corrected table below.\"", "url": "https://news.ycombinator.com/item?id=40712233"},
-    {"ref": "vb-tensorpage#12", "span": "v0.4.0 — \"per-tenant quotas, fail-closed. Two production users on this path.\"", "url": "https://github.com/tensorpage/pagekv/releases/tag/v0.4.0"},
-    {"ref": "vb-tensorpage#14", "span": "v0.5.0 — \"disaggregated prefill/decode with RDMA page migration. 148 dependent repos as of tagging.\"", "url": "https://github.com/tensorpage/pagekv/releases/tag/v0.5.0"}
+    {"ref": "vb-tensorpage#0", "span": "commit 4b91e0c \"pagekv: block table with refcounted physical pages\"", "url": "https://github.example.invalid/tensorpage/pagekv/commits/main"},
+    {"ref": "vb-tensorpage#4", "span": "\"You're right that 16 is arbitrary. It's a config knob in main as of an hour ago; defaults are a benchmark artifact, not a belief.\"", "url": "https://hn.example.invalid/item?id=38321559"},
+    {"ref": "vb-tensorpage#8", "span": "\"We report a 2.3x increase in achievable batch size at 128k context with 1.7% throughput overhead.\"", "url": "https://arxiv.example.invalid/abs/2405.09912"},
+    {"ref": "vb-tensorpage#10", "span": "\"Our v0.1 numbers overstated the win by ~18% because we benchmarked against an unbatched baseline. Corrected table below.\"", "url": "https://hn.example.invalid/item?id=40712233"},
+    {"ref": "vb-tensorpage#12", "span": "v0.4.0 — \"per-tenant quotas, fail-closed. Two production users on this path.\"", "url": "https://github.example.invalid/tensorpage/pagekv/releases/tag/v0.4.0"},
+    {"ref": "vb-tensorpage#14", "span": "v0.5.0 — \"disaggregated prefill/decode with RDMA page migration. 148 dependent repos as of tagging.\"", "url": "https://github.example.invalid/tensorpage/pagekv/releases/tag/v0.5.0"}
   ],
   "entity_resolution_notes": ["GitHub mferreira-tp and HN mferreira merged on a shared release URL, confidence 0.94."]
 }

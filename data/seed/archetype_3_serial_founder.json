@@ -30,7 +30,7 @@
           "kind": "repo_activity",
           "source": "github",
           "company": "sf-padlock-metrics",
-          "source_url": "https://github.com/padlock-metrics/padlock/commits/main",
+          "source_url": "https://github.example.invalid/padlock-metrics/padlock/commits/main",
           "observed_at": "2021-06-14T10:00:00+00:00",
           "payload": {
             "repo": "padlock-metrics/padlock",
@@ -48,7 +48,7 @@
           "kind": "release",
           "source": "github",
           "company": "sf-padlock-metrics",
-          "source_url": "https://github.com/padlock-metrics/padlock/releases/tag/v1.0.0",
+          "source_url": "https://github.example.invalid/padlock-metrics/padlock/releases/tag/v1.0.0",
           "observed_at": "2021-10-08T13:00:00+00:00",
           "payload": {
             "repo": "padlock-metrics/padlock",
@@ -63,7 +63,7 @@
           "kind": "hn_post",
           "source": "hn",
           "company": "sf-padlock-metrics",
-          "source_url": "https://news.ycombinator.com/item?id=28901441",
+          "source_url": "https://hn.example.invalid/item?id=28901441",
           "observed_at": "2021-10-09T16:20:00+00:00",
           "payload": {
             "title": "Show HN: Padlock - metrics that refuse high-cardinality labels",
@@ -77,7 +77,7 @@
           "kind": "repo_activity",
           "source": "github",
           "company": "sf-padlock-metrics",
-          "source_url": "https://github.com/padlock-metrics/padlock/commits/main",
+          "source_url": "https://github.example.invalid/padlock-metrics/padlock/commits/main",
           "observed_at": "2022-03-22T09:40:00+00:00",
           "payload": {
             "repo": "padlock-metrics/padlock",
@@ -96,7 +96,7 @@
           "kind": "profile_fact",
           "source": "web",
           "company": "sf-padlock-metrics",
-          "source_url": "https://blog.padlockmetrics.dev/winding-down",
+          "source_url": "https://blog.padlockmetrics.example.invalid/winding-down",
           "observed_at": "2022-11-30T00:00:00+00:00",
           "payload": {
             "fact": "Padlock Metrics wound down; team of four dispersed",
@@ -111,7 +111,7 @@
           "kind": "hn_comment",
           "source": "hn",
           "company": "sf-padlock-metrics",
-          "source_url": "https://news.ycombinator.com/item?id=33776219",
+          "source_url": "https://hn.example.invalid/item?id=33776219",
           "observed_at": "2022-12-01T19:15:00+00:00",
           "payload": {
             "parent_title": "Padlock Metrics is winding down",
@@ -123,7 +123,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/meshledger/meshledger/commits/main",
+          "source_url": "https://github.example.invalid/meshledger/meshledger/commits/main",
           "observed_at": "2024-05-06T09:00:00+00:00",
           "payload": {
             "repo": "meshledger/meshledger",
@@ -140,7 +140,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/meshledger/meshledger/releases/tag/v0.1.0",
+          "source_url": "https://github.example.invalid/meshledger/meshledger/releases/tag/v0.1.0",
           "observed_at": "2024-07-30T11:30:00+00:00",
           "payload": {
             "repo": "meshledger/meshledger",
@@ -153,7 +153,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=41089774",
+          "source_url": "https://hn.example.invalid/item?id=41089774",
           "observed_at": "2024-07-31T14:00:00+00:00",
           "payload": {
             "title": "Show HN: Meshledger - ordered change data capture for object storage",
@@ -166,7 +166,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/meshledger/meshledger/commits/main",
+          "source_url": "https://github.example.invalid/meshledger/meshledger/commits/main",
           "observed_at": "2024-11-19T09:00:00+00:00",
           "payload": {
             "repo": "meshledger/meshledger",
@@ -184,7 +184,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/meshledger/meshledger/releases/tag/v0.3.0",
+          "source_url": "https://github.example.invalid/meshledger/meshledger/releases/tag/v0.3.0",
           "observed_at": "2025-02-25T12:00:00+00:00",
           "payload": {
             "repo": "meshledger/meshledger",
@@ -223,7 +223,7 @@
           "kind": "repo_activity",
           "source": "github",
           "company": "sf-fernwood-queue",
-          "source_url": "https://github.com/fernwood/fernwood-queue/commits/main",
+          "source_url": "https://github.example.invalid/fernwood/fernwood-queue/commits/main",
           "observed_at": "2021-09-02T10:20:00+00:00",
           "payload": {
             "repo": "fernwood/fernwood-queue",
@@ -241,7 +241,7 @@
           "kind": "release",
           "source": "github",
           "company": "sf-fernwood-queue",
-          "source_url": "https://github.com/fernwood/fernwood-queue/releases/tag/v2.0.0",
+          "source_url": "https://github.example.invalid/fernwood/fernwood-queue/releases/tag/v2.0.0",
           "observed_at": "2022-04-14T15:00:00+00:00",
           "payload": {
             "repo": "fernwood/fernwood-queue",
@@ -256,7 +256,7 @@
           "kind": "profile_fact",
           "source": "web",
           "company": "sf-fernwood-queue",
-          "source_url": "https://fernwood.dev/postmortem",
+          "source_url": "https://fernwood.example.invalid/postmortem",
           "observed_at": "2023-02-11T00:00:00+00:00",
           "payload": {
             "fact": "Fernwood Queue shut down; community fork took over maintenance",
@@ -270,7 +270,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/baseplate-systems/baseplate/commits/main",
+          "source_url": "https://github.example.invalid/baseplate-systems/baseplate/commits/main",
           "observed_at": "2024-08-13T09:00:00+00:00",
           "payload": {
             "repo": "baseplate-systems/baseplate",
@@ -287,7 +287,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/baseplate-systems/baseplate/releases/tag/v0.1.0",
+          "source_url": "https://github.example.invalid/baseplate-systems/baseplate/releases/tag/v0.1.0",
           "observed_at": "2024-10-29T13:20:00+00:00",
           "payload": {
             "repo": "baseplate-systems/baseplate",
@@ -300,7 +300,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/baseplate-systems/baseplate/commits/main",
+          "source_url": "https://github.example.invalid/baseplate-systems/baseplate/commits/main",
           "observed_at": "2025-01-27T09:00:00+00:00",
           "payload": {
             "repo": "baseplate-systems/baseplate",
@@ -318,7 +318,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/baseplate-systems/baseplate/releases/tag/v0.3.0",
+          "source_url": "https://github.example.invalid/baseplate-systems/baseplate/releases/tag/v0.3.0",
           "observed_at": "2025-04-15T11:00:00+00:00",
           "payload": {
             "repo": "baseplate-systems/baseplate",

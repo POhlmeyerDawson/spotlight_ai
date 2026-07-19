@@ -18,8 +18,8 @@
       "band": 0.09,
       "evidence_count": 3,
       "evidence": [
-        {"event_ref": "adv-synthgrid#4", "kind": "commit_burst", "source": "github", "observed_at": "2025-01-22T00:00:00+00:00", "span": "3117 commits, 9 days, +412 net lines. 2,213 are \"fix formatting\"; 688 move files between directories and back.", "url": "https://github.com/synthgrid/synthgrid-core/commits/main", "weight": "negative"},
-        {"event_ref": "adv-synthgrid#6", "kind": "repo_activity", "source": "github", "observed_at": "2025-02-01T00:00:00+00:00", "span": "README lists \"distributed scheduler, vector store, agent runtime\"; the corresponding directories contain only __init__.py", "url": "https://github.com/synthgrid/synthgrid-core/tree/main", "weight": "negative"}
+        {"event_ref": "adv-synthgrid#4", "kind": "commit_burst", "source": "github", "observed_at": "2025-01-22T00:00:00+00:00", "span": "3117 commits, 9 days, +412 net lines. 2,213 are \"fix formatting\"; 688 move files between directories and back.", "url": "https://github.example.invalid/synthgrid/synthgrid-core/commits/main", "weight": "negative"},
+        {"event_ref": "adv-synthgrid#6", "kind": "repo_activity", "source": "github", "observed_at": "2025-02-01T00:00:00+00:00", "span": "README lists \"distributed scheduler, vector store, agent runtime\"; the corresponding directories contain only __init__.py", "url": "https://github.example.invalid/synthgrid/synthgrid-core/tree/main", "weight": "negative"}
       ]
     },
     "market": {"score": 0.3, "trend": 0.0, "confidence": 0.4, "band": 0.2, "evidence_count": 1, "evidence": []},
@@ -76,7 +76,7 @@
   ],
   "claims": [
     {"claim_text": "10x faster, 10x cheaper, infinitely scalable", "claim_source_span": "slide 3", "status": "unverifiable", "trust": 0.0, "self_published": true, "note": "No baseline, no units, no measurement described. Unfalsifiable by construction.", "claim_asserted_at": "2025-02-04T00:00:00+00:00"},
-    {"claim_text": "3,000+ commits shipped in the last quarter", "claim_source_span": "slide 9", "status": "verified", "trust": 0.9, "self_published": true, "corroborating_url": "https://github.com/synthgrid/synthgrid-core/commits/main", "corroborating_span": "3117 commits, 9 days, +412 net lines", "note": "Literally true and completely uninformative. Verified as stated; the substance measure is what carries the decision.", "claim_asserted_at": "2025-02-04T00:00:00+00:00"}
+    {"claim_text": "3,000+ commits shipped in the last quarter", "claim_source_span": "slide 9", "status": "verified", "trust": 0.9, "self_published": true, "corroborating_url": "https://github.example.invalid/synthgrid/synthgrid-core/commits/main", "corroborating_span": "3117 commits, 9 days, +412 net lines", "note": "Literally true and completely uninformative. Verified as stated; the substance measure is what carries the decision.", "claim_asserted_at": "2025-02-04T00:00:00+00:00"}
   ],
   "trace_note": "The injection string is shown to the human on purpose. Hiding it would remove the evidence that matters most."
 }

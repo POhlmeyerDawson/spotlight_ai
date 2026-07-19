@@ -25,7 +25,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/arcwell-data/arcwell/commits/main",
+          "source_url": "https://github.example.invalid/arcwell-data/arcwell/commits/main",
           "observed_at": "2024-06-18T09:00:00+00:00",
           "payload": {
             "repo": "arcwell-data/arcwell",
@@ -42,7 +42,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/arcwell-data/arcwell/releases/tag/v0.2.0",
+          "source_url": "https://github.example.invalid/arcwell-data/arcwell/releases/tag/v0.2.0",
           "observed_at": "2024-11-07T12:00:00+00:00",
           "payload": {
             "repo": "arcwell-data/arcwell",
@@ -86,7 +86,7 @@
         {
           "kind": "hn_comment",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=43790112",
+          "source_url": "https://hn.example.invalid/item?id=43790112",
           "observed_at": "2025-05-02T17:45:00+00:00",
           "payload": {
             "parent_title": "Ask HN: founders, when did you start charging?",
@@ -101,7 +101,7 @@
         {
           "kind": "hn_comment",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=43790450",
+          "source_url": "https://hn.example.invalid/item?id=43790450",
           "observed_at": "2025-05-02T19:10:00+00:00",
           "payload": {
             "parent_title": "Ask HN: founders, when did you start charging?",
@@ -137,7 +137,7 @@
         {
           "kind": "repo_activity",
           "source": "github",
-          "source_url": "https://github.com/tallwind/meterkit/commits/main",
+          "source_url": "https://github.example.invalid/tallwind/meterkit/commits/main",
           "observed_at": "2024-07-09T09:00:00+00:00",
           "payload": {
             "repo": "tallwind/meterkit",
@@ -154,7 +154,7 @@
         {
           "kind": "hn_comment",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=42610338",
+          "source_url": "https://hn.example.invalid/item?id=42610338",
           "observed_at": "2025-01-08T16:25:00+00:00",
           "payload": {
             "parent_title": "Ask HN: what are you working on in 2025?",
@@ -169,7 +169,7 @@
         {
           "kind": "release",
           "source": "github",
-          "source_url": "https://github.com/tallwind/meterkit/releases/tag/v0.4.0",
+          "source_url": "https://github.example.invalid/tallwind/meterkit/releases/tag/v0.4.0",
           "observed_at": "2025-01-28T11:00:00+00:00",
           "payload": {
             "repo": "tallwind/meterkit",
@@ -213,7 +213,7 @@
         {
           "kind": "hn_post",
           "source": "hn",
-          "source_url": "https://news.ycombinator.com/item?id=43411029",
+          "source_url": "https://hn.example.invalid/item?id=43411029",
           "observed_at": "2025-03-21T13:40:00+00:00",
           "payload": {
             "title": "We turned billing on and immediately found three metering bugs",

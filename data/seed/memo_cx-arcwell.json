@@ -22,10 +22,10 @@
   },
   "recommendation": "NO CALL. A self-reported revenue metric was contradicted by the founder's own later public statement. Reopen on invoice-level evidence or a direct explanation.",
   "citations": [
-    {"ref": "cx-arcwell#0", "span": "commit 2f81ba0 \"as-of joins: never leak a feature value observed after the label\"", "url": "https://github.com/arcwell-data/arcwell/commits/main"},
-    {"ref": "cx-arcwell#1", "span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"", "url": "https://github.com/arcwell-data/arcwell/releases/tag/v0.2.0"},
+    {"ref": "cx-arcwell#0", "span": "commit 2f81ba0 \"as-of joins: never leak a feature value observed after the label\"", "url": "https://github.example.invalid/arcwell-data/arcwell/commits/main"},
+    {"ref": "cx-arcwell#1", "span": "v0.2.0 — \"streaming ingestion with point-in-time correctness\"", "url": "https://github.example.invalid/arcwell-data/arcwell/releases/tag/v0.2.0"},
     {"ref": "cx-arcwell#2", "span": "slide 6: \"$40K ARR, 6 paying customers, 0% logo churn since January\"", "url": "deck://arcwell-seed-2025.pdf#slide=6", "asserted_at": "2025-03-12T00:00:00+00:00"},
-    {"ref": "cx-arcwell#4", "span": "\"We are still pre-revenue. Everyone on Arcwell today is on a free design-partner agreement and we have not turned billing on.\"", "url": "https://news.ycombinator.com/item?id=43790112", "observed_at": "2025-05-02T17:45:00+00:00"}
+    {"ref": "cx-arcwell#4", "span": "\"We are still pre-revenue. Everyone on Arcwell today is on a free design-partner agreement and we have not turned billing on.\"", "url": "https://hn.example.invalid/item?id=43790112", "observed_at": "2025-05-02T17:45:00+00:00"}
   ],
   "entity_resolution_notes": ["GitHub rcastellanos and HN rcastell merged on a shared repository URL, confidence 0.91."]
 }
