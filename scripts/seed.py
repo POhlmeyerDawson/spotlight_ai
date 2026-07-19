@@ -23,6 +23,7 @@ from uuid import UUID, uuid5
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from data.seed.provenance import provenance_for  # noqa: E402
 from memory import store  # noqa: E402
 from schema.events import Event, EventKind, Source  # noqa: E402
 from sourcing.sanitize import sanitize_event  # noqa: E402
@@ -134,12 +135,25 @@ def build_events(
 
 
 def resolve_ids(profile: dict[str, Any], archetype: int) -> dict[str, UUID]:
-    """Companies and entities first - upsert is keyed on name, so this is idempotent."""
+    """Companies and entities first - upsert is keyed on name, so this is idempotent.
+
+    Provenance is looked up per company name from the fixtures themselves rather than
+    inferred from `archetype`. Those two agree for the archetype corpus and DISAGREE
+    for the backtest cohort, which carries archetype None but contains both real
+    companies and authored synthetic controls side by side — so inferring it here
+    would label every synthetic control as sourced evidence.
+    """
     ids: dict[str, UUID] = {
-        profile["company_id"]: store.upsert_company(profile["company_name"], archetype=archetype)
+        profile["company_id"]: store.upsert_company(
+            profile["company_name"],
+            archetype=archetype,
+            provenance=provenance_for(profile["company_name"]),
+        )
     }
     for prior in profile.get("prior_companies", []):
-        ids[prior["company_id"]] = store.upsert_company(prior["name"], archetype=archetype)
+        ids[prior["company_id"]] = store.upsert_company(
+            prior["name"], archetype=archetype, provenance=provenance_for(prior["name"])
+        )
     for founder in profile["founders"]:
         ids[founder["key"]] = store.upsert_entity(founder["name"], founder["name_normalized"])
     return ids

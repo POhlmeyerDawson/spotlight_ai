@@ -355,3 +355,107 @@ A caveat on method, stated because it bounds the claim: the seeded corpus ships 
 2. Verify the four UNVERIFIED rate limits in §5 before any volume run.
 3. Nine of the ten enabled sources map onto `Source` enum values `web`, `github`, `hn`, `arxiv`. Either accept `web` as a catch-all and carry `source_id` in `Event.payload`, or extend the enum — a schema decision, so A's call.
 4. Decide whether the frozen Papers with Code dump is worth wiring as a pre-2025 backtest backfill.
+
+---
+
+## 8. Sector generalisation: making the registry work outside software
+
+### 8.1 The failure, stated precisely
+
+Before this change the allowlist was **one global list**: every enabled source's domains, concatenated, regardless of what the fund actually invests in. That list was 42 domains, **38 of them code or CS-research** — GitHub, arXiv, HN, the package registries, developer conferences, developer blogs. Only YouTube, Substack, Medium and TechCrunch were sector-neutral. `core/search.py`'s `only_domains` parameter could *narrow* that list and was forbidden from widening it, which was the correct design for keeping the source list auditable and the wrong one for reading anybody outside software.
+
+The consequence was not that a biotech or fintech founder scored **low**. It is worse than that, and much harder to see:
+
+> A non-technical founder was not scored DOWN. They were scored UNINFORMATIVE — no source could see them, so no rule was applicable, so `y_t` returned the prior — and under `min_axis_with_momentum_tiebreak` that lands at the bottom anyway.
+
+**"We have no signal on this person" and "this person is weak" must not produce the same rank.** A fintech founder with a live pilot and a regulatory licence has enormous, dated, independently-verified signal; the system simply could not see one byte of it.
+
+### 8.2 What is config and what is code
+
+Everything sector-specific is config. The code knows about *sectors* in the abstract and about *four questions*; it knows nothing about any industry.
+
+| Concern | Lives in | Why |
+| --- | --- | --- |
+| Which sources serve which industries | `sources.json` → each source's `sectors` | Adding an industry is adding a source entry |
+| What a thesis sector *means* | `sources.json` → `sector_families` | A fund types `fintech`; the registry expands it |
+| What counts as "shipped" outside software | `sources.json` → `evidence_classes` | The equivalence table, argued below |
+| Resolving the allowlist against the thesis | `core/search.py` | ~60 lines, industry-agnostic |
+| Turning instances into rules | `intelligence/flags.py::_sector_rules` | Four modes, no industry names |
+
+Adding an industry is a **config change**. That is the property the whole design was for.
+
+### 8.3 Domains added, and how each was confirmed
+
+Nine new sources. **Every domain below is one whose existence is not in doubt** — a public institution, a registry, a standards body or a long-established platform. Where an API endpoint is named it is one this author is confident is real. **Where a rate limit could not be fetched from this environment it is marked `UNVERIFIED` rather than guessed**, following the convention §5 already sets. Nothing here was invented to make a table look complete, and where certainty ran out the entry was left out.
+
+| Source | Domains | Sectors |
+| --- | --- | --- |
+| `clinical_registries` | clinicaltrials.gov, trialsearch.who.int, who.int | biotech, healthcare |
+| `biomed_literature` | pubmed.ncbi.nlm.nih.gov, ncbi.nlm.nih.gov, europepmc.org, biorxiv.org, medrxiv.org | biotech, healthcare |
+| `regulatory_health` | fda.gov, api.fda.gov, ema.europa.eu | biotech, healthcare |
+| `patents` | patents.google.com, patentsview.org, search.patentsview.org, uspto.gov, epo.org, wipo.int | hardware, robotics, biotech, climate, healthcare |
+| `financial_filings` | sec.gov, data.sec.gov, federalregister.gov, regulations.gov, fca.org.uk, consumerfinance.gov, ffiec.gov, nmlsconsumeraccess.org | fintech |
+| `open_research_record` | openalex.org, api.openalex.org, crossref.org, doi.org, zenodo.org, figshare.com, datadryad.org | biotech, healthcare, hardware, robotics, climate, fintech |
+| `hardware_makers` | hackaday.io, hackaday.com, ifixit.com, instructables.com, oshwa.org, ieee.org, ieeexplore.ieee.org | hardware, robotics, climate |
+| `design_portfolios` | behance.net, dribbble.com, figma.com | design, consumer |
+| `energy_climate` | osti.gov, nrel.gov, energy.gov, epa.gov | climate, hardware |
+
+**The demo path is frozen deliberately.** None of these is tagged `software`, and the pre-existing sources were tagged so that the shipped AI-infra thesis resolves to **exactly the same 42 domains it always did** — asserted by test, by identity. Several of the new sources (`open_research_record` above all) would genuinely serve a software thesis; adding `software` to their tags is a one-line edit in the registry and no code change at all.
+
+### 8.4 Evidence-class equivalence
+
+Every rule in `intelligence/flags.py` was gated on a `Source` enum, which meant *"shipped something"* was **defined as** *"tagged a GitHub release"*. For a company whose product is code that definition is right. Everywhere else it is simply false.
+
+The `evidence_classes` block separates the **question** from its **implementation**. A source-gated rule is one *instance* of a class, not the definition of it:
+
+| Class | The question | Software instance | Instances elsewhere |
+| --- | --- | --- | --- |
+| `shipped` | Put a working thing in front of people who did not have to be nice about it | `shipped_release`, `show_hn_ship` | registered trial, regulatory clearance, financial licence, patent filing, deposited dataset, published build, design case study |
+| `sustained` | Kept at it over calendar time | `sustained_activity_90d` | any sector channel, 90+ days |
+| `iterated` | Returned to the same body of work | `iterates_same_artifact` | three touches in a sector channel |
+| `corroborated` | Somebody who did not have to, confirmed it | `external_contributors` | two independent sector channels |
+
+Two properties are load-bearing:
+
+**Weight parity.** An instance carries the weight of the software rule it is the analogue of. A registered clinical trial is worth what a shipped release is worth (3.0) because *it is the same act* — a public, third-party-dated, falsifiable commitment — performed in a field where the artifact is not code. Weighting it lower would re-import the bias this table exists to remove, one decimal place at a time. Two instances are deliberately weighted *below* their class and say why: `patent_filed` at 2.0 because filing costs money and the registry will not pay a wealth filter full rate, and `design_case_study_published` at 2.0 because a portfolio is entirely self-authored.
+
+**Absence stays UNKNOWN.** An instance is only *applicable* when its channel is reachable — when the founder has at least one event from a source that serves it. A fintech founder with no filing in evidence does not **fail** `regulatory_licence_held`; the rule is never evaluated and never enters the denominator of `y_t`. This is the same `None`-not-`0.0` discipline `data/traits.json` applies (TRAITS.md §2), and it is what makes the design safe to ship.
+
+### 8.5 The two sector-literal rules
+
+Found by a test, not by reading. `infra_domain_depth` matches `compiler|kernel|gpu|quantization|…` and `benchmarks_published` matches `benchmark|latency|throughput`. Both are gated on `_TEXTY`, which includes `web` — so under **any** thesis they were evaluated against **every** founder with a single web page, and failed against every founder outside software. An entire industry was quietly marked down for not saying "kernel".
+
+They now apply only when the thesis includes a software sector. **Not yet solved, and worth saying plainly: there is no non-software domain-depth rule to replace them with.** A fintech founder can no longer be scored *against* software depth; they still cannot be scored *for* depth in their own field.
+
+### 8.6 The source penalty
+
+`memory/score.py` priced `github 0.6 / arxiv 0.7 / web 1.0 / deck 2.0`. Read as *"code is trustworthy and prose is not"* that is indefensible: the only channel a non-technical founder has was the noisiest available **by construction**, with no route to improvement however much independent confirmation arrived.
+
+The numbers were kept and the *justification* corrected — they track **timestamp authority and third-party observability**, not code. GitHub and HN carry server-assigned times the subject cannot set; a deck carries whatever the founder typed this morning. Nothing in that argument mentions code.
+
+The missing axis was **corroboration**, and it is supplied rather than back-fitted. `intelligence/flags._corroboration_reading` counts channels standing behind a reading that are neither **self-attested** (the deck; a `MANUAL` note is us) nor **self-published** (a domain the founder controls, per `SELF_PUBLISHED_HINTS`), and `memory/score._corroboration_multiplier` prices that count on the curve `traits.json` already argues for: `0 → 1.25, 1 → 1.0, 2 → 0.85, 3+ → 0.75`. It multiplies **observation noise only**, so corroboration can never invent capability — it narrows or widens the band around whatever the evidence already said. It is **neutral when unstated**, so nothing predating the change moves.
+
+### 8.7 Measured
+
+Same 22-founder corpus, seeded from the archetype fixtures, `as_of` 2025-06-01.
+
+| | AI-infra thesis (before → after) | AI-infra → fintech thesis |
+| --- | --- | --- |
+| Allowlist | 42 → **42, identical** | 42 → **35** |
+| Active rules | 35 → **35** (`_active_rules() is RULES`) | 35 → **39** |
+| Fired-rule sets | **identical for all 22** | 4 rules added, 2 dropped |
+| max abs mu change | **0.0163** | 18 of 25 founders move |
+| Founder-axis ranking | 2 adjacent swaps among near-ties | **changes** |
+
+The AI-infra movement is entirely the corroboration multiplier and is directionally coherent: well-corroborated founders move up and their bands narrow; single-channel founders move down. It moves mu **away from the prior in whichever direction the evidence already pointed**, which is what reduced uncertainty is supposed to do. The two ranking swaps are between founders separated by less than 0.01 — `Wolf`/`Hykes` at the top, where the better-corroborated founder now leads, and a bottom cluster where a well-corroborated weak reading now sorts below a barely-observed one.
+
+### 8.8 What a non-technical founder still CANNOT be scored on
+
+Blunt, because a coverage table that flatters itself is worse than none:
+
+1. **Depth in their own field.** Gated the software-only rules; wrote no replacement. There is no fintech, clinical or hardware analogue of `infra_domain_depth`.
+2. **Trait attribution.** `intelligence/traits.py` does not read the `trait` field on an evidence class, so a sector rule that fires contributes to `y_t` but is attributed to no trait in the `TraitProfile`. For a founder scored entirely on sector rules the collapse identity in TRAITS.md §5 does not hold. Declared and tested; not consumed.
+3. **Ingestion.** No scanner *fetches* any of the nine new sources. The domains are reachable through `sourcing/research.py`'s generic search-and-promote path, which is a real path and the one the tests exercise — but there is no `clinicaltrials.gov` scanner the way there is a GitHub one, so coverage in practice is whatever open discovery happens to surface.
+4. **The self-published surcharge is unexercised by the corpus.** No founder in it hits the 0-channel branch, so that multiplier is covered by unit test only and has never run against real evidence.
+5. **Design and consumer remain thinly covered by this registry's own measure** — one source each, and `design_portfolios` sits at the third trust level. `registry_coverage()` reports this rather than hiding it, which is the point, but reporting a gap is not closing one.
+6. **Everything §6 and `coverage_gaps` already said** still applies. Closed-source defence work, wet-lab work with nothing published, and non-anglophone founders outside the covered regions are no better served than before.

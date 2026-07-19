@@ -60,7 +60,29 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
+#: Key under which the edited thesis is stored in core.state's config_documents.
+DOCUMENT_KEY = "thesis"
+
+
 def load(path: Path | None = None) -> dict:
+    """The live thesis: the stored edit if there is one, else the file, else DEFAULTS.
+
+    THE STORED DOCUMENT WINS, and it has to. `data/seed/thesis.json` is the only mutable
+    config this system kept on disk, and the deployment filesystem is read-only — so on
+    Vercel an edit can only ever land in Postgres. If this reader kept looking only at
+    the file, editing the thesis would change what the panel displays and nothing else,
+    which is precisely the "picture of a control panel" this module was written to end.
+
+    An explicit `path` still forces the file, because a caller naming a file means a file
+    — that is what keeps tests pointing at a tmp fixture honest.
+    """
+    if path is None:
+        from core import state
+
+        stored = state.get_document(DOCUMENT_KEY)
+        if stored is not None:
+            return {**DEFAULTS, **stored}
+
     p = path or seed_path()
     if not p.exists():
         return dict(DEFAULTS)

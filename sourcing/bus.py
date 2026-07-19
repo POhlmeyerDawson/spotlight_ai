@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -202,6 +203,32 @@ BACKOFF = (1.0, 3.0)  # bounded on purpose — a scanner must never hang the pip
 TIMEOUT = 15.0
 USER_AGENT = "vc-brain-sourcing/0.1"
 
+# How long a cached raw response stays authoritative. The cache is deliberate — re-running
+# the pipeline dozens of times must not cost dozens of API budgets — but "exists" is not
+# "current": without a TTL the 12 files already under data/raw/github/ could never be
+# refreshed, and a scan of a founder who shipped yesterday would replay last week.
+# Negative disables expiry entirely; SOURCING_CACHE_TTL overrides for a demo run.
+CACHE_TTL_SECONDS = float(os.environ.get("SOURCING_CACHE_TTL", 24 * 3600))
+
+# Politeness floor between two live requests to the same host. GitHub unauthenticated is
+# 60 req/hr; this does not raise that ceiling, it stops a fan-out from spending it in one
+# burst and tripping the abuse detector before the rate limiter proper.
+MIN_REQUEST_INTERVAL = 0.35
+
+_last_request: dict[str, float] = {}
+_stats: dict[str, int] = {"requests": 0, "cache_hits": 0, "cache_expired": 0, "errors": 0}
+_quota: dict[str, dict[str, str]] = {}
+
+
+def stats() -> dict:
+    """What this process actually consumed. The runner prints it; nothing else reads it."""
+    return {**_stats, "quota": {h: dict(v) for h, v in _quota.items()}}
+
+
+def reset_stats() -> None:
+    _stats.update(requests=0, cache_hits=0, cache_expired=0, errors=0)
+    _quota.clear()
+
 
 class FetchError(RuntimeError):
     def __init__(self, status: int, message: str, *, retry_after: float | None = None) -> None:
@@ -226,10 +253,21 @@ def fetch_text(
     headers: dict | None = None,
     suffix: str = "txt",
     refresh: bool = False,
+    ttl: float | None = None,
 ) -> str:
+    """Cached GET. `refresh` forces a live fetch; `ttl` overrides CACHE_TTL_SECONDS.
+
+    A stale cache entry is NOT served as a fallback when the refetch fails — the error
+    propagates. Serving yesterday's bytes under today's timestamp is the quiet version
+    of the mock-data failure this pipeline is not allowed to have.
+    """
     cache_file = cache_dir / f"{_slug(url, params)}.{suffix}"
     if cache_file.exists() and not refresh:
-        return cache_file.read_text()
+        if _is_fresh(cache_file, CACHE_TTL_SECONDS if ttl is None else ttl):
+            _stats["cache_hits"] += 1
+            return cache_file.read_text()
+        _stats["cache_expired"] += 1
+        log.debug("cache expired for %s — refetching", url)
 
     body = _get(url, params, headers)
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -237,20 +275,51 @@ def fetch_text(
     return body
 
 
+def _is_fresh(cache_file: Path, ttl: float) -> bool:
+    if ttl < 0:  # explicit "never expires" — used by the backtest, which replays fixed history
+        return True
+    return (time.time() - cache_file.stat().st_mtime) < ttl
+
+
+def _throttle(host: str) -> None:
+    wait = MIN_REQUEST_INTERVAL - (time.monotonic() - _last_request.get(host, 0.0))
+    if wait > 0:
+        time.sleep(wait)
+    _last_request[host] = time.monotonic()
+
+
+def _record_quota(resp: httpx.Response) -> None:
+    """Whatever the host says is left. Reported by the runner rather than discovered by
+    hitting the wall."""
+    seen = {
+        k: resp.headers[k]
+        for k in ("x-ratelimit-remaining", "x-ratelimit-limit", "x-ratelimit-reset")
+        if k in resp.headers
+    }
+    if seen:
+        _quota[resp.request.url.host] = seen
+
+
 def _get(url: str, params: dict | None, headers: dict | None) -> str:
     hdrs = {"User-Agent": USER_AGENT, **(headers or {})}
+    host = httpx.URL(url).host
     for attempt in range(len(BACKOFF) + 1):
         try:
+            _throttle(host)
+            _stats["requests"] += 1
             resp = httpx.get(
                 url, params=params, headers=hdrs, timeout=TIMEOUT, follow_redirects=True
             )
         except httpx.HTTPError as exc:
             if attempt == len(BACKOFF):
+                _stats["errors"] += 1
                 raise FetchError(0, f"{url}: {exc}") from exc
             time.sleep(BACKOFF[attempt])
             continue
 
+        _record_quota(resp)
         if _is_rate_limited(resp):
+            _stats["errors"] += 1
             retry = resp.headers.get("retry-after") or resp.headers.get("x-ratelimit-reset")
             raise RateLimited(
                 resp.status_code,
@@ -262,8 +331,10 @@ def _get(url: str, params: dict | None, headers: dict | None) -> str:
             time.sleep(BACKOFF[attempt])
             continue
         if resp.status_code >= 400:
+            _stats["errors"] += 1
             raise FetchError(resp.status_code, f"{url}: HTTP {resp.status_code} {resp.text[:200]}")
         return resp.text
+    _stats["errors"] += 1
     raise FetchError(0, f"{url}: exhausted retries")
 
 

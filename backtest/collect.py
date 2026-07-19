@@ -35,6 +35,10 @@ class Footprint:
     events: list[Event] = field(default_factory=list)
     raw_signals: list[dict] = field(default_factory=list)
     origin: str = "fixture"  # scanners | fixture
+    # Which scanners blew up, and why. "arxiv found nothing" and "arxiv raised" are
+    # opposite findings — the first says the footprint is absent, the second says we did
+    # not look — and an empty `events` list reported both identically.
+    scanner_errors: dict[str, str] = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {
@@ -45,6 +49,7 @@ class Footprint:
             "signal_count": len(self.raw_signals),
             "event_count": len(self.events),
             "origin": self.origin,
+            "scanner_errors": dict(self.scanner_errors),
         }
 
 
@@ -55,19 +60,28 @@ def _aware(v: Any) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def _scan(founder: str) -> list:
-    """B's scanners, if they've landed. Any that hasn't is skipped, never fatal."""
-    signals = []
+def _scan(founder: str) -> tuple[list, dict[str, str]]:
+    """B's scanners, if they've landed. Returns (signals, errors_by_scanner).
+
+    A scanner failure is NOT fatal — partial collection beats none — but it is not
+    invisible either. It was logged at INFO, which under default logging is below the
+    threshold, so every scanner in the fan-out could raise and the run printed nothing
+    and returned an empty list that read exactly like "this founder has no footprint".
+    Failures now log at WARNING with a traceback and are returned to the caller.
+    """
+    signals: list = []
+    errors: dict[str, str] = {}
     for name in SCANNERS:
         try:
             mod = __import__(f"sourcing.scanners.{name}", fromlist=["scan"])
             signals.extend(mod.scan(founder) or [])
-        except Exception as exc:  # noqa: BLE001 - a missing scanner must not stop collection
-            log.info("collect: scanner %s unavailable (%s)", name, exc)
-    return signals
+        except Exception as exc:  # noqa: BLE001 - a failed scanner must not stop collection
+            errors[name] = f"{type(exc).__name__}: {exc}"
+            log.warning("collect: scanner %s FAILED for %s: %s", name, founder, exc, exc_info=True)
+    return signals, errors
 
 
-def _ingest(signals: list) -> list[Event]:
+def _ingest(signals: list) -> tuple[list[Event], dict[str, str]]:
     from sourcing import bus
 
     events: list[Event] = []
@@ -75,9 +89,11 @@ def _ingest(signals: list) -> list[Event]:
         try:
             events.extend(bus.ingest(raw) or [])
         except Exception as exc:  # noqa: BLE001 - fall back to the fixture cohort
-            log.info("collect: ingest unavailable (%s)", exc)
-            return []
-    return events
+            log.warning(
+                "collect: ingest FAILED (%s) — falling back to fixtures", exc, exc_info=True
+            )
+            return [], {"bus": f"{type(exc).__name__}: {exc}"}
+    return events, {}
 
 
 def collect(founder: str, truncation_date: datetime, **meta: Any) -> Footprint:
@@ -94,7 +110,17 @@ def collect(founder: str, truncation_date: datetime, **meta: Any) -> Footprint:
         label=meta.get("label", "unknown"),
     )
 
-    events = _ingest(_scan(founder))
+    signals, errors = _scan(founder)
+    events, ingest_errors = _ingest(signals)
+    fp.scanner_errors = {**errors, **ingest_errors}
+    if fp.scanner_errors and not events:
+        log.warning(
+            "collect: %s produced NO events and %d scanner(s) failed (%s) — the empty "
+            "footprint below is a collection failure, not an absent footprint",
+            founder,
+            len(fp.scanner_errors),
+            ", ".join(fp.scanner_errors),
+        )
     if events:
         fp.events = [e for e in events if e.observed_at <= cut]
         fp.origin = "scanners"

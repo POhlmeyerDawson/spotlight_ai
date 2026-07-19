@@ -2,10 +2,33 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def cache_root() -> Path:
+    """Base directory for everything this system WRITES at runtime.
+
+    On Vercel the deployment filesystem is READ-ONLY except `/tmp`, so a cache that
+    defaults to `data/` does not degrade — it raises OSError on the write, after the
+    request has already paid for the LLM call it was trying to cache.
+
+    `/tmp` does not survive the invocation, so this buys within-request and warm-lambda
+    reuse only. That is the honest ceiling of a serverless cache and it is why every
+    caller of this still guards its write: relocating the path makes caching POSSIBLE,
+    it does not make it reliable. Nothing whose loss matters is stored under here —
+    durable state is Postgres.
+
+    Locally this is `data/`, unchanged, so dev behaviour is byte-identical to before.
+    """
+    override = os.getenv("VCBRAIN_CACHE_ROOT")
+    if override:
+        return Path(override)
+    # VERCEL is set to "1" by the platform in every deployment and unset everywhere else.
+    return Path("/tmp/vcbrain") if os.getenv("VERCEL") else Path("data")
 
 
 @dataclass(frozen=True)

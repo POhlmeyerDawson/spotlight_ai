@@ -208,3 +208,41 @@ Two things worth keeping from that. First: **the trait score is contained by the
 4. **Re-anchor or drop `proof_fast_start`** (§1).
 5. **Strengthen `engineering_rigor`'s rules** to measure gating rather than presence, or accept that it is decorative and weight it accordingly (§6).
 6. **Do not attempt the multivariate state before feature freeze** (§5).
+7. **The taxonomy cannot express a co-founder role split.** All seven traits are *builder* traits, because all 34 rules in `flags.py` observe building. Nothing fires on distribution, pricing, hiring or customer development. `intelligence/team.py` therefore reports `role_split: "not_determinable"` for every company — never a guess — and that string is a statement about this taxonomy, not about the team. Closing it means new rules over evidence we do not currently collect, not a new trait over evidence we do; a "business co-founder" trait backed by the absence of GitHub activity would be the visibility-as-quality failure §0 exists to prevent, wearing a role's clothes.
+
+---
+
+## 8. Team-level composition
+
+`intelligence/team.py` derives a team score on top of the per-founder scores. It does not modify `memory/score.py`, and it reads this taxonomy rather than extending it. Two things it takes from here:
+
+**Complementarity is measured on `observed` traits, never `evidenced` ones.** The independent-channel gate in §3 is what stops a keyword-stuffed deck from manufacturing a fake complementary co-founder — the same containment that drops the Type 5 adversary below the `technical_depth` gate. A co-founder whose only distinct trait rests on self-attested copy earns zero lift.
+
+**The lift is bounded by the band, not by the taxonomy.** A co-founder covering ground the strongest member is not observed on adds `(unique_traits / 7) * mu`, capped at 0.15 — chosen because a well-evidenced founder's band in this corpus runs 0.06–0.12, and a *structural* adjustment must not outrun the *measurement* precision of the thing it adjusts. §5's argument applies unchanged: this is a layer on top of the scalar, not a re-tuning of the sensor, and no single-founder company's `mu` or `band` moves by a single bit.
+
+**Measured caveat.** Across the 24-company corpus every company has exactly one resolved founder, so complementarity is `null` (not measured) everywhere and has *never run against real multi-founder evidence*. Recombining real founders into synthetic pairs, 26 of 28 pairs produce zero lift, because the best-evidenced founders here are already observed on all seven traits and leave no gap to fill. That is a property worth watching: on this corpus complementarity fires mainly where the anchor has a *coverage hole*, which correlates with thin evidence as much as with genuine role differentiation. It should be re-validated the moment a real two-founder company lands.
+
+---
+
+## 9. Traits outside software
+
+§2 argues that `TraitProfile.vector()` returns `None` and never `0.0`, because *"a designer with no GitHub is not a red flag"*. That discipline was correct and it was **local**: it held inside the trait layer while the layer beneath it — the rules in `intelligence/flags.py` — could only ask software questions in the first place. A founder outside software did not get an honest `None` on seven traits; they got no applicable rules at all, `y_t` came back at the prior, and under `min_axis_with_momentum_tiebreak` that is indistinguishable from being weak.
+
+`data/sources.json` now carries an `evidence_classes` table that states the equivalence explicitly — a registered clinical trial, a granted licence, a patent's priority date and a deposited dataset are all instances of the same class as a tagged release — and each class names **the trait it evidences**. The mapping is:
+
+| Class | Trait |
+| --- | --- |
+| `shipped` | `ships_to_users` |
+| `sustained` | `iteration_velocity` |
+| `iterated` | `iteration_velocity` |
+| `corroborated` | `responds_to_scrutiny` |
+
+**This link is declared and tested but NOT YET CONSUMED.** `intelligence/traits.py` builds its profile from `flags.RULES` and knows nothing about the `trait` field on an evidence class. So for a founder scored on sector rules:
+
+- the sector rules **do** enter `y_t` and **do** move the score;
+- they are attributed to **no trait**, so they are invisible in the `TraitProfile` and in per-source attribution;
+- consequently the collapse identity asserted in §5 — that `sum(w_t * y_t) / sum(w_t)` equals `flags.observation()[0]` — **does not hold** for such a founder.
+
+It holds for every founder in the current corpus, because none of them is outside software, which is exactly why this is written down rather than left to be discovered. `tests/test_sector_generalisation.py::test_every_evidence_class_names_a_trait_that_exists` keeps the declared mapping honest in the meantime, and closing the gap means teaching `intelligence/traits.py` to read it.
+
+One thing that did **not** change and should not: corroboration still multiplies **confidence only**, never the trait score. `memory/score.py` now prices independent corroboration into observation noise on the same concave curve §3 argues for, which means an independently-witnessed reading gets a narrower band — in whichever direction the evidence already pointed. It cannot manufacture capability, and a founder nobody has corroborated is marked **unwitnessed**, not weak.

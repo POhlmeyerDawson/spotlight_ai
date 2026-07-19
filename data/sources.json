@@ -44,6 +44,374 @@
       "rationale": "Investigated and deliberately excluded. Kept in this file so the exclusion is auditable and nobody re-adds it in hour 14."
     }
   },
+  "sector_families": {
+    "_note": "A source is tagged with the FAMILIES it serves, not with every sector id a fund might type. This map expands a family into the thesis sector ids that belong to it, so `data/seed/thesis.json` can say 'fintech' and core/search.py can resolve that to the financial-record sources without either file knowing about the other. Matching is on normalised ids (lowercase, '-' separated). A source tagged '*' serves every sector; a source with no `sectors` key is treated as '*' so an untagged addition fails OPEN rather than silently disappearing from every search.",
+    "software": [
+      "software",
+      "saas",
+      "ai-infra",
+      "ai-infrastructure",
+      "ai",
+      "ml",
+      "mlops",
+      "dev-tools",
+      "developer-tools",
+      "devtools",
+      "data-infra",
+      "data-infrastructure",
+      "infrastructure",
+      "security",
+      "cybersecurity",
+      "cloud",
+      "open-source"
+    ],
+    "biotech": [
+      "biotech",
+      "biotechnology",
+      "life-sciences",
+      "therapeutics",
+      "pharma",
+      "drug-discovery",
+      "genomics",
+      "synthetic-biology",
+      "bio"
+    ],
+    "healthcare": [
+      "healthcare",
+      "health",
+      "digital-health",
+      "healthtech",
+      "medtech",
+      "medical-devices",
+      "diagnostics",
+      "clinical"
+    ],
+    "fintech": [
+      "fintech",
+      "financial-services",
+      "finance",
+      "payments",
+      "banking",
+      "insurtech",
+      "insurance",
+      "lending",
+      "capital-markets",
+      "regtech",
+      "wealth",
+      "crypto"
+    ],
+    "hardware": [
+      "hardware",
+      "deeptech",
+      "deep-tech",
+      "semiconductors",
+      "silicon",
+      "photonics",
+      "manufacturing",
+      "industrial",
+      "aerospace",
+      "space",
+      "defense",
+      "defence"
+    ],
+    "robotics": [
+      "robotics",
+      "automation",
+      "drones",
+      "autonomy",
+      "mobility"
+    ],
+    "climate": [
+      "climate",
+      "climate-tech",
+      "climatetech",
+      "energy",
+      "cleantech",
+      "clean-energy",
+      "sustainability",
+      "agriculture",
+      "agtech",
+      "food"
+    ],
+    "design": [
+      "design",
+      "creative",
+      "media",
+      "brand",
+      "product-design"
+    ],
+    "consumer": [
+      "consumer",
+      "marketplace",
+      "commerce",
+      "e-commerce",
+      "social",
+      "edtech"
+    ]
+  },
+  "_sector_tagging_note": "Every source carries a `sectors` tag and core/search.py resolves the search allowlist against the ACTIVE THESIS rather than concatenating every enabled source. Before this change the allowlist was one global list of 42 domains, 38 of them code or CS-research, and a biotech founder was therefore structurally unreadable: there was no PubMed, no bioRxiv, no trial registry, no regulator and no filing anywhere in it, and core/search.py's only_domains parameter could NARROW that list but was forbidden from widening it. The tags on the pre-existing sources were chosen so the shipped AI-infra thesis resolves to exactly the same 42 domains it always did -- the demo path is frozen deliberately, and none of the new sources is tagged `software`. Several of them (open_research_record above all) would genuinely serve a software thesis too; adding `software` to their tags is a one-line edit here and no code change, which is the property this whole design was for.",
+  "evidence_classes": {
+    "_note": "WHAT THE EVIDENCE SHOWS, not which platform it came from. Every rule in intelligence/flags.py was gated on a SOURCE -- GitHub, arXiv, HN -- which meant 'shipped something' was DEFINED as 'tagged a GitHub release'. That definition is correct for a company whose product is code and simply false everywhere else, and the consequence was that a founder outside software produced no applicable rules at all. This table separates the QUESTION from its IMPLEMENTATION: the question is the class, and a source-gated rule is one instance of it. Adding an industry is adding instances here, not writing Python.",
+    "_absence_rule": "AN INSTANCE IS ONLY EVALUATED WHEN ITS CHANNEL IS REACHABLE. A fintech founder with no filing in evidence does not fail `regulatory_licence`; the rule is not evaluated, so it never enters the denominator of y_t and the founder collapses toward the uninformative prior. This is the same None-not-0.0 discipline data/traits.json already applies (docs/TRAITS.md section 2) and it is the whole point: 'we have no signal on this person' and 'this person is weak' must not produce the same number.",
+    "_weight_parity": "An instance carries the SAME WEIGHT as the software rule it is the analogue of. A registered clinical trial is weighted like a shipped release (3.0) because it is the same act -- a public, third-party-dated, falsifiable commitment -- performed in a field where the artifact is not code. Weighting it lower would re-import the bias this table exists to remove, one decimal place at a time.",
+    "_sector_scope": "Instances are declared for NON-SOFTWARE sectors only. The software instance of every class already exists as the named rules in `software_rules` and is unchanged by this table, which is what keeps the shipped AI-infra thesis byte-identical. A fund whose thesis includes both software and biotech gets both sets, because the classes resolve per sector and a founder is evaluated on whichever channels they actually have.",
+    "classes": [
+      {
+        "id": "shipped",
+        "question": "Did they put a working thing in front of people who did not have to be nice about it?",
+        "software_rules": [
+          "shipped_release",
+          "show_hn_ship",
+          "external_contributors",
+          "proof_artifact_works"
+        ],
+        "software_artifact": "a tagged release, a Show HN, a published package version",
+        "trait": "ships_to_users",
+        "instances": [
+          {
+            "id": "clinical_trial_registered",
+            "sectors": [
+              "biotech",
+              "healthcare"
+            ],
+            "question": "Registered a clinical trial on a public registry?",
+            "weight": 3.0,
+            "mode": "match",
+            "sources": [
+              "clinical_registries"
+            ],
+            "match": "\\b(nct\\d{6,8}|isrctn\\d{6,8}|trial registration|registered trial|first posted|study first submitted)\\b",
+            "why_equivalent": "A public, third-party-timestamped, falsifiable commitment stating in advance what would count as failure. That is what a release is, minus the code."
+          },
+          {
+            "id": "regulatory_submission_accepted",
+            "sectors": [
+              "biotech",
+              "healthcare"
+            ],
+            "question": "Cleared or filed with a health regulator?",
+            "weight": 3.0,
+            "mode": "match",
+            "sources": [
+              "regulatory_health"
+            ],
+            "match": "\\b(510\\(k\\)|de novo|premarket|pre-market|marketing authorisation|marketing authorization|ce mark|clearance|investigational new drug)\\b",
+            "why_equivalent": "An adversarial third party with statutory power confirmed, on a date it assigned, that the thing does what was claimed. Strictly stronger than a release tag."
+          },
+          {
+            "id": "regulatory_licence_held",
+            "sectors": [
+              "fintech"
+            ],
+            "question": "Holds or filed for a financial licence or registration?",
+            "weight": 3.0,
+            "mode": "match",
+            "sources": [
+              "financial_filings"
+            ],
+            "match": "\\b(money transmitter|e-money|emi licen[cs]e|authorised payment|authorized payment|broker-dealer|registered investment adviser|form adv|licen[cs]e (granted|issued|number)|firm reference number|nmls id)\\b",
+            "why_equivalent": "The fintech act that costs what shipping costs: public, dated by a regulator, expensive to obtain, and visible to strangers who can check it. Explicitly NOT a fundraising record -- see the financial_filings entry's third failure mode."
+          },
+          {
+            "id": "patent_filed",
+            "sectors": [
+              "hardware",
+              "robotics",
+              "biotech",
+              "climate",
+              "healthcare"
+            ],
+            "question": "Filed a patent with a specific technical claim?",
+            "weight": 2.0,
+            "mode": "match",
+            "sources": [
+              "patents"
+            ],
+            "match": "\\b(priority date|patent application|application number|publication number|us\\d{7,8}\\s?[ab]\\d?|wo\\d{4}/\\d{6}|ep\\d{7})\\b",
+            "why_equivalent": "A dated, examined public record of a specific technical claim for work that is closed by construction. Weighted 2.0 rather than 3.0 -- BELOW its class -- because filing costs money, and the registry will not pay a wealth filter the same rate it pays an artifact."
+          },
+          {
+            "id": "dataset_deposited",
+            "sectors": [
+              "biotech",
+              "healthcare",
+              "climate",
+              "hardware",
+              "robotics"
+            ],
+            "question": "Published a dataset or artifact anyone can download and check?",
+            "weight": 3.0,
+            "mode": "match",
+            "sources": [
+              "open_research_record"
+            ],
+            "match": "\\b(doi|dataset|data set|deposited|zenodo|figshare|dryad|supplementary data|data availability)\\b",
+            "why_equivalent": "A stranger can download it, check it, and build on it, and the deposit is timestamped by a registration agency rather than by the depositor. That is a release."
+          },
+          {
+            "id": "hardware_build_published",
+            "sectors": [
+              "hardware",
+              "robotics",
+              "climate"
+            ],
+            "question": "Published a build others could reproduce?",
+            "weight": 3.0,
+            "mode": "match",
+            "sources": [
+              "hardware_makers"
+            ],
+            "match": "\\b(bill of materials|\\bbom\\b|schematic|gerber|pcb|teardown|rev(ision)? [ab0-9]|open source hardware|reproduc)\\w*\\b",
+            "why_equivalent": "A schematic plus a bill of materials is a physical thing a stranger can rebuild. It is source code for hardware and it is published the same way."
+          },
+          {
+            "id": "design_case_study_published",
+            "sectors": [
+              "design",
+              "consumer"
+            ],
+            "question": "Published a case study showing the work and its outcome?",
+            "weight": 2.0,
+            "mode": "match",
+            "sources": [
+              "design_portfolios"
+            ],
+            "match": "\\b(case study|problem statement|constraint|we rejected|before and after|redesign|shipped|usability test)\\b",
+            "why_equivalent": "The public artifact of design work. Weighted 2.0 rather than 3.0 because a portfolio is entirely self-authored with no third party in the loop -- the same discount the registry applies to any self-published channel."
+          }
+        ]
+      },
+      {
+        "id": "sustained",
+        "question": "Did they keep at this over calendar time, rather than once?",
+        "software_rules": [
+          "sustained_activity_90d",
+          "active_multiple_weeks",
+          "recent_momentum",
+          "repeat_shipper"
+        ],
+        "software_artifact": "commits and releases spanning 90+ days",
+        "trait": "iteration_velocity",
+        "instances": [
+          {
+            "id": "sustained_sector_record_90d",
+            "sectors": [
+              "biotech",
+              "healthcare",
+              "fintech",
+              "hardware",
+              "robotics",
+              "climate",
+              "design",
+              "consumer"
+            ],
+            "question": "Kept producing dated artifacts in this field for 90+ days?",
+            "weight": 2.0,
+            "mode": "span",
+            "sources": [
+              "clinical_registries",
+              "biomed_literature",
+              "regulatory_health",
+              "patents",
+              "financial_filings",
+              "open_research_record",
+              "hardware_makers",
+              "design_portfolios",
+              "energy_climate"
+            ],
+            "min_events": 2,
+            "min_span_days": 90,
+            "why_equivalent": "Identical to sustained_activity_90d in everything but the channel. Ninety days of calendar time cannot be compressed at any price, which is what made the software rule worth 2.0, and the argument does not mention code anywhere."
+          }
+        ]
+      },
+      {
+        "id": "iterated",
+        "question": "Did they return to the same body of work and improve it?",
+        "software_rules": [
+          "iterates_same_artifact",
+          "revisits_over_new",
+          "releases_same_repo",
+          "maintenance_after_launch"
+        ],
+        "software_artifact": "three or more touches of the same repository",
+        "trait": "iteration_velocity",
+        "instances": [
+          {
+            "id": "revisited_sector_artifact",
+            "sectors": [
+              "biotech",
+              "healthcare",
+              "fintech",
+              "hardware",
+              "robotics",
+              "climate",
+              "design",
+              "consumer"
+            ],
+            "question": "Returned to this work three or more times?",
+            "weight": 3.0,
+            "mode": "count",
+            "sources": [
+              "clinical_registries",
+              "biomed_literature",
+              "regulatory_health",
+              "patents",
+              "financial_filings",
+              "open_research_record",
+              "hardware_makers",
+              "design_portfolios",
+              "energy_climate"
+            ],
+            "min_events": 3,
+            "why_equivalent": "A trial with posted amendments, a patent family with continuations, a build log at rev C, a licence extended to a second product. Revisiting beats launching, in every field."
+          }
+        ]
+      },
+      {
+        "id": "corroborated",
+        "question": "Did an independent party, who did not have to, confirm any of it?",
+        "software_rules": [
+          "external_contributors",
+          "responds_to_feedback",
+          "answers_technical_questions"
+        ],
+        "software_artifact": "a stranger's pull request, a critic's thread the founder answered",
+        "trait": "responds_to_scrutiny",
+        "instances": [
+          {
+            "id": "independently_attested",
+            "sectors": [
+              "biotech",
+              "healthcare",
+              "fintech",
+              "hardware",
+              "robotics",
+              "climate",
+              "design",
+              "consumer"
+            ],
+            "question": "Two or more independent channels attest the same work?",
+            "weight": 2.0,
+            "mode": "corroborated",
+            "sources": [
+              "clinical_registries",
+              "biomed_literature",
+              "regulatory_health",
+              "patents",
+              "financial_filings",
+              "open_research_record",
+              "hardware_makers",
+              "design_portfolios",
+              "energy_climate"
+            ],
+            "min_channels": 2,
+            "why_equivalent": "The registry's own corroboration rule (data/traits.json) applied outside software: one channel is a claim, two are a claim plus a witness. Self-attested channels -- the deck, a portfolio the founder wrote -- can be the first voice and never the second."
+          }
+        ]
+      }
+    ]
+  },
   "sources": [
     {
       "id": "github",
@@ -51,6 +419,9 @@
       "enabled": true,
       "tier": 1,
       "event_source": "github",
+      "sectors": [
+        "software"
+      ],
       "access": {
         "kind": "api",
         "endpoint": "https://api.github.com/graphql",
@@ -106,6 +477,9 @@
       "enabled": true,
       "tier": 1,
       "event_source": "arxiv",
+      "sectors": [
+        "*"
+      ],
       "access": {
         "kind": "api",
         "endpoint": "http://export.arxiv.org/api/query",
@@ -155,6 +529,9 @@
       "enabled": true,
       "tier": 1,
       "event_source": "hn",
+      "sectors": [
+        "software"
+      ],
       "access": {
         "kind": "api",
         "endpoint": "https://hacker-news.firebaseio.com/v0/ (official) and https://hn.algolia.com/api/v1/ (search)",
@@ -204,6 +581,9 @@
       "enabled": true,
       "tier": 1,
       "event_source": "web",
+      "sectors": [
+        "software"
+      ],
       "access": {
         "kind": "api",
         "endpoint": "https://registry.npmjs.org/ | https://pypi.org/pypi/<pkg>/json | https://crates.io/api/v1/ (+ https://static.crates.io/db-dump.tar.gz)",
@@ -255,6 +635,9 @@
       "enabled": true,
       "tier": 2,
       "event_source": "web",
+      "sectors": [
+        "*"
+      ],
       "access": {
         "kind": "mixed",
         "endpoint": "pretalx REST API per-instance; Sessionize JSON/XML schedule endpoints; per-conference schedule pages; YouTube channel listings",
@@ -309,6 +692,9 @@
       "enabled": true,
       "tier": 2,
       "event_source": "web",
+      "sectors": [
+        "*"
+      ],
       "access": {
         "kind": "search_plus_feed",
         "endpoint": "Tavily discovery, then direct RSS/Atom fetch",
@@ -359,6 +745,9 @@
       "enabled": true,
       "tier": 2,
       "event_source": "web",
+      "sectors": [
+        "software"
+      ],
       "access": {
         "kind": "mixed",
         "endpoint": "Qiita API v2 (https://qiita.com/api/v2/); Zenn RSS; Habr; V2EX API; Juejin; Gitee; TowardsAI-style regional aggregators",
@@ -411,6 +800,9 @@
       "enabled": true,
       "tier": 2,
       "event_source": "web",
+      "sectors": [
+        "software"
+      ],
       "access": {
         "kind": "api",
         "endpoint": "https://huggingface.co/api/",
@@ -454,6 +846,9 @@
       "enabled": true,
       "tier": 2,
       "event_source": "hn",
+      "sectors": [
+        "software"
+      ],
       "access": {
         "kind": "api",
         "endpoint": "https://hacker-news.firebaseio.com/v0/showstories.json + Algolia tag filter",
@@ -496,6 +891,9 @@
       "enabled": false,
       "tier": 3,
       "event_source": "web",
+      "sectors": [
+        "software"
+      ],
       "access": {
         "kind": "api",
         "endpoint": "https://api.stackexchange.com/2.3/",
@@ -539,6 +937,9 @@
       "enabled": true,
       "tier": 4,
       "event_source": "web",
+      "sectors": [
+        "*"
+      ],
       "access": {
         "kind": "search_api",
         "endpoint": "core/search.py -> Tavily",
@@ -579,6 +980,9 @@
       "requires_flag": "career_history_signals_enabled",
       "tier": 3,
       "event_source": "web",
+      "sectors": [
+        "*"
+      ],
       "previously": "rejected",
       "reinstated_because": "Product-owner decision, taken with the objections below on the record. This entry is NOT a retraction of the original rejection -- the substantive argument in `previously_rejected_because` still stands and is still believed to be correct. The source is reinstated as an OPT-IN, off by default, so that the claim can be measured rather than argued.",
       "previously_rejected_because": "Two independent reasons, either sufficient. (1) LEGAL/ToS: automated access is expressly prohibited by robots.txt; the hiQ line of cases concerned CFAA liability for public data and did not make it contract-permissible. (2) SUBSTANTIVE, and this is the one that matters: a LinkedIn profile is a self-authored, unverified, employer-and-school-shaped document. Strip the employer brand, the school, and the title inflation -- all of which Invariant #3 forbids us from scoring -- and essentially nothing remains that is not better evidenced elsewhere. Tenure dates are the only residue, and those are self-reported. It is a pedigree proxy almost by construction, and its inclusion would systematically favor the credentialed candidate over the builder, which inverts the product's entire thesis.",
@@ -635,6 +1039,9 @@
       "enabled": false,
       "tier": "rejected",
       "event_source": null,
+      "sectors": [
+        "*"
+      ],
       "access": {
         "scrape_permitted": "API requires a paid licence; the free API tier was eliminated in 2025 and full access requires an Enterprise or Applications licence.",
         "rate_limit_status": "UNVERIFIED (paid, not evaluated)",
@@ -648,6 +1055,9 @@
       "enabled": false,
       "tier": "rejected",
       "event_source": null,
+      "sectors": [
+        "software"
+      ],
       "access": {
         "scrape_permitted": "n/a -- service sunset",
         "rate_limit_status": "n/a",
@@ -661,6 +1071,9 @@
       "enabled": false,
       "tier": "rejected",
       "event_source": null,
+      "sectors": [
+        "*"
+      ],
       "access": {
         "scrape_permitted": "NO for the general case. Discord's ToS prohibits unauthorized automated data collection; self-botting is a bannable offence. Slack workspace content is private to the workspace.",
         "rate_limit_status": "n/a",
@@ -674,6 +1087,10 @@
       "enabled": false,
       "tier": "rejected",
       "event_source": null,
+      "sectors": [
+        "software",
+        "consumer"
+      ],
       "access": {
         "endpoint": "https://api.producthunt.com/v2/api/graphql",
         "scrape_permitted": "Documented GraphQL API with a non-expiring developer token; rate limit reported as 6,250 complexity points per 15 min.",
@@ -688,6 +1105,9 @@
       "enabled": false,
       "tier": "rejected",
       "event_source": null,
+      "sectors": [
+        "*"
+      ],
       "access": {
         "scrape_permitted": "No free research tier; API access is paid and tiered, and scraping is prohibited by ToS.",
         "rate_limit_status": "UNVERIFIED (paid, not evaluated)",
@@ -701,6 +1121,9 @@
       "enabled": false,
       "tier": "rejected",
       "event_source": null,
+      "sectors": [
+        "*"
+      ],
       "access": {
         "scrape_permitted": "NO. No public API; aggressive anti-bot measures; automated access violates Google ToS.",
         "rate_limit_status": "n/a",
@@ -715,6 +1138,9 @@
       "tier": 2,
       "scoring_eligible": false,
       "event_source": "web",
+      "sectors": [
+        "*"
+      ],
       "access": {
         "kind": "search+fetch",
         "endpoint": "https://techcrunch.com/",
@@ -747,6 +1173,483 @@
           "non-US and non-English startup ecosystems"
         ],
         "note": "Enabled for corroboration ONLY. scoring_eligible:false is what makes that enforceable rather than aspirational."
+      }
+    },
+    {
+      "id": "clinical_registries",
+      "name": "Public clinical-trial registries",
+      "enabled": true,
+      "tier": 1,
+      "event_source": "web",
+      "sectors": [
+        "biotech",
+        "healthcare"
+      ],
+      "access": {
+        "kind": "api",
+        "endpoint": "https://clinicaltrials.gov/api/v2/studies (ClinicalTrials.gov API v2); WHO ICTRP portal at https://trialsearch.who.int/",
+        "auth": "none",
+        "rate_limit": "UNVERIFIED from this environment. ClinicalTrials.gov publishes a public JSON API with no key requirement; self-impose 1 req/sec and honour HTTP 429 until someone reads the current policy page.",
+        "rate_limit_status": "UNVERIFIED",
+        "rate_limit_source": "https://clinicaltrials.gov/data-api/api",
+        "scrape_permitted": "Public API published by the U.S. National Library of Medicine for programmatic use. Records are U.S. Government works. Use the API, not the HTML."
+      },
+      "include_domains": [
+        "clinicaltrials.gov",
+        "trialsearch.who.int",
+        "who.int"
+      ],
+      "observed_at": {
+        "field": "study first submitted / first posted date",
+        "quality": "authoritative",
+        "note": "Use FIRST SUBMITTED, never last update -- the same v1-vs-revision lookahead trap arXiv carries. A registry record's first-posted date is registry-assigned and not editable by the sponsor, which is precisely what makes it the life-sciences analogue of a release timestamp."
+      },
+      "freshness": "days",
+      "uniquely_provides": "A DATED, THIRD-PARTY-STAMPED COMMITMENT TO A FALSIFIABLE TEST. Registering a trial is the closest life-sciences analogue to shipping a release: it is public, it is timestamped by someone other than the founder, it states in advance what would count as failure, and abandoning it silently is visible. For a founder whose work is wet-lab and whose GitHub is empty by construction, this is the first channel in this registry that can see them at all.",
+      "signals": [
+        "shipped_artifact_public_launch",
+        "problem_selection",
+        "intellectual_honesty"
+      ],
+      "failure_modes": [
+        "Registration is an intent, not a result. A registered trial that never enrolled is a plan; the signal is in the status transitions and the posted results, not in the existence of the record.",
+        "Sponsor is frequently an institution rather than the founder, so the identity link is inferential -- resolve through A's resolver and keep AMBIGUOUS rather than guessing. The sponsoring organisation's NAME is a PROFILE_FACT and must never reach a feature name or a prompt (Invariant #3).",
+        "Coverage is strongest for US and EU interventional trials and much weaker elsewhere; absence outside those geographies is UNKNOWN."
+      ],
+      "bias": {
+        "misses": [
+          "preclinical and platform companies with nothing yet in humans",
+          "diagnostics and devices, which follow a different regulatory path",
+          "trials registered only on national registries we do not query"
+        ],
+        "note": "Absence is UNKNOWN for any company that has not reached the clinic, which is most pre-seed biotech. This source ADDS reach; it must never become a bar."
+      }
+    },
+    {
+      "id": "biomed_literature",
+      "name": "Biomedical literature and preprints",
+      "enabled": true,
+      "tier": 1,
+      "event_source": "web",
+      "sectors": [
+        "biotech",
+        "healthcare"
+      ],
+      "access": {
+        "kind": "api",
+        "endpoint": "NCBI E-utilities at https://eutils.ncbi.nlm.nih.gov/entrez/eutils/ ; Europe PMC REST at https://www.ebi.ac.uk/europepmc/webservices/rest/ ; bioRxiv/medRxiv content API",
+        "auth": "NCBI_API_KEY optional and strongly recommended",
+        "rate_limit": "UNVERIFIED from this environment. NCBI's published policy is commonly cited as 3 req/sec without an API key and 10 req/sec with one; treat as UNVERIFIED and confirm at the source below before running at volume.",
+        "rate_limit_status": "UNVERIFIED",
+        "rate_limit_source": "https://www.ncbi.nlm.nih.gov/books/NBK25497/",
+        "scrape_permitted": "Documented public APIs. PubMed metadata is redistributable; full text is per-publisher and much of it is not. Store metadata and abstracts, never rehost publisher PDFs."
+      },
+      "include_domains": [
+        "pubmed.ncbi.nlm.nih.gov",
+        "ncbi.nlm.nih.gov",
+        "europepmc.org",
+        "biorxiv.org",
+        "medrxiv.org"
+      ],
+      "observed_at": {
+        "field": "preprint v1 posted date / journal ePub date",
+        "quality": "authoritative for preprints, good for journals",
+        "note": "For bioRxiv and medRxiv use the V1 POSTING DATE, exactly as arXiv. For journal articles the acceptance-to-publication lag is months and varies by venue, so the publication date is a CEILING on when the work was done, never a measurement of it."
+      },
+      "freshness": "daily",
+      "uniquely_provides": "The life-sciences equivalent of arXiv, which the registry already trusts for ML: depth on a hard problem, a dated claim, and a co-authorship edge verified by a third party at publication time. bioRxiv and medRxiv in particular carry pre-publication work, which is where a pre-seed founder is.",
+      "signals": [
+        "technical_depth",
+        "problem_selection",
+        "coauthor_graph_edge",
+        "explains_hard_idea_simply"
+      ],
+      "failure_modes": [
+        "Author-name collisions are worse here than on arXiv because the corpus is larger and older. Require an ORCID or a corroborating link before attaching.",
+        "Author ORDER carries strong convention in biomedicine (first and last are meaningful) but the convention is not universal -- do not infer contribution rank without knowing the subfield.",
+        "Institutional affiliation is in every record and is a pedigree trap. It is a PROFILE_FACT to display, never a score input.",
+        "Massive-consortium papers give near-zero individual signal; damp by 1/n as arXiv already does."
+      ],
+      "bias": {
+        "misses": [
+          "industrial researchers under publication embargo",
+          "translational and engineering work that never publishes",
+          "clinicians whose output is practice, not papers"
+        ],
+        "note": "Systematically over-weights the academic pipeline, exactly as arXiv does for ML. A biotech founder with no papers is normal; absence is UNKNOWN, never negative."
+      }
+    },
+    {
+      "id": "regulatory_health",
+      "name": "Health regulators (FDA, EMA)",
+      "enabled": true,
+      "tier": 1,
+      "event_source": "web",
+      "sectors": [
+        "biotech",
+        "healthcare"
+      ],
+      "access": {
+        "kind": "api",
+        "endpoint": "openFDA at https://api.fda.gov/ ; EMA medicine pages at https://www.ema.europa.eu/",
+        "auth": "openFDA API key optional",
+        "rate_limit": "UNVERIFIED from this environment. openFDA publishes per-key and per-IP limits; self-impose 1 req/sec and honour HTTP 429.",
+        "rate_limit_status": "UNVERIFIED",
+        "rate_limit_source": "https://open.fda.gov/apis/",
+        "scrape_permitted": "openFDA is a documented public API over U.S. Government works. EMA pages are public; fetch only URLs promoted from a search result and do not crawl."
+      },
+      "include_domains": [
+        "fda.gov",
+        "api.fda.gov",
+        "ema.europa.eu"
+      ],
+      "observed_at": {
+        "field": "decision / clearance / authorisation date",
+        "quality": "authoritative",
+        "note": "Regulator-assigned and not settable by the company. Among the most trustworthy timestamps available anywhere in this registry."
+      },
+      "freshness": "weeks",
+      "uniquely_provides": "A THIRD PARTY WITH SUBPOENA POWER SAYING THE THING IS REAL. A clearance, an authorisation or an accepted submission is an independent, dated, adversarially-reviewed confirmation that a company did what it claimed -- a stronger corroboration than any software source in this registry can produce.",
+      "signals": [
+        "shipped_artifact_public_launch",
+        "users_actually_served"
+      ],
+      "failure_modes": [
+        "Deeply LAGGING. Clearance follows years of work, so for a pre-seed founder absence is the overwhelmingly normal case and carries no information at all.",
+        "The applicant is usually a company, not a person; do not attribute an organisation's clearance to an individual without a corroborating link.",
+        "Coverage is US and EU only. A founder regulated elsewhere is invisible here."
+      ],
+      "bias": {
+        "misses": [
+          "everyone pre-submission, which is nearly every pre-seed company",
+          "non-US, non-EU regulatory paths"
+        ],
+        "note": "Enabled for CORROBORATION reach, not as a bar. Absence is UNKNOWN and must be hard-coded so."
+      }
+    },
+    {
+      "id": "patents",
+      "name": "Patent offices and patent search",
+      "enabled": true,
+      "tier": 2,
+      "event_source": "web",
+      "sectors": [
+        "hardware",
+        "robotics",
+        "biotech",
+        "climate",
+        "healthcare"
+      ],
+      "access": {
+        "kind": "mixed",
+        "endpoint": "PatentsView API at https://search.patentsview.org/api/v1/ ; USPTO public search; EPO Open Patent Services; WIPO PATENTSCOPE; Google Patents pages",
+        "auth": "PatentsView API key required for the current API; EPO OPS requires registration",
+        "rate_limit": "UNVERIFIED from this environment for every one of these. Self-impose 1 req/sec, cache aggressively, and confirm before running at volume.",
+        "rate_limit_status": "UNVERIFIED",
+        "rate_limit_source": "https://search.patentsview.org/docs/ ; https://www.epo.org/ ; https://patentscope.wipo.int/",
+        "scrape_permitted": "PatentsView and EPO OPS are documented APIs. Google Patents pages are public and indexed; fetch only promoted URLs, one at a time, and do not crawl."
+      },
+      "include_domains": [
+        "patents.google.com",
+        "patentsview.org",
+        "search.patentsview.org",
+        "uspto.gov",
+        "epo.org",
+        "wipo.int"
+      ],
+      "observed_at": {
+        "field": "priority / filing date -- NOT the grant date",
+        "quality": "authoritative",
+        "note": "THE FILING DATE IS THE MEASUREMENT; the grant date is an artifact of examiner backlog and says more about the patent office than the founder. Publication lags filing by ~18 months, so a patent visible today is evidence about a founder's past, and using the publication date as observed_at leaks the future into the backtest."
+      },
+      "freshness": "months",
+      "uniquely_provides": "A DATED, EXAMINED, THIRD-PARTY-STAMPED RECORD OF A SPECIFIC TECHNICAL CLAIM for work that is closed-source by construction -- silicon, instruments, robotics, formulations. It is the only channel in this registry that can see a hardware founder's technical depth without them choosing to publish it.",
+      "signals": [
+        "technical_depth",
+        "problem_selection",
+        "shipped_artifact_public_launch"
+      ],
+      "failure_modes": [
+        "Filing is a legal act, not an engineering one. Patent COUNT is a budget signal -- it measures who could afford a patent attorney -- and must never be scored. Read the CLAIM's specificity and the priority date, not the tally.",
+        "Assignee is usually an employer, and reading it would reconstruct exactly the employer-brand signal Invariant #3 bans. The assignee is a PROFILE_FACT only.",
+        "The 18-month publication delay means recent work is structurally invisible, which is the opposite of what a pre-seed product wants.",
+        "Inventor-name collisions are severe and there is no universal identifier."
+      ],
+      "bias": {
+        "misses": [
+          "founders who deliberately do not patent, including most open-source and much of software",
+          "anyone without the money for a filing -- this is a WEALTH FILTER and is the single strongest reason its absence must stay UNKNOWN",
+          "work younger than the publication delay"
+        ],
+        "note": "Presence ADDS. Absence is hard-coded UNKNOWN, for the same reason conference_talks is: scoring its absence would make this a detector for who had a legal budget."
+      }
+    },
+    {
+      "id": "financial_filings",
+      "name": "Financial and regulatory public record",
+      "enabled": true,
+      "tier": 1,
+      "event_source": "web",
+      "sectors": [
+        "fintech"
+      ],
+      "access": {
+        "kind": "mixed",
+        "endpoint": "SEC EDGAR at https://data.sec.gov/ and https://www.sec.gov/ ; Federal Register API at https://www.federalregister.gov/api/v1/ ; Regulations.gov API; FCA Financial Services Register; NMLS Consumer Access; FFIEC",
+        "auth": "none for EDGAR and Federal Register; Regulations.gov requires an API key",
+        "rate_limit": "SEC requires a descriptive User-Agent identifying the requester and publishes a request-rate ceiling; the exact current figure is UNVERIFIED from this environment. Self-impose 1 req/sec across all of these and honour HTTP 429.",
+        "rate_limit_status": "UNVERIFIED",
+        "rate_limit_source": "https://www.sec.gov/os/accessing-edgar-data",
+        "scrape_permitted": "EDGAR and the Federal Register are public-record systems built for programmatic access; a descriptive User-Agent is mandatory for SEC. The regulator lookups are public search interfaces -- fetch only promoted URLs and do not crawl."
+      },
+      "include_domains": [
+        "sec.gov",
+        "data.sec.gov",
+        "federalregister.gov",
+        "regulations.gov",
+        "fca.org.uk",
+        "consumerfinance.gov",
+        "ffiec.gov",
+        "nmlsconsumeraccess.org"
+      ],
+      "observed_at": {
+        "field": "filing acceptance datetime / register entry date",
+        "quality": "authoritative",
+        "note": "Regulator-assigned, server-side, and not editable by the filer. This is the strongest timestamp class in the whole registry -- backdating a filing is a criminal matter rather than a git rebase."
+      },
+      "freshness": "days",
+      "uniquely_provides": "THE FINTECH ANALOGUE OF A SHIPPED RELEASE, and the answer to the central failure this registry had: a founder with a live pilot and a regulatory licence has enormous, dated, independently verified signal and the software-only registry could not see one byte of it. A licence, a registration, or an accepted filing is public, dated by a third party, and expensive to obtain.",
+      "signals": [
+        "shipped_artifact_public_launch",
+        "users_actually_served",
+        "intellectual_honesty"
+      ],
+      "failure_modes": [
+        "Overwhelmingly US, with the UK partially covered. A founder regulated anywhere else is invisible here and that absence is a fact about our coverage.",
+        "Entity is an organisation, not a person. The link from a filing to a founder is inferential and must be corroborated before it attaches.",
+        "A Form D is a fundraising record. Fundraising is an INVESTOR-VALIDATION fact and Invariant #3 bars it from scoring -- it may be displayed, never scored. Do not let this source smuggle funding events into the score through a side door.",
+        "Filing volume tracks company size and legal budget, not founder quality."
+      ],
+      "bias": {
+        "misses": [
+          "pre-licence and sandbox-stage companies, which is most of pre-seed fintech",
+          "everywhere outside the US and UK",
+          "companies operating as an agent of a licensed partner, whose own name appears nowhere"
+        ],
+        "note": "Absence is UNKNOWN. Most pre-seed fintech founders are pre-licence by construction and must not be scored against those who are not."
+      }
+    },
+    {
+      "id": "open_research_record",
+      "name": "Open research record (OpenAlex, Crossref, data repositories)",
+      "enabled": true,
+      "tier": 2,
+      "event_source": "web",
+      "sectors": [
+        "biotech",
+        "healthcare",
+        "hardware",
+        "robotics",
+        "climate",
+        "fintech"
+      ],
+      "access": {
+        "kind": "api",
+        "endpoint": "https://api.openalex.org/ ; https://api.crossref.org/ ; https://zenodo.org/api/ ; Figshare and Dryad public APIs",
+        "auth": "none; a mailto in the User-Agent gets the polite pool on OpenAlex and Crossref",
+        "rate_limit": "UNVERIFIED from this environment. Both OpenAlex and Crossref operate a 'polite pool' keyed on a contact address in the User-Agent and are materially more generous to it. Send one, self-impose 1 req/sec.",
+        "rate_limit_status": "UNVERIFIED",
+        "rate_limit_source": "https://docs.openalex.org/ ; https://api.crossref.org/",
+        "scrape_permitted": "Documented public APIs. OpenAlex data is CC0. Deposited artifacts carry their own per-record licence -- read it before storing anything beyond metadata."
+      },
+      "include_domains": [
+        "openalex.org",
+        "api.openalex.org",
+        "crossref.org",
+        "doi.org",
+        "zenodo.org",
+        "figshare.com",
+        "datadryad.org"
+      ],
+      "observed_at": {
+        "field": "DOI registration date / deposit date",
+        "quality": "good",
+        "note": "A DOI's registration date is assigned by the registration agency, not by the depositor. Prefer it to any date printed on the artifact itself."
+      },
+      "freshness": "days",
+      "uniquely_provides": "A CROSS-DISCIPLINE, NON-SOFTWARE ARTIFACT WITH A CITABLE IDENTIFIER AND A DATE SOMEONE ELSE ASSIGNED. A published dataset with a DOI is the non-software analogue of a tagged release: a stranger can download it, check it, and build on it, and the deposit is timestamped by a third party. This is the channel for the climate, materials and instrumentation founder whose output is data rather than code.",
+      "signals": [
+        "technical_depth",
+        "shipped_artifact_public_launch",
+        "problem_selection",
+        "coauthor_graph_edge"
+      ],
+      "failure_modes": [
+        "Depositing is cheap; a DOI on an empty dataset costs nothing. Weight artifacts with real content and, where available, third-party reuse -- the analogue of dependents rather than downloads.",
+        "OpenAlex reconstructs authorship algorithmically and its author entities are noisy for common and transliterated names.",
+        "Institutional affiliation is present throughout and is a pedigree trap. PROFILE_FACT only."
+      ],
+      "bias": {
+        "misses": [
+          "industrial work that never deposits",
+          "disciplines without a data-sharing norm"
+        ]
+      }
+    },
+    {
+      "id": "hardware_makers",
+      "name": "Hardware build logs, teardowns and engineering societies",
+      "enabled": true,
+      "tier": 2,
+      "event_source": "web",
+      "sectors": [
+        "hardware",
+        "robotics",
+        "climate"
+      ],
+      "access": {
+        "kind": "search_plus_feed",
+        "endpoint": "Tavily discovery, then direct fetch of the project or teardown page; IEEE Xplore for published engineering work",
+        "auth": "none for the maker sites; IEEE Xplore full text is subscription-gated",
+        "rate_limit": "UNVERIFIED -- varies per site. Per-site robots.txt is authoritative and must be checked and recorded in the fetch ledger before every fetch. Self-impose 1 req/sec.",
+        "rate_limit_status": "UNVERIFIED",
+        "rate_limit_source": "per-site robots.txt",
+        "scrape_permitted": "Project pages are public. Check robots.txt per site at fetch time -- do not assume. Store METADATA and quoted spans; do not rehost IEEE full text, which is licensed."
+      },
+      "include_domains": [
+        "hackaday.io",
+        "hackaday.com",
+        "ifixit.com",
+        "instructables.com",
+        "oshwa.org",
+        "ieee.org",
+        "ieeexplore.ieee.org"
+      ],
+      "observed_at": {
+        "field": "build-log entry date / publication date",
+        "quality": "soft for maker sites, good for IEEE",
+        "note": "Build-log entries are author-editable, so flag integrity_flags: ['date_inferred'] and use the earliest defensible date. NEVER stamp now()."
+      },
+      "freshness": "days",
+      "uniquely_provides": "A DATED SERIES OF REVISIONS OF A PHYSICAL THING. A public build log with rev A, rev B and a post naming what was wrong with rev A is the hardware analogue of a commit history plus a postmortem: it shows iteration on one artifact over calendar time, which is the trait the software registry measures best and could previously only measure in code. A teardown additionally shows depth on someone else's system, which is hard to fake.",
+      "signals": [
+        "sustained_commit_substance",
+        "technical_depth",
+        "intellectual_honesty",
+        "explains_hard_idea_simply",
+        "shipped_artifact_public_launch"
+      ],
+      "failure_modes": [
+        "Maker-site presence skews heavily hobbyist; a serious hardware founder under an NDA or an IP assignment posts nothing, which is the same closed-source gap GitHub has and this source does NOT close.",
+        "Project 'likes' and follower counts are visibility artifacts and belong in the term hidden_ranking subtracts, never in quality.",
+        "IEEE membership and society office are affiliation facts, not competence measures, and must never be scored."
+      ],
+      "bias": {
+        "misses": [
+          "anyone whose hardware work is proprietary, which is most of it",
+          "founders outside the anglophone maker community"
+        ]
+      }
+    },
+    {
+      "id": "design_portfolios",
+      "name": "Design portfolios and public design work",
+      "enabled": true,
+      "tier": 3,
+      "event_source": "web",
+      "sectors": [
+        "design",
+        "consumer"
+      ],
+      "access": {
+        "kind": "search_plus_fetch",
+        "endpoint": "Tavily discovery, then direct fetch of the promoted portfolio page",
+        "auth": "none",
+        "rate_limit": "UNVERIFIED. Per-site robots.txt is authoritative and must be checked and recorded before every fetch. Self-impose 1 req/sec.",
+        "rate_limit_status": "UNVERIFIED",
+        "rate_limit_source": "per-site robots.txt",
+        "scrape_permitted": "Public profile and project pages only, one promoted URL at a time. Do not crawl and do not rehost images."
+      },
+      "include_domains": [
+        "behance.net",
+        "dribbble.com",
+        "figma.com"
+      ],
+      "observed_at": {
+        "field": "project publication date",
+        "quality": "soft",
+        "note": "Author-editable and frequently backdated to the client engagement rather than the upload. Flag integrity_flags:['date_inferred']."
+      },
+      "freshness": "days",
+      "uniquely_provides": "The only channel here that can see a NON-CODE PRODUCT FOUNDER at all. A case study that states the problem, the constraint, what was tried, what was rejected and what the measured outcome was is the design analogue of a design doc with stated non-goals -- the artifact technical_blog is trusted for, in a different medium.",
+      "signals": [
+        "scope_discipline",
+        "explains_hard_idea_simply",
+        "problem_selection",
+        "shipped_artifact_public_launch"
+      ],
+      "failure_modes": [
+        "SEVERELY POPULARITY-WEIGHTED. Dribbble in particular ranks on aesthetic appeal to other designers, which is the visibility term this product subtracts. Read the CASE-STUDY PROSE -- problem, constraint, rejected alternative, outcome -- and never the like count.",
+        "A portfolio is entirely self-authored with no third party in the loop, so it is self-published evidence and is treated as such: it can be the first voice, never the corroborating one.",
+        "Client work is frequently unattributable or under NDA, so the best designers often have the thinnest public portfolios.",
+        "High injection-risk surface, same as technical_blog. sourcing/sanitize.py is non-optional."
+      ],
+      "bias": {
+        "misses": [
+          "in-house designers whose work ships under a company name",
+          "anyone under NDA",
+          "designers who consider portfolio maintenance a marketing chore"
+        ],
+        "note": "Tier 3: genuine signal, heavily confounded by popularity. Usable to corroborate, never sufficient alone."
+      }
+    },
+    {
+      "id": "energy_climate",
+      "name": "Energy and environment public record",
+      "enabled": true,
+      "tier": 2,
+      "event_source": "web",
+      "sectors": [
+        "climate",
+        "hardware"
+      ],
+      "access": {
+        "kind": "mixed",
+        "endpoint": "DOE OSTI at https://www.osti.gov/api/v1/ ; NREL developer APIs at https://developer.nrel.gov/ ; EPA and DOE public pages",
+        "auth": "NREL developer key required for its APIs; OSTI open",
+        "rate_limit": "UNVERIFIED from this environment. Self-impose 1 req/sec and honour HTTP 429.",
+        "rate_limit_status": "UNVERIFIED",
+        "rate_limit_source": "https://www.osti.gov/api/v1/docs ; https://developer.nrel.gov/",
+        "scrape_permitted": "Documented public APIs over U.S. Government works. Fetch only promoted URLs from the HTML surfaces and do not crawl."
+      },
+      "include_domains": [
+        "osti.gov",
+        "nrel.gov",
+        "energy.gov",
+        "epa.gov"
+      ],
+      "observed_at": {
+        "field": "report publication date / award date",
+        "quality": "good",
+        "note": "Agency-assigned. A technical report's publication date lags the work by months, so it is a CEILING on when the work happened."
+      },
+      "freshness": "weeks",
+      "uniquely_provides": "Dated, independently-published technical reports and measured results for energy and environmental work that has no repository and no paper -- the pilot-scale result, the validated measurement, the published test protocol. For a climate-hardware founder this is often the only third-party-dated artifact that exists.",
+      "signals": [
+        "technical_depth",
+        "problem_selection",
+        "intellectual_honesty"
+      ],
+      "failure_modes": [
+        "Government-funded work only. A privately-funded climate founder is invisible here, and a grant is a funding fact -- display it, never score it.",
+        "US only.",
+        "Report authorship is institutional; the link to an individual is inferential."
+      ],
+      "bias": {
+        "misses": [
+          "privately funded work",
+          "everywhere outside the US"
+        ]
       }
     }
   ],

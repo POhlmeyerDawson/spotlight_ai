@@ -11,12 +11,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
+import logging
 from typing import Literal
 
-from core.config import settings
+from core.config import cache_root, settings
 
-CACHE_DIR = Path("data/llm_cache")
+log = logging.getLogger(__name__)
+
+# Under cache_root() because the deployment filesystem is read-only outside /tmp.
+# Still a module-level name so tests can monkeypatch it at a tmp path.
+CACHE_DIR = cache_root() / "llm_cache"
 
 Tier = Literal["fast", "deep"]
 
@@ -64,14 +68,27 @@ def complete(
 
     key = _cache_key({"p": prompt, "s": system, "m": model, "j": json_mode, "t": temperature})
     cache_file = CACHE_DIR / f"{key}.json"
-    if cache_file.exists():
-        cached = json.loads(cache_file.read_text())["response"]
-        return json.loads(cached) if json_mode else cached
+    try:
+        if cache_file.exists():
+            cached = json.loads(cache_file.read_text())["response"]
+            return json.loads(cached) if json_mode else cached
+    except (OSError, ValueError, KeyError) as exc:
+        # An unreadable or malformed cache entry means "not cached", never a failed
+        # request. Falling through re-calls the model, which is slower and correct.
+        log.info("llm cache read failed (%s); recomputing", type(exc).__name__)
 
     text = _call(provider, model, prompt, system, json_mode, temperature)
 
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(json.dumps({"model": model, "prompt": prompt, "response": text}))
+    # Failing to cache must NEVER fail the request — the same rule api/standout.py's
+    # _save_frame already applies, and the reason it matters most here is that this
+    # write happens AFTER the model has been called and paid for. On a read-only
+    # filesystem an unguarded write threw away completed work and returned a 500,
+    # which took memo, dissent, screening and standout down with it.
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(json.dumps({"model": model, "prompt": prompt, "response": text}))
+    except OSError as exc:
+        log.info("llm cache write failed (%s); continuing uncached", type(exc).__name__)
     return json.loads(text) if json_mode else text
 
 

@@ -56,7 +56,14 @@ from urllib.parse import urljoin, urlparse
 from uuid import UUID, uuid4
 
 from core import search as web_search
-from schema.events import EntityCandidate, Event, EventKind, ResolutionStatus, Source
+from schema.events import (
+    EntityCandidate,
+    Event,
+    EventKind,
+    RawSignal,
+    ResolutionStatus,
+    Source,
+)
 
 log = logging.getLogger(__name__)
 
@@ -508,9 +515,13 @@ _PLAN_SYSTEM = (
     "allowlist is applied by code and is not yours to widen.\n"
     "3. Queries must be DIFFERENT from the ones already tried and must target a stated "
     "gap. Rephrasing a query that already ran wastes the round.\n"
-    "4. Prefer queries that would surface a dated artifact the person built — a "
-    "release, a repository, a paper, a talk, a post — over queries about their "
-    "reputation or their employer."
+    "4. Prefer queries that would surface a DATED ARTIFACT the person produced over "
+    "queries about their reputation or their employer. Which artifact depends on the "
+    "field, and naming only software ones is how a founder outside software becomes "
+    "invisible: a release, a repository, a paper, a talk or a post — but equally a "
+    "registered trial, a regulatory filing or licence, a patent's priority date, a "
+    "deposited dataset, a published build log or teardown, a design case study, a "
+    "technical report. Ask for the artifact the person's own field produces."
 )
 
 _EXTRACT_SYSTEM = (
@@ -938,15 +949,36 @@ def research(
 
 
 def to_events(report: ResearchReport, *, company_id: UUID | None = None) -> list[Event]:
-    """Attributed findings -> PROFILE_FACT events. URLs come from the ledger, never a model.
+    """Attributed findings -> PROFILE_FACT events, THROUGH THE BUS. URLs come from the
+    ledger, never a model.
 
-    `observed_at` is the fetch time only because a web page rarely offers a real one, and
-    `sourcing/bus.py` already settled that fetch time is the conservative floor: it never
-    grants retroactive credit in the backtest. It is stamped here as the LAST resort,
-    with `date_inferred` on the record, exactly as bus._stamp does.
+    THIS FUNCTION USED TO BE THE HOLE IN INVARIANT #4. It built `Event(...)` by hand with
+    `evidence_span=f.citation.quoted_text` — a span quoted verbatim out of a third-party
+    web page, i.e. attacker-influenced text by definition — and never called `sanitize()`.
+    No STRIPPED_FLAG was ever set, so `flags.is_impeached()` could not fire, and
+    `api/memo.py` quotes `evidence_span` verbatim into a memo. Everything else in this
+    repo that turns fetched text into an Event goes through `bus.ingest`; this was the one
+    path that did not, which made `scripts/source.py`'s "there is no path in this file
+    from a scanner to the store that skips the bus" false. The justification offered for
+    the exemption was that the loop's own `redact_urls()` covered it — that function is
+    URL-only by its own docstring and does nothing about injected instructions.
+
+    So the finding is now shaped as a `RawSignal` and handed to `bus.ingest`, which is the
+    normalize -> sanitize -> stamp funnel every scanner already uses. The returned list
+    therefore also carries any INTEGRITY events the sanitizer raised, exactly as
+    `bus.ingest` does everywhere else — the caller appends them all.
+
+    `observed_at` is still the fetch time, and still carries `date_inferred`, but it is no
+    longer hand-stamped: `bus._stamp` falls back to `RawSignal.fetched_at` with
+    DATE_INFERRED when the meta carries no real source clock, which is precisely the
+    ladder this function used to reimplement. A web page rarely offers a real timestamp
+    and fetch time is the conservative floor — it never grants retroactive credit in the
+    backtest.
 
     Corroborations are not iterated. There is no branch here that could emit one.
     """
+    from sourcing import bus
+
     out: list[Event] = []
     for f in report.findings:
         if not f.attributed or f.entity_id is None:
@@ -956,27 +988,32 @@ def to_events(report: ResearchReport, *, company_id: UUID | None = None) -> list
             continue
         if rec.corroboration_only:  # unreachable via Finding.from_fetch; asserted anyway
             raise CorroborationOnly(f"{rec.url_final} cannot back a scored event")
-        out.append(
-            Event(
-                entity_id=f.entity_id,
-                company_id=company_id,
-                kind=EventKind.PROFILE_FACT,
-                source=Source.WEB,
-                source_url=rec.url_final,
-                observed_at=rec.requested_at,
-                evidence_span=f.citation.quoted_text,
-                payload={
-                    "topic": f.topic,
-                    "source_id": rec.source_id,
-                    "fetch_id": rec.fetch_id,
-                    "span_start": f.citation.span_start,
-                    "span_end": f.citation.span_end,
-                    "span_sha256": f.citation.span_sha256,
-                    "content_sha256": rec.content_sha256,
-                    "query": rec.query,
-                },
-                confidence=0.6,
-                integrity_flags=["date_inferred"],
+        # No `observed_at` in meta on purpose: that is what selects _stamp's fetch-time
+        # rung and the date_inferred flag with it. `fetched_at` carries the ledger's real
+        # request time so the floor is the one this fetch actually earned.
+        out.extend(
+            bus.ingest(
+                RawSignal(
+                    source=Source.WEB,
+                    source_url=rec.url_final,
+                    content=f.citation.quoted_text,
+                    fetched_at=rec.requested_at,
+                    meta={
+                        "kind": EventKind.PROFILE_FACT.value,
+                        "entity_id": str(f.entity_id),
+                        **({"company_id": str(company_id)} if company_id else {}),
+                        "evidence_span": f.citation.quoted_text,
+                        "confidence": 0.6,
+                        "topic": f.topic,
+                        "source_id": rec.source_id,
+                        "fetch_id": rec.fetch_id,
+                        "span_start": f.citation.span_start,
+                        "span_end": f.citation.span_end,
+                        "span_sha256": f.citation.span_sha256,
+                        "content_sha256": rec.content_sha256,
+                        "query": rec.query,
+                    },
+                )
             )
         )
     return out

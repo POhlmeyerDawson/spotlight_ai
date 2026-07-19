@@ -28,7 +28,9 @@ llm.complete(prompt, *, system=None, model_tier="fast"|"deep", json_schema=None)
 
 - `LLM_PROVIDER=openai|anthropic` switches the backend. Two tiers only — `fast` for extraction/flags/screening, `deep` for memo + dissent + proof-challenge generation.
 - **Nobody imports `openai` or `anthropic` outside this file.** If credits run dry mid-build (they will — decks + memos + dissent burn tokens fast) we swap providers in one place instead of eight.
-- The `<untrusted_content>` wrapper (Invariant #4) is applied **inside** `llm.complete()`, so it cannot be forgotten under time pressure.
+- The `<untrusted_content>` wrapper (Invariant #4) is applied **inside** `llm.complete()` — but only for text you actually hand it as `untrusted=`. **It is opt-in per call site, not structural.** Concatenating third-party text into `prompt` yourself gets you no wrapper, no preamble and no error. `complete()` receives two strings and cannot tell which one came off a web page, so it cannot enforce this on its own.
+  - This line used to read "so it cannot be forgotten under time pressure". That was false — a guarantee stated but not enforced, which is worse than one never made, for the same reason §Invariant #3 gives. Every call site in the tree does currently pass `untrusted=`; the claim was wrong about the mechanism, not about the present state.
+  - What enforces it now: `tests/test_llm_untrusted_contract.py` parses every `llm.complete(...)` in the tree and fails if one passes no `untrusted=` and is not in its declared allowlist. **If you add a call site that touches founder-supplied or web-retrieved text, pass it as `untrusted=`.** That test is the thing standing between a forgotten wrapper and a silent prompt injection.
 - Cache completions to `data/llm_cache/` keyed by prompt hash. You will re-run the same pipeline dozens of times; do not pay for it dozens of times.
 
 **Claim the OpenAI credit in H0** — it's a project form, not an instant code, so there's a turnaround. One person claims, key goes in the shared `.env`. Tavily and Woz are shared codes, available to everyone immediately.
@@ -63,7 +65,11 @@ class Event(BaseModel):
     source: str                 # "github" | "hn" | "arxiv" | "deck" | "proof_protocol" | "validator" | "manual"
     source_url: str | None
     observed_at: datetime       # WHEN THE WORLD PRODUCED IT — used for as_of filtering
-    ingested_at: datetime       # when we saw it. NEVER used in scoring.
+    ingested_at: datetime       # when we saw it. NEVER used in scoring/ranking/axes. Two
+                                # sanctioned non-scoring reads: the sort tiebreaker, and
+                                # intake._events_recorded_before (the arrival panel's
+                                # "did we find them before they applied" — a fact about
+                                # OUR clock). Anything else is a bug; see schema/events.py.
     payload: dict               # kind-specific, validated per kind
     evidence_span: str | None   # exact quoted text/commit sha/slide id backing this
     confidence: float           # 0..1 extraction confidence

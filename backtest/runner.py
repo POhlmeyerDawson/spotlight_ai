@@ -273,6 +273,7 @@ def run_calibration() -> dict:
     """
     cohort = collect.load_cohort()
     threshold = cohort["threshold"]
+    by_id = {str(m.get("id")): m for m in cohort["members"] if m.get("id")}
 
     results = []
     events_checked = 0
@@ -305,6 +306,13 @@ def run_calibration() -> dict:
                 "peak_mu": peak,
                 "cleared_threshold": bool(peak is not None and peak >= threshold),
                 "note": m.get("note"),
+                # Whether this member's evidence is a real record or a composition is a
+                # property of the EVIDENCE, and every metric computed downstream is only
+                # as strong as it. It travels with the result rather than living in a
+                # footnote nobody joins back.
+                "control_kind": m.get("control_kind"),
+                "evidence_provenance": m.get("evidence_provenance"),
+                "evidence_parity": _evidence_parity(m, by_id) if m.get("matched_to") else None,
             }
         )
 
@@ -347,6 +355,13 @@ def run_calibration() -> dict:
         ],
         "fame_check_passed": fame_check_passed,
         "fame_check_evaluated": fame_check_evaluated,
+        # `fame_check_passed` above is the raw assertion: no replayed control cleared.
+        # It is true, and on its own it is misleading, because it says nothing about
+        # whether the controls were capable of clearing. This decomposes it by the kind
+        # of control it rests on and states the strength of the resulting claim. A
+        # consumer that reports the boolean without the strength is reporting a PASS the
+        # evidence does not support.
+        "fame_check": _fame_check(replayed_controls),
         "controls_clearing_threshold": [r["founder"] for r in controls_clearing],
         "correctly_deprioritized_failure": deprioritized,
         # Both of these are measured, never asserted. `lookahead_checked` is True only
@@ -355,6 +370,159 @@ def run_calibration() -> dict:
         "lookahead_checked": events_checked > 0,
         "events_checked": events_checked,
     }
+
+
+def _raw_events(member: dict) -> int:
+    """In-window source events collected for a member — the evidence it was scored on.
+
+    Derived green flags are excluded: they are the system's own readings, so counting
+    them would measure how much the pipeline had run rather than how much was collected.
+    """
+    return len(member.get("events") or [])
+
+
+def _evidence_parity(member: dict, by_id: dict[str, dict]) -> dict:
+    """How much evidence a control carries relative to the winner it is matched against.
+
+    This exists because of a confound that only appears once controls are REAL. A
+    synthetic control can be written with as many events as its winner, so a low score
+    means something. A real control's evidence is whatever could be retrieved from the
+    public record a decade later, and what could not be retrieved — historical commit
+    volumes, star counts, contributor counts, the bodies of old threads — is exactly the
+    material several scoring rules read. A real control therefore starts with fewer
+    chances to fire a rule, and some of its shortfall is our archive access rather than
+    its trajectory. Reporting the low score without reporting that is how a rig gets to
+    look like a result.
+    """
+    matched = by_id.get(str(member.get("matched_to") or ""))
+    mine = _raw_events(member)
+    theirs = _raw_events(matched) if matched else 0
+    ratio = (mine / theirs) if theirs else None
+    return {
+        "raw_events": mine,
+        "matched_winner": matched.get("name") if matched else None,
+        "matched_winner_raw_events": theirs or None,
+        "ratio": ratio,
+        # Half the matched winner's evidence is the line at which a control's failure to
+        # clear stops being informative. It is a stated convention, not a derived value,
+        # and it is stated here so it can be argued with rather than discovered.
+        "sufficient": bool(ratio is not None and ratio >= EVIDENCE_PARITY_FLOOR),
+        "floor": EVIDENCE_PARITY_FLOOR,
+    }
+
+
+def _fame_check(controls: list[dict]) -> dict:
+    """The H12 verdict, decomposed by what kind of control it actually rests on.
+
+    H12 says: if a control clears the threshold, the score is measuring fame rather than
+    trajectory. The verdict is only as good as the controls. Two independent weaknesses
+    apply to the two kinds we have, and reporting a bare PASS over their union would
+    launder both:
+
+      SYNTHETIC controls were written by the same author as the winners they are
+      compared against. The scorer separated them unaided, but the evidence it separated
+      was composed by someone who already knew which side should win.
+
+      REAL controls fix that — their outcomes are facts about the world, not choices —
+      but only their retrievable evidence could be reconstructed, so they are scored on
+      thinner input than their winners.
+
+    Neither arm alone establishes the gate. The verdict is therefore reported per arm,
+    with the union verdict marked for exactly what it is.
+    """
+    real = [c for c in controls if c.get("control_kind") == "real"]
+    synthetic = [c for c in controls if c.get("control_kind") != "real"]
+    sufficient = [c for c in real if (c.get("evidence_parity") or {}).get("sufficient")]
+
+    def arm(members: list[dict], name: str) -> dict:
+        clearing = [c for c in members if c["cleared_threshold"]]
+        return {
+            "arm": name,
+            "evaluated": bool(members),
+            "controls": [c["name"] for c in members],
+            "n": len(members),
+            "passed": bool(members) and not clearing,
+            "clearing": [c["name"] for c in clearing],
+        }
+
+    real_arm = arm(sufficient, "real controls at sufficient evidence parity")
+    synthetic_arm = arm(synthetic, "synthetic controls")
+    underpowered = [c["name"] for c in real if c not in sufficient]
+
+    if real_arm["evaluated"] and real_arm["passed"] and real_arm["n"] >= MIN_REAL_CONTROLS:
+        strength = "moderate"
+        reading = (
+            f"No real contemporary cleared the threshold, and {real_arm['n']} of them carried "
+            f"at least {int(EVIDENCE_PARITY_FLOOR * 100)}% of their matched winner's evidence. "
+            f"This is the strongest arm available without archival API access, and it is still "
+            f"not a clean pass: their unretrievable payload fields are inputs several scoring "
+            f"rules read, so part of the gap is our archive access rather than their trajectory."
+        )
+    elif real_arm["evaluated"] and real_arm["passed"]:
+        # One control that did not clear is one company's behaviour, not a gate. Calling
+        # it a pass is the vacuous-truth failure this check already learned once: a
+        # verdict that cannot fail is not a verdict.
+        strength = "indeterminate"
+        reading = (
+            f"Only {real_arm['n']} real control ({', '.join(real_arm['controls'])}) carries "
+            f"enough evidence to count, against a floor of {MIN_REAL_CONTROLS}. It did not "
+            f"clear the threshold, but a gate that turns on one company is a fact about that "
+            f"company. H12 is NOT established on real contemporaries; the synthetic arm below "
+            f"passes and is a materially weaker test. Treat the union verdict as unproven."
+        )
+    elif real_arm["evaluated"]:
+        strength = "failing"
+        reading = (
+            f"A real contemporary cleared the threshold: {real_arm['clearing']}. Under H12 that "
+            f"means the score is measuring fame rather than trajectory, and feature work stops."
+        )
+    else:
+        strength = "weak"
+        reading = (
+            "The verdict rests on synthetic controls only. Their author also wrote the winners, "
+            "so the comparison cannot distinguish a scorer that detects trajectory from one that "
+            "detects how the two sides were written. This is not a historical backtest result."
+        )
+
+    return {
+        "strength": strength,
+        "reading": reading,
+        "real": real_arm,
+        "synthetic": synthetic_arm,
+        "real_controls_below_parity_floor": underpowered,
+        "requirements_for_a_clean_verdict": REAL_BACKTEST_REQUIREMENTS,
+    }
+
+
+# What an H12 backtest would need to be genuinely historical, written down so the gap
+# between what is claimed and what is established stays visible in the artifact itself.
+REAL_BACKTEST_REQUIREMENTS: tuple[str, ...] = (
+    "Real non-breakout contemporaries only. Synthetic controls test whether the scorer "
+    "can separate two bodies of text written by one author, which is a different and "
+    "much easier question than the one H12 asks.",
+    "Archival source access at the control's own dates: commit counts, lines changed, "
+    "contributor counts and star counts AS OF the historical cutoff, not today's values "
+    "read backwards. The GitHub API serves current state; period-accurate figures need "
+    "Wayback snapshots of the repository page or an archival dataset such as GH Archive.",
+    "The full text of the historical threads, not just their scores. Several rules read "
+    "what a founder wrote — whether they stated assumptions, defined non-goals, explained "
+    "a trade-off — and a control reconstructed from titles and point counts alone cannot "
+    "fire them at all, so it is handicapped on precisely the axes the product claims to "
+    "judge.",
+    "Enough controls per winner that one member landing either way does not move the "
+    "verdict. At three real controls, the gate turns on individual companies.",
+    "Controls selected before their scores are known, by a rule stated in advance, so "
+    "the selection cannot drift toward companies that happen to score low.",
+)
+
+# A control carrying less than this fraction of its matched winner's collected evidence
+# is reported but does not count toward the H12 verdict.
+EVIDENCE_PARITY_FLOOR = 0.5
+
+# Fewest real controls at sufficient parity for the real arm to be a verdict rather than
+# an anecdote. Two is not a sample either — it is the point below which the gate cannot
+# fail for any reason except one company, which is what makes it worth stating.
+MIN_REAL_CONTROLS = 2
 
 
 def _founder_name(member: dict) -> str | None:
