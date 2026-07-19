@@ -378,22 +378,76 @@ export const getGap = () => call<GapReport>("/profile/gap");
 export const getPersonalRank = () =>
   call<PersonalRanking>("/personal/rank", { timeoutMs: TIMEOUT.query });
 
+/** One stored authored agent, exactly as `AuthoredLens` serialises on the wire. */
+export interface AuthoredLensRecord {
+  lens_id: string;
+  name: string;
+  quality: string;
+  persona: string;
+  weight: number;
+  origin: "authored" | "template";
+  created_at: string;
+  updated_at: string;
+}
+
 export interface LensSet {
   personalisation_enabled: boolean;
   personalisation_reason: string;
   profile_confidence: number;
+  /** The DERIVED half only, weighted among themselves — the old contract, unchanged. */
   lenses: Lens[];
   not_derived: NotInferred[];
+  /** The stored records the VC owns and edits. */
+  authored: AuthoredLensRecord[];
+  /** The council that actually scores: derived + authored at the ranking's weights. */
+  council: Lens[];
+  council_not_derived: NotInferred[];
+  weight_rule: string;
+  refusal: { reason: string } | null;
   min_lenses: number;
   max_lenses: number;
   sufficient: boolean;
+  authored_survive_rederive: boolean;
+}
+
+/** A create body for one authored agent — mirrors `AuthoredLensWrite`. */
+export interface LensWrite {
+  name: string;
+  quality: string;
+  persona: string;
+  weight: number;
+  origin: "authored" | "template";
 }
 
 /**
- * The DERIVED council. Read-only, and that is a fact about the API rather than a choice
- * made here: `api/routers/personal.py` exposes GET only — there is no create, update or
- * delete route for a lens, and `PUT /profile` accepts only fund_name, focus_sectors and
- * stated_red_lines. User-authored agents therefore live in `lib/councilDraft.ts` until
- * a write route exists, and the council screen says so rather than implying otherwise.
+ * This VC's council: derived, authored, and the composition the ranking uses.
+ * Every write route below returns this same payload, so a create and a delete hand
+ * back the council the GET does and no client reconciles two views of it.
  */
 export const getLenses = () => call<LensSet>("/personal/lenses");
+
+/**
+ * Council writes. The server is the authority on every bound: the 422 for a quality
+ * with no readable term, the 409 at the agent ceiling. Callers surface those reasons
+ * verbatim instead of pre-empting them — the refusal text is the feature.
+ * `TIMEOUT.query` rather than `read`: a write that lands on a cold function should
+ * survive the import, not report a failure for a lens that was in fact created.
+ */
+export const createLens = (body: LensWrite) =>
+  call<LensSet & { created: AuthoredLensRecord }>("/personal/lenses", {
+    ...json(body),
+    timeoutMs: TIMEOUT.query,
+  });
+
+export const updateLens = (lensId: string, patch: Partial<LensWrite>) =>
+  call<LensSet & { updated: AuthoredLensRecord }>(
+    `/personal/lenses/${encodeURIComponent(lensId)}`,
+    // `json()` bakes in POST, so the method override must come after the spread.
+    { ...json(patch), method: "PUT", timeoutMs: TIMEOUT.query },
+  );
+
+export const deleteLens = (lensId: string) =>
+  call<LensSet & { deleted: string }>(`/personal/lenses/${encodeURIComponent(lensId)}`, {
+    method: "DELETE",
+    timeoutMs: TIMEOUT.query,
+  });

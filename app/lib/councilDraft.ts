@@ -1,33 +1,28 @@
 "use client";
 
 /**
- * Draft storage for user-authored council agents.
+ * Draft helpers for user-authored council agents.
  *
- * WHY THIS IS LOCAL AND SAYS SO, LOUDLY.
+ * A draft is an EDIT BUFFER, not a store. Authored agents persist on the account via
+ * `POST/PUT/DELETE /personal/lenses` (`api/routers/personal.py`), and the council screen
+ * renders the server's `authored` list as the source of truth. This module only shapes
+ * the record being typed before it is saved — which is why the localStorage layer that
+ * used to live here is gone: keeping a second durable copy of the council in the browser
+ * would mean two views of it that can disagree, and the API already returns the full
+ * council payload on every write precisely so clients never have to reconcile.
  *
- * `api/routers/personal.py` serves `GET /personal/lenses` and nothing else — there is no
- * POST, PUT or DELETE for a lens, and `memory/profiles.py` has no table to put one in.
- * `PUT /profile` accepts only fund_name, focus_sectors and stated_red_lines. So an
- * authored council CANNOT currently be persisted to the account, and the frontend does
- * not get to pretend otherwise: this module keeps drafts in localStorage, namespaced by
- * user id, and every screen that reads it states in words that the drafts live in this
- * browser and do not yet reach the profile or the ranking.
- *
- * The alternative — showing a "Saved" toast against a request that was never made — is
- * the exact failure the product constraint forbids: it would put a council on screen
- * that the system does not actually hold.
- *
- * The shape mirrors `intelligence.custom_council.Lens` so that when the write route
- * lands, these records post without a translation layer:
+ * The shape mirrors `intelligence.custom_council.Lens` / `schema.vc.AuthoredLensWrite`:
  *   name        -> the lens label
  *   quality     -> what it looks for (the `kind` a derived lens carries)
  *   persona     -> the plain-language description the lens argues under
- *   weight      -> 0..1, normalised across the council at scoring time
+ *   weight      -> MIN_AUTHORED_WEIGHT..1, normalised across the council at scoring time
  *   origin      -> "authored" | "template", never "derived" (only the API derives)
  */
 
 export const MIN_LENSES = 2;
 export const MAX_LENSES = 5;
+/** `schema.vc.MIN_AUTHORED_WEIGHT` — the server refuses a weight below this. */
+export const MIN_AUTHORED_WEIGHT = 0.01;
 
 export interface DraftAgent {
   id: string;
@@ -38,49 +33,6 @@ export interface DraftAgent {
   weight: number;
   /** How this agent came to exist. NEVER "derived": the API owns that word. */
   origin: "authored" | "template";
-}
-
-const KEY = "vcbrain.council.draft";
-
-function storageKey(userId: string) {
-  return `${KEY}.${userId}`;
-}
-
-export function loadDrafts(userId: string): DraftAgent[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(storageKey(userId));
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isDraft);
-  } catch {
-    // A corrupt draft is an empty draft, never a crash on page load.
-    return [];
-  }
-}
-
-export function saveDrafts(userId: string, drafts: DraftAgent[]): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    window.localStorage.setItem(storageKey(userId), JSON.stringify(drafts));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function isDraft(v: unknown): v is DraftAgent {
-  if (!v || typeof v !== "object") return false;
-  const d = v as Partial<DraftAgent>;
-  return (
-    typeof d.id === "string" &&
-    typeof d.name === "string" &&
-    typeof d.quality === "string" &&
-    typeof d.persona === "string" &&
-    typeof d.weight === "number" &&
-    (d.origin === "authored" || d.origin === "template")
-  );
 }
 
 export function newAgent(): DraftAgent {

@@ -10,91 +10,73 @@
  *   them out of the survey answers and the uploaded decisions.
  *
  *   AUTHORED — typed by the VC, or accepted from the template set and then edited.
+ *   Stored ON THE ACCOUNT via `POST/PUT/DELETE /personal/lenses`, and scored by the
+ *   ranking: `compose_council` folds these in beside the derived lenses at the weights
+ *   `/personal/rank` actually uses.
  *
  * Keeping the two visibly apart is what makes the stated-vs-revealed gap mean anything:
  * if an authored agent could pass itself off as derived, "what you said" and "what you
  * did" would no longer be separable, which is the one thing §0 forbids.
  *
- * THE PERSISTENCE TRUTH, STATED ON SCREEN. There is no write route for a lens. The API
- * serves `GET /personal/lenses` and nothing else, and `PUT /profile` takes only
- * fund_name, focus_sectors and stated_red_lines. So authored agents are stored in this
- * browser and do NOT reach the profile or the ranking yet. A "Saved to your account"
- * message here would be a lie about what the system holds, so the banner says exactly
- * where the drafts are and what is missing.
+ * PERSISTENCE: every write route returns the same full council payload the GET does, and
+ * this page replaces its state with that payload wholesale — the screen never shows a
+ * council the server does not hold. An agent BEING TYPED is different: it lives in a
+ * local draft until SAVE, and is labelled "not saved yet" for exactly as long as that
+ * is true.
  *
- * The 2..5 bounds are the backend's (`custom_council.MIN_LENSES` / `MAX_LENSES`) and are
- * enforced by REFUSING with a reason, never by silently clamping a number the user typed.
+ * The bounds are the backend's and the backend enforces them by REFUSING with a reason
+ * (422 for an unreadable quality, 409 at the ceiling). Those refusals are rendered
+ * verbatim — they are better copy than anything this page could invent.
  */
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { getLenses, type LensSet } from "@/lib/vc";
+import {
+  createLens,
+  deleteLens,
+  getLenses,
+  updateLens,
+  type AuthoredLensRecord,
+  type LensSet,
+  type LensWrite,
+} from "@/lib/vc";
 import { useSession } from "@/lib/useSession";
 import {
-  loadDrafts,
-  newAgent,
-  saveDrafts,
-  templateAgents,
   MAX_LENSES,
+  MIN_AUTHORED_WEIGHT,
   MIN_LENSES,
+  newAgent,
+  templateAgents,
   type DraftAgent,
 } from "@/lib/councilDraft";
 import Shell from "@/components/Shell";
 import Reveal from "@/components/Reveal";
 import { EmptyState, ErrorNote, Loading, Panel } from "@/components/ui";
 
-function AgentEditor({
-  agent,
+/** The editable fields, shared by the new-agent draft and the stored-record editor. */
+function AgentFields({
+  value,
   onChange,
-  onDelete,
-  deleteBlockedReason,
+  disabled,
 }: {
-  agent: DraftAgent;
-  onChange: (next: DraftAgent) => void;
-  onDelete: () => void;
-  deleteBlockedReason: string | null;
+  value: LensWrite;
+  onChange: (next: LensWrite) => void;
+  disabled: boolean;
 }) {
-  const set = <K extends keyof DraftAgent>(key: K, value: DraftAgent[K]) =>
-    onChange({ ...agent, [key]: value });
+  const set = <K extends keyof LensWrite>(key: K, v: LensWrite[K]) =>
+    onChange({ ...value, [key]: v });
 
   return (
-    <li
-      className="border px-4 py-4"
-      style={{
-        borderColor: agent.origin === "template" ? "var(--muted)" : "var(--rule)",
-        borderStyle: agent.origin === "template" ? "dashed" : "solid",
-      }}
-    >
-      <div className="meta flex flex-wrap items-center justify-between gap-2 text-[color:var(--muted)]">
-        <span>
-          {agent.origin === "template"
-            ? "TEMPLATE — A STARTING POINT YOU EDIT"
-            : "AUTHORED BY YOU"}
-        </span>
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={Boolean(deleteBlockedReason)}
-          title={deleteBlockedReason ?? "remove this agent"}
-          className="border border-[color:var(--rule)] px-2 py-1 disabled:opacity-50"
-        >
-          DELETE
-        </button>
-      </div>
-      {deleteBlockedReason && (
-        <p className="caption mt-1.5 max-w-none text-[color:var(--muted)]">
-          {deleteBlockedReason}
-        </p>
-      )}
-
+    <>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="grid gap-1.5">
           <span className="meta text-[color:var(--muted)]">NAME</span>
           <input
-            value={agent.name}
+            value={value.name}
+            disabled={disabled}
             onChange={(e) => set("name", e.target.value)}
             placeholder="CyberSecurity Agent"
-            className="mono border border-[color:var(--rule)] bg-transparent px-3 py-2 text-[15px]"
+            className="mono border border-[color:var(--rule)] bg-transparent px-3 py-2 text-[15px] disabled:opacity-50"
           />
         </label>
         <label className="grid gap-1.5">
@@ -102,10 +84,11 @@ function AgentEditor({
             QUALITY IT ADDS SCORE FOR
           </span>
           <input
-            value={agent.quality}
+            value={value.quality}
+            disabled={disabled}
             onChange={(e) => set("quality", e.target.value)}
             placeholder="security_engineering"
-            className="mono border border-[color:var(--rule)] bg-transparent px-3 py-2 text-[15px]"
+            className="mono border border-[color:var(--rule)] bg-transparent px-3 py-2 text-[15px] disabled:opacity-50"
           />
         </label>
       </div>
@@ -116,28 +99,109 @@ function AgentEditor({
         </span>
         <textarea
           rows={3}
-          value={agent.persona}
+          value={value.persona}
+          disabled={disabled}
           onChange={(e) => set("persona", e.target.value)}
           placeholder="You add score for founders who treat security as an engineering discipline…"
-          className="border border-[color:var(--rule)] bg-transparent px-3 py-2 text-[15px] leading-snug"
+          className="border border-[color:var(--rule)] bg-transparent px-3 py-2 text-[15px] leading-snug disabled:opacity-50"
         />
       </label>
 
       <label className="mt-3 grid gap-1.5">
         <span className="meta flex justify-between text-[color:var(--muted)]">
           <span>WEIGHT</span>
-          <span className="mono">{agent.weight.toFixed(2)}</span>
+          <span className="mono">{value.weight.toFixed(2)}</span>
         </span>
         <input
           type="range"
-          min={0}
+          min={MIN_AUTHORED_WEIGHT}
           max={1}
-          step={0.05}
-          value={agent.weight}
+          step={0.01}
+          value={value.weight}
+          disabled={disabled}
           onChange={(e) => set("weight", Number(e.target.value))}
           className="accent-[color:var(--accent)]"
         />
       </label>
+    </>
+  );
+}
+
+/** A stored agent: renders the record, PUTs on save, DELETEs on delete. */
+function StoredAgentEditor({
+  record,
+  busy,
+  onSave,
+  onDelete,
+  deleteBlockedReason,
+}: {
+  record: AuthoredLensRecord;
+  busy: boolean;
+  onSave: (patch: LensWrite) => Promise<boolean>;
+  onDelete: () => void;
+  deleteBlockedReason: string | null;
+}) {
+  const [edit, setEdit] = useState<LensWrite>({
+    name: record.name,
+    quality: record.quality,
+    persona: record.persona,
+    weight: record.weight,
+    origin: record.origin,
+  });
+  const dirty =
+    edit.name !== record.name ||
+    edit.quality !== record.quality ||
+    edit.persona !== record.persona ||
+    edit.weight !== record.weight;
+
+  return (
+    <li
+      className="border px-4 py-4"
+      style={{
+        borderColor: record.origin === "template" ? "var(--muted)" : "var(--rule)",
+        borderStyle: record.origin === "template" ? "dashed" : "solid",
+      }}
+    >
+      <div className="meta flex flex-wrap items-center justify-between gap-2 text-[color:var(--muted)]">
+        <span>
+          {record.origin === "template"
+            ? "TEMPLATE YOU ACCEPTED — SAVED TO YOUR ACCOUNT"
+            : "AUTHORED BY YOU — SAVED TO YOUR ACCOUNT"}
+        </span>
+        <span className="flex gap-2">
+          {dirty && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onSave(edit)}
+              className="border px-2 py-1 disabled:opacity-50"
+              style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+            >
+              SAVE CHANGES
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={busy || Boolean(deleteBlockedReason)}
+            title={deleteBlockedReason ?? "remove this agent from your account"}
+            className="border border-[color:var(--rule)] px-2 py-1 disabled:opacity-50"
+          >
+            DELETE
+          </button>
+        </span>
+      </div>
+      {deleteBlockedReason && (
+        <p className="caption mt-1.5 max-w-none text-[color:var(--muted)]">
+          {deleteBlockedReason}
+        </p>
+      )}
+      <AgentFields value={edit} onChange={setEdit} disabled={busy} />
+      {dirty && (
+        <p className="caption mt-2 max-w-none text-[color:var(--muted)]">
+          Edited here, not saved yet — SAVE CHANGES sends it to your account.
+        </p>
+      )}
     </li>
   );
 }
@@ -147,11 +211,11 @@ export default function CouncilPage() {
   const [lensSet, setLensSet] = useState<LensSet | null>(null);
   const [lensError, setLensError] = useState<string | null>(null);
 
+  /** Agents being typed, before their first save. Ephemeral on purpose. */
   const [drafts, setDrafts] = useState<DraftAgent[]>([]);
+  const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
-
-  const userId = me?.user?.user_id ?? null;
 
   /** State is written only after the await, so no effect body sets state synchronously. */
   const loadLenses = useCallback(async () => {
@@ -180,64 +244,129 @@ export default function CouncilPage() {
     };
   }, [me?.authenticated, loadLenses]);
 
-  useEffect(() => {
-    // Drafts are namespaced by user, so signing into a second account on the same
-    // machine never shows the first account's council. Read after a tick: localStorage
-    // does not exist during SSR, and a synchronous set here would cascade a render.
-    let live = true;
-    void (async () => {
-      await Promise.resolve();
-      if (live) setDrafts(userId ? loadDrafts(userId) : []);
-    })();
-    return () => {
-      live = false;
-    };
-  }, [userId]);
+  const derivedCount = lensSet?.lenses.length ?? 0;
+  const authored = lensSet?.authored ?? [];
+  const total = derivedCount + authored.length + drafts.length;
 
-  function commit(next: DraftAgent[]) {
-    setDrafts(next);
+  /** One write, one shared protocol: council state is REPLACED by the server's answer. */
+  async function write(
+    op: () => Promise<
+      { ok: true; data: LensSet } | { ok: false; error: string; status?: number }
+    >,
+    saved: string,
+  ): Promise<boolean> {
+    setBusy(true);
+    setRefusal(null);
     setNotice(null);
-    if (!userId) return;
-    const ok = saveDrafts(userId, next);
-    setNotice(
-      ok
-        ? "Saved in this browser. Not on your account — the API has no write route for a lens yet."
-        : "Could not write to this browser's storage; the edits are in memory only and will not survive a reload.",
-    );
+    try {
+      const r = await op();
+      if (!r.ok) {
+        setRefusal(r.error);
+        return false;
+      }
+      setLensSet(r.data);
+      setNotice(saved);
+      return true;
+    } finally {
+      setBusy(false);
+    }
   }
 
-  const derivedCount = lensSet?.lenses.length ?? 0;
-  const total = derivedCount + drafts.length;
-
-  function add() {
+  function addDraft() {
     setRefusal(null);
     if (total >= MAX_LENSES) {
       setRefusal(
         `The council is capped at ${MAX_LENSES} lenses and you already have ${total} ` +
-          `(${derivedCount} derived from your profile, ${drafts.length} authored). ` +
+          `(${derivedCount} derived, ${authored.length} authored, ${drafts.length} being typed). ` +
           `Delete one, or lower a derived lens by changing the answers that produced it — nothing is being clamped silently.`,
       );
       return;
     }
-    commit([...drafts, newAgent()]);
+    setDrafts((d) => [...d, newAgent()]);
   }
 
-  function useTemplate() {
+  async function saveDraft(draft: DraftAgent) {
+    const ok = await write(
+      () =>
+        createLens({
+          name: draft.name,
+          quality: draft.quality,
+          persona: draft.persona,
+          weight: draft.weight,
+          origin: draft.origin,
+        }),
+      "Saved to your account. It scores the ranking now — YOUR RANK shows what it moved.",
+    );
+    if (ok) setDrafts((d) => d.filter((x) => x.id !== draft.id));
+  }
+
+  async function applyTemplate() {
     setRefusal(null);
-    const room = MAX_LENSES - derivedCount;
+    const room = MAX_LENSES - derivedCount - authored.length;
     if (room <= 0) {
       setRefusal(
-        `Your profile already derives ${derivedCount} lenses, which fills the ${MAX_LENSES}-lens ceiling. The template set has nowhere to go.`,
+        `Your council already holds ${derivedCount + authored.length} lenses, which fills the ${MAX_LENSES}-lens ceiling. The template set has nowhere to go.`,
       );
       return;
     }
+    // Saved to the account one by one; the LAST response is the whole council, so
+    // state converges on the server's view no matter how many landed.
     const template = templateAgents().slice(0, room);
-    commit(template);
-    setRefusal(
-      template.length < templateAgents().length
-        ? `Loaded ${template.length} of ${templateAgents().length} template agents — the rest would exceed the ${MAX_LENSES}-lens ceiling alongside your ${derivedCount} derived lenses.`
-        : null,
-    );
+    setBusy(true);
+    setNotice(null);
+    try {
+      let last: LensSet | null = null;
+      let failure: string | null = null;
+      let created = 0;
+      for (const t of template) {
+        const r = await createLens({
+          name: t.name,
+          quality: t.quality,
+          persona: t.persona,
+          weight: t.weight,
+          origin: t.origin,
+        });
+        if (!r.ok) {
+          failure = r.error;
+          break;
+        }
+        last = r.data;
+        created += 1;
+      }
+      if (last) setLensSet(last);
+      if (failure) setRefusal(failure);
+      setNotice(
+        created === 0
+          ? null
+          : created < templateAgents().length
+            ? `Saved ${created} of ${templateAgents().length} template agents to your account — the rest would exceed the ${MAX_LENSES}-lens ceiling alongside your ${derivedCount} derived lenses.`
+            : "Template set saved to your account. Edit any of them — they are yours now.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clearAuthored() {
+    setBusy(true);
+    setNotice(null);
+    setRefusal(null);
+    try {
+      let last: LensSet | null = null;
+      for (const record of authored) {
+        const r = await deleteLens(record.lens_id);
+        if (!r.ok) {
+          setRefusal(r.error);
+          break;
+        }
+        last = r.data;
+      }
+      if (last) setLensSet(last);
+      setDrafts([]);
+      if (last) setNotice("Authored agents removed from your account.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const signedOut = me !== null && !me.authenticated;
@@ -298,12 +427,12 @@ export default function CouncilPage() {
           <Reveal>
             <Panel title="where these are stored">
               <p className="body-t max-w-[72ch]">
-                Derived lenses are served by the API and are live: they are what re-ranks
-                your list today. Authored agents are held in{" "}
-                <span className="mono">this browser only</span> — the API exposes{" "}
-                <span className="mono">GET /personal/lenses</span> and no route to create,
-                update or delete one, so they do not yet reach your profile or the
-                ranking. Nothing here reports a save that did not happen.
+                On your account, both halves. Derived lenses are read out of your survey
+                answers and decisions; authored agents are saved through{" "}
+                <span className="mono">POST/PUT/DELETE /personal/lenses</span> and score
+                the ranking beside them — YOUR RANK explains every move by the lens that
+                caused it. An agent you are still typing is labelled as unsaved until the
+                moment it is not.
               </p>
             </Panel>
           </Reveal>
@@ -405,7 +534,8 @@ export default function CouncilPage() {
                   <div className="meta text-right text-[color:var(--muted)]">
                     <span className="mono">{total}</span> OF {MAX_LENSES} TOTAL
                     <span className="mt-1 block">
-                      {derivedCount} DERIVED · {drafts.length} AUTHORED
+                      {derivedCount} DERIVED · {authored.length} AUTHORED
+                      {drafts.length > 0 ? ` · ${drafts.length} UNSAVED` : ""}
                     </span>
                   </div>
                 }
@@ -413,25 +543,28 @@ export default function CouncilPage() {
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={add}
-                    className="meta border px-4 py-2"
+                    onClick={addDraft}
+                    disabled={busy}
+                    className="meta border px-4 py-2 disabled:opacity-50"
                     style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
                   >
                     + NEW AGENT
                   </button>
                   <button
                     type="button"
-                    onClick={useTemplate}
-                    className="meta border border-[color:var(--rule)] px-4 py-2"
-                    title="Loads a labelled template set for you to edit. It is not derived from your history."
+                    onClick={() => void applyTemplate()}
+                    disabled={busy}
+                    className="meta border border-[color:var(--rule)] px-4 py-2 disabled:opacity-50"
+                    title="Saves a labelled template set to your account for you to edit. It is not derived from your history."
                   >
                     USE THE TEMPLATE SET
                   </button>
-                  {drafts.length > 0 && (
+                  {authored.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => commit([])}
-                      className="meta border border-[color:var(--rule)] px-4 py-2"
+                      onClick={() => void clearAuthored()}
+                      disabled={busy}
+                      className="meta border border-[color:var(--rule)] px-4 py-2 disabled:opacity-50"
                     >
                       CLEAR AUTHORED
                     </button>
@@ -456,7 +589,7 @@ export default function CouncilPage() {
                   </p>
                 )}
 
-                {drafts.length === 0 ? (
+                {authored.length === 0 && drafts.length === 0 ? (
                   <div className="mt-4">
                     <EmptyState title="no authored agents">
                       Add one, or start from the template set and edit it. The template is
@@ -466,20 +599,70 @@ export default function CouncilPage() {
                   </div>
                 ) : (
                   <ul className="mt-4 grid gap-4">
-                    {drafts.map((agent) => (
-                      <AgentEditor
-                        key={agent.id}
-                        agent={agent}
-                        onChange={(next) =>
-                          commit(drafts.map((d) => (d.id === agent.id ? next : d)))
+                    {authored.map((record) => (
+                      <StoredAgentEditor
+                        key={record.lens_id}
+                        record={record}
+                        busy={busy}
+                        onSave={(patch) =>
+                          write(
+                            () => updateLens(record.lens_id, patch),
+                            "Saved to your account. The change scores the ranking now.",
+                          )
                         }
-                        onDelete={() => commit(drafts.filter((d) => d.id !== agent.id))}
+                        onDelete={() =>
+                          void write(
+                            () => deleteLens(record.lens_id),
+                            "Removed from your account. It has stopped scoring.",
+                          )
+                        }
                         deleteBlockedReason={
-                          total <= MIN_LENSES
-                            ? `Deleting this leaves ${total - 1} lens(es); the council floor is ${MIN_LENSES}. Add another before removing this one.`
+                          derivedCount + authored.length <= MIN_LENSES
+                            ? `Deleting this leaves ${derivedCount + authored.length - 1} lens(es); the council floor is ${MIN_LENSES}. Add another before removing this one.`
                             : null
                         }
                       />
+                    ))}
+                    {drafts.map((draft) => (
+                      <li
+                        key={draft.id}
+                        className="border border-dashed px-4 py-4"
+                        style={{ borderColor: "var(--accent)" }}
+                      >
+                        <div className="meta flex flex-wrap items-center justify-between gap-2 text-[color:var(--muted)]">
+                          <span>BEING TYPED — NOT SAVED YET</span>
+                          <span className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void saveDraft(draft)}
+                              className="border px-2 py-1 disabled:opacity-50"
+                              style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+                            >
+                              SAVE TO ACCOUNT
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                setDrafts((d) => d.filter((x) => x.id !== draft.id))
+                              }
+                              className="border border-[color:var(--rule)] px-2 py-1 disabled:opacity-50"
+                            >
+                              DISCARD
+                            </button>
+                          </span>
+                        </div>
+                        <AgentFields
+                          value={draft}
+                          disabled={busy}
+                          onChange={(next) =>
+                            setDrafts((d) =>
+                              d.map((x) => (x.id === draft.id ? { ...x, ...next } : x)),
+                            )
+                          }
+                        />
+                      </li>
                     ))}
                   </ul>
                 )}
