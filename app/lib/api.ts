@@ -426,7 +426,14 @@ export async function getCompany(
   const fixture = fx.companyDetail(id);
 
   try {
-    const live = await get<unknown>(`/companies/${encodeURIComponent(id)}`, TIMEOUT.read);
+    // The LLM budget. This is NOT a plain read: the detail route screens the company
+    // with compute=true, which is three LLM-judged axes. Warm it answers in ~2s, but
+    // COLD it measured 8.7-9.6s across several companies — over the 8s read budget, so
+    // the first open of any company fell back to fixtures and the page announced
+    // "Live detail unavailable", "Sparse record", and "No memo has been written",
+    // on a company whose 60 events were sitting right there. The endpoint was never
+    // broken; the budget was wrong for what it does.
+    const live = await get<unknown>(`/companies/${encodeURIComponent(id)}`, TIMEOUT.llm);
     const adapted = ad.toCompanyDetail(live, summary ?? null);
     if (adapted) return { data: adapted, source: "live" };
     if (fixture) {
@@ -484,7 +491,14 @@ export async function getMemo(id: string, dissentViewed: boolean): Promise<Resul
   const fixture = fx.memo(id, dissentViewed);
   const path = `/companies/${encodeURIComponent(id)}/memo?dissent_viewed=${dissentViewed}`;
   try {
-    const live = await get<unknown>(path, TIMEOUT.read);
+    // The LLM budget, not the read budget — the same fix `getDissent` already carries.
+    // /memo GENERATES the memo: it screens, validates claims and writes five narrated
+    // sections, measured at 7.9s warm and 9.0s cold. At the 8s read budget it aborted
+    // on a cold cache and the page rendered "No memo has been written for this company"
+    // — a claim about the COMPANY, when the truth was that our own request timed out
+    // while the memo was on its way. Identical failure to the dissent one below, in the
+    // second of the two places it could happen.
+    const live = await get<unknown>(path, TIMEOUT.llm);
     const adapted = ad.toMemo(live, id);
     if (adapted) return { data: adapted, source: "live" };
     return fixture

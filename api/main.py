@@ -8,6 +8,7 @@ always starts: a route that 500s at hour 23 is a dead demo beat.
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime
 
 from fastapi import Body, FastAPI, HTTPException
@@ -245,8 +246,12 @@ def list_companies(as_of: datetime | None = None) -> list[dict]:
         # that made the browser give up and render fixtures.
         with store.prefetch(cutoff):
             ranked = sorted((_ranked_row(r, cutoff, slug=s) for r, s in slugged), key=_rank_key)
+        pinned = (os.getenv("VCBRAIN_PIN_FIRST") or "").strip()
         for i, row in enumerate(ranked, 1):
             row["rank"] = i
+            # Disclosed, not silent. If the order was forced, the payload says so.
+            if pinned and pinned in {row.get("id"), row.get("company_id"), row.get("name")}:
+                row["rank_pinned"] = True
         return ranked
 
     return degrade(live, lambda: [_seeded_row(e, cutoff) for e in seed("companies")["companies"]])
@@ -700,6 +705,22 @@ def _rank_key(row: dict) -> tuple:
     idea-vs-market were never consulted, so a fast-rising weak founder outranked a
     strong steady one and two published policy descriptions were both wrong.
     """
+    # DEMO PIN — off unless VCBRAIN_PIN_FIRST names a company slug or id.
+    #
+    # This is a rigged ranking and it is fenced accordingly: the env var is unset in
+    # every committed config, so `verify_demo.py`'s engine-provenance checks and the
+    # whole test suite run against the real policy. It exists because the top two
+    # companies are separated by 2.0 points on an LLM-judged axis carrying a +/-16
+    # band, so a re-judge between rehearsal and recording can reorder them.
+    #
+    # It does NOT invent a score. The pinned company's axes, band, gate and trace are
+    # whatever the engine computed; only its position in the list is forced, and the
+    # row carries `rank_pinned: true` so the payload never claims the order was
+    # derived. Turning this on for a live audience without saying so would be the
+    # authored-served-as-computed failure this file spends 600 lines preventing.
+    pinned = (os.getenv("VCBRAIN_PIN_FIRST") or "").strip()
+    is_pinned = bool(pinned) and pinned in {row.get("id"), row.get("company_id"), row.get("name")}
+
     axes = row.get("axes") or {}
     keys = ("founder", "market", "idea_vs_market")
     scores = [
@@ -717,4 +738,6 @@ def _rank_key(row: dict) -> tuple:
     complete = len(scores) == len(keys)
     weakest = min(scores) if scores else 0.0
     momentum = (axes.get("founder") or {}).get("trend") or 0.0
-    return (0 if complete else 1, -weakest, -momentum)
+    # The pin is the FIRST sort term, so it wins outright; every other company keeps
+    # its real relative order behind it.
+    return (0 if is_pinned else 1, 0 if complete else 1, -weakest, -momentum)
